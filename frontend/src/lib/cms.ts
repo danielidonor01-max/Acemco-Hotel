@@ -133,12 +133,8 @@ export interface Amenity {
 }
 
 export const amenities: Amenity[] = [
-  { title: "The Restaurant", overline: "Dining", description: "Seasonal West-African and continental plates, served all day.", slot: undefined },
-  { title: "The Lounge", overline: "Cocktails", description: "Signature cocktails and small plates as the evening settles.", slot: undefined },
-  { title: "Rooftop Pool", overline: "Leisure", description: "An infinity edge above the city, open sunrise to sunset.", slot: undefined },
-  { title: "Wellness & Spa", overline: "Restore", description: "Treatment rooms, steam, and a quiet space to reset.", slot: undefined },
-  { title: "Meetings & Events", overline: "Gather", description: "Four adaptable rooms for boardrooms and celebrations alike.", slot: undefined },
-  { title: "Fitness Studio", overline: "Move", description: "A fully equipped studio with a view, open 24 hours.", slot: undefined },
+  { title: "Swimming Pool", overline: "Leisure", description: "An infinity edge above the city — open from sunrise to the last light.", slot: undefined },
+  { title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio with a view, open 24 hours.", slot: undefined },
 ];
 
 export type Storefront = "RESTAURANT" | "LOUNGE";
@@ -256,10 +252,11 @@ export interface Offer {
   slot: MediaKey;
 }
 
+// Events (the public "Event" section). CMS-managed; sample content until populated.
 export const offers: Offer[] = [
-  { id: "o-1", title: "Third Night Complimentary", ribbon: "Seasonal", validity: "Through Sept 2026", terms: "Stay two nights, the third is on us — on Deluxe and Suite rooms.", slot: undefined },
-  { id: "o-2", title: "Dine & Stay", ribbon: "Package", validity: "Weekends", terms: "Room, breakfast for two, and a ₦15,000 dining credit.", slot: undefined },
-  { id: "o-3", title: "Early Arrival", ribbon: "Advance", validity: "Book 21 days ahead", terms: "Save 15% and enjoy a guaranteed early check-in.", slot: undefined },
+  { id: "o-1", title: "Live Jazz Nights", ribbon: "Every Friday", validity: "From 8:00 PM · The Lounge", terms: "An intimate evening of live jazz, signature cocktails, and small plates.", slot: undefined },
+  { id: "o-2", title: "Sunday Rooftop Brunch", ribbon: "Weekly", validity: "Sundays · 11:00 AM – 3:00 PM", terms: "A leisurely poolside brunch buffet with free-flowing mimosas.", slot: undefined },
+  { id: "o-3", title: "Wine & Dine Tasting", ribbon: "Monthly", validity: "Last Saturday of the month", terms: "A curated five-course dinner paired with fine wines by our sommelier.", slot: undefined },
 ];
 
 export interface Testimonial {

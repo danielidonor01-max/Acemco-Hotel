@@ -7,9 +7,10 @@ import {
 
 type WithImage<T> = T & { image?: SanityImageSource };
 
+/** Events (the public "Event" section). Sanity type: `event`. */
 export async function getOffers(): Promise<Offer[]> {
   const rows = await sanityFetch<WithImage<Offer>[]>(
-    `*[_type=="offer"]|order(order asc){ "id":_id, title, ribbon, validity, terms, image }`,
+    `*[_type=="event"]|order(order asc){ "id":_id, title, ribbon, validity, terms, image }`,
   );
   if (rows?.length) return rows.map((o) => ({ ...o, slot: urlForImage(o.image, 1280) }));
   return sampleOffers;

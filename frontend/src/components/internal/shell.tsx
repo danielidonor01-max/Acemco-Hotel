@@ -21,14 +21,14 @@ export function InternalShell({ children }: { children: React.ReactNode }) {
 
   if (live && (!ready || !user)) {
     return (
-      <div className="internal-theme dark flex min-h-screen items-center justify-center bg-brand-deep text-fg-soft">
-        <Loader2 className="size-6 animate-spin text-brand-primary" />
+      <div className="internal-theme flex min-h-screen items-center justify-center bg-pub-bg text-fg-soft">
+        <Loader2 className="size-6 animate-spin text-brand-primary-dark" />
       </div>
     );
   }
 
   return (
-    <div className="dark internal-theme min-h-screen">
+    <div className="internal-theme min-h-screen">
       <Sidebar />
       <div className={cn("transition-[margin] duration-200", collapsed ? "lg:ml-16" : "lg:ml-60")}>
         <TopHeader />

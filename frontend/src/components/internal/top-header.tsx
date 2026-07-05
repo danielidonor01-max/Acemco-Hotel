@@ -12,7 +12,7 @@ export function TopHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-brand-deep/95 px-4 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-pub-bg/90 px-4 backdrop-blur">
       <button onClick={openMobile} className="rounded p-1.5 text-fg-soft hover:bg-brand-surface-2 lg:hidden" aria-label="Open menu">
         <Menu size={20} />
       </button>

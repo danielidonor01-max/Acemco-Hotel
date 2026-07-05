@@ -106,7 +106,7 @@ function GuestRow({
       <div>
         <p className="flex items-center gap-1.5 text-sm font-medium text-fg">
           {r.guestName}
-          {r.isVip && <span className="text-brand-primary" title="VIP guest — alert at check-in">★</span>}
+          {r.isVip && <span className="text-brand-primary-dark" title="VIP guest — alert at check-in">★</span>}
         </p>
         <p className="text-xs text-fg-muted">
           {r.reservationNumber} · {getRoomType(r.roomTypeSlug)?.name}

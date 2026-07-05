@@ -35,7 +35,7 @@ export default async function ReservationDetailPage({
             <CardHeader><CardTitle>Reservation Details</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Detail icon={Users} label="Guest">
-                {r.guestName} {r.isVip && <span className="text-brand-primary" title="VIP">★</span>}
+                {r.guestName} {r.isVip && <span className="text-brand-primary-dark" title="VIP">★</span>}
               </Detail>
               <Detail icon={Phone} label="Phone">{r.guestPhone}</Detail>
               <Detail icon={Home} label="Room type">{room?.name}{r.roomNumber ? ` · Room ${r.roomNumber}` : ""}</Detail>

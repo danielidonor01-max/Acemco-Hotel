@@ -42,7 +42,7 @@ export default function OrdersPage() {
             onClick={() => setFilter(f)}
             className={cn(
               "rounded-full border px-3 py-1.5 text-sm capitalize transition-colors",
-              filter === f ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-line-2 text-fg-soft hover:text-fg",
+              filter === f ? "border-brand-primary bg-brand-primary/10 text-brand-primary-dark" : "border-line-2 text-fg-soft hover:text-fg",
             )}
           >
             {f.toLowerCase()}

@@ -74,7 +74,7 @@ function FilterChip({ label, count, active, onClick }: { label: string; count: n
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm capitalize transition-colors",
-        active ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-line-2 text-fg-soft hover:text-fg",
+        active ? "border-brand-primary bg-brand-primary/10 text-brand-primary-dark" : "border-line-2 text-fg-soft hover:text-fg",
       )}
     >
       {label} <span className="text-fg-muted">{count}</span>

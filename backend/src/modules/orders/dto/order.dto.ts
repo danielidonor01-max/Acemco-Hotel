@@ -20,13 +20,18 @@ export const createOrderSchema = z.object({
 });
 export type CreateOrderDto = z.infer<typeof createOrderSchema>;
 
+// Website orders are room-service only — the requester must be a verified in-house guest.
 export const publicOrderSchema = z.object({
   storefront: z.enum(['RESTAURANT', 'LOUNGE']),
   items: z.array(line).min(1),
-  customerName: z.string().min(1),
-  customerPhone: z.string().min(3),
-  roomNumber: z.string().optional(),
-  deliveryLocation: z.string().optional(),
+  roomNumber: z.string().min(1),
+  lastName: z.string().min(1),
   specialInstructions: z.string().optional(),
 });
 export type PublicOrderDto = z.infer<typeof publicOrderSchema>;
+
+export const verifyGuestSchema = z.object({
+  roomNumber: z.string().min(1),
+  lastName: z.string().min(1),
+});
+export type VerifyGuestDto = z.infer<typeof verifyGuestSchema>;

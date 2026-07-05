@@ -7,6 +7,8 @@ import { Plus, Calendar } from "lucide-react";
 import { PageShell, Button, Badge, StatusBadge, EmptyState } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
 import { Modal } from "@/components/internal/modal";
+import { DatePicker } from "@/components/internal/date-picker";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { hasPermission } from "@/lib/permissions";
 import { formatNaira, cn } from "@/lib/utils";
 import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
@@ -54,7 +56,7 @@ export default function ReservationsPage() {
       render: (r) => (
         <span className="flex items-center gap-1.5">
           {r.guestName}
-          {r.isVip && <span className="text-brand-primary" title="VIP">★</span>}
+          {r.isVip && <span className="text-brand-primary-dark" title="VIP">★</span>}
         </span>
       ),
     },
@@ -182,32 +184,39 @@ function NewReservationModal({
             <span className="text-sm font-medium text-fg-soft">Phone *</span>
             <input required type="tel" value={form.guestPhone} onChange={(e) => setForm({ ...form, guestPhone: e.target.value })} className={inputCls} />
           </label>
-          <label className="block sm:col-span-2">
+          <div className="block sm:col-span-2">
             <span className="text-sm font-medium text-fg-soft">Room type</span>
-            <select value={form.roomTypeSlug} onChange={(e) => setForm({ ...form, roomTypeSlug: e.target.value })} className={inputCls}>
-              {roomTypes.map((r) => <option key={r.slug} value={r.slug}>{r.name} — {formatNaira(r.basePrice)}/night</option>)}
-            </select>
-          </label>
-          <label className="block">
+            <Select value={form.roomTypeSlug} onValueChange={(v) => setForm({ ...form, roomTypeSlug: v })}>
+              <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {roomTypes.map((r) => (
+                  <SelectItem key={r.slug} value={r.slug}>{r.name} — {formatNaira(r.basePrice)}/night</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="block">
             <span className="text-sm font-medium text-fg-soft">Check-in *</span>
-            <input required type="date" value={form.checkInDate} onChange={(e) => setForm({ ...form, checkInDate: e.target.value })} className={inputCls} />
-          </label>
-          <label className="block">
+            <div className="mt-1"><DatePicker value={form.checkInDate} onChange={(v) => setForm({ ...form, checkInDate: v })} placeholder="Select date" /></div>
+          </div>
+          <div className="block">
             <span className="text-sm font-medium text-fg-soft">Check-out *</span>
-            <input required type="date" min={form.checkInDate} value={form.checkOutDate} onChange={(e) => setForm({ ...form, checkOutDate: e.target.value })} className={inputCls} />
-          </label>
-          <label className="block">
+            <div className="mt-1"><DatePicker value={form.checkOutDate} min={form.checkInDate} onChange={(v) => setForm({ ...form, checkOutDate: v })} placeholder="Select date" /></div>
+          </div>
+          <div className="block">
             <span className="text-sm font-medium text-fg-soft">Adults</span>
-            <select value={form.adults} onChange={(e) => setForm({ ...form, adults: Number(e.target.value) })} className={inputCls}>
-              {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-          <label className="block">
+            <Select value={String(form.adults)} onValueChange={(v) => setForm({ ...form, adults: Number(v) })}>
+              <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{[1, 2, 3, 4].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="block">
             <span className="text-sm font-medium text-fg-soft">Children</span>
-            <select value={form.children} onChange={(e) => setForm({ ...form, children: Number(e.target.value) })} className={inputCls}>
-              {[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
+            <Select value={String(form.children)} onValueChange={(v) => setForm({ ...form, children: Number(v) })}>
+              <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{[0, 1, 2, 3].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         </div>
 
         {error && <p className="text-sm text-danger">{error}</p>}

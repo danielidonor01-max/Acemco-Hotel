@@ -4,7 +4,7 @@ import { Storefront } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { publicOrderSchema, PublicOrderDto } from './dto/order.dto';
+import { publicOrderSchema, PublicOrderDto, verifyGuestSchema, VerifyGuestDto } from './dto/order.dto';
 
 @ApiTags('public')
 @Public()
@@ -22,8 +22,14 @@ export class PublicOrdersController {
     return this.orders.publicMenu(sf as Storefront);
   }
 
+  @Post('verify-guest')
+  @ApiOperation({ summary: 'Confirm the requester is a checked-in guest before ordering' })
+  verify(@Body(new ZodValidationPipe(verifyGuestSchema)) dto: VerifyGuestDto) {
+    return this.orders.verifyInHouse(dto.roomNumber, dto.lastName);
+  }
+
   @Post('orders')
-  @ApiOperation({ summary: 'Place a website order (saved first, then WhatsApp handoff client-side)' })
+  @ApiOperation({ summary: 'Place a room-service order (verified in-house guest only)' })
   create(@Body(new ZodValidationPipe(publicOrderSchema)) dto: PublicOrderDto) {
     return this.orders.createPublic(dto);
   }

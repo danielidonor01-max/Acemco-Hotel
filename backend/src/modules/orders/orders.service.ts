@@ -85,19 +85,51 @@ export class OrdersService {
     });
   }
 
-  /** Website order — saved FIRST as PENDING (Domain rule / Blueprint §17). */
+  /**
+   * Confirm the requester is a checked-in guest in the given room (management
+   * confirmation before ordering). Matches an active CHECKED_IN reservation by
+   * room number + guest last name.
+   */
+  async verifyInHouse(roomNumber: string, lastName: string) {
+    const r = await this.prisma.reservation.findFirst({
+      where: {
+        status: 'CHECKED_IN',
+        room: { roomNumber },
+        guest: { lastName: { equals: lastName.trim(), mode: 'insensitive' } },
+      },
+      include: { guest: true, room: true },
+    });
+    if (!r || !r.room) return { verified: false as const };
+    return {
+      verified: true as const,
+      guestId: r.guestId,
+      guestName: `${r.guest.firstName} ${r.guest.lastName}`,
+      roomNumber: r.room.roomNumber,
+    };
+  }
+
+  /**
+   * Website order — room service for a verified in-house guest only.
+   * Saved FIRST as PENDING (Domain rule / Blueprint §17), then WhatsApp handoff.
+   */
   async createPublic(dto: PublicOrderDto) {
+    const check = await this.verifyInHouse(dto.roomNumber, dto.lastName);
+    if (!check.verified) {
+      throw new UnprocessableEntityException({
+        code: 'GUEST_NOT_VERIFIED',
+        message: 'Ordering is available to checked-in guests. We could not verify that room and name.',
+      });
+    }
     const { lines, total } = await this.buildLines(dto.storefront as Storefront, dto.items);
     return this.prisma.order.create({
       data: {
         orderNumber: await this.nextNumber(dto.storefront as Storefront),
         storefront: dto.storefront as Storefront,
-        source: OrderSource.WEBSITE,
+        source: OrderSource.ROOM_SERVICE,
         status: 'PENDING',
-        customerName: dto.customerName,
-        customerPhone: dto.customerPhone,
-        roomNumber: dto.roomNumber,
-        deliveryLocation: dto.deliveryLocation,
+        guestId: check.guestId,
+        customerName: check.guestName,
+        roomNumber: check.roomNumber,
         specialInstructions: dto.specialInstructions,
         totalAmount: total,
         items: { create: lines.map(({ name, ...l }) => l) },

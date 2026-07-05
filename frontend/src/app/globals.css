@@ -19,10 +19,11 @@
   --color-brand-primary: #c9a84c;
   --color-brand-primary-light: #e2c47a;
   --color-brand-primary-dark: #a07a2a;
-  --color-brand-deep: #0d1321;
-  --color-brand-surface: #151e2e;
-  --color-brand-surface-2: #1e2a3d;
-  --color-brand-surface-3: #263347;
+  --color-brand-deep: #0d1321; /* kept dark — used as ink on gold buttons/badges */
+  /* Internal surfaces — LIGHT warm (management platform is light, consistent with the site) */
+  --color-brand-surface: #ffffff;
+  --color-brand-surface-2: #f4efe7;
+  --color-brand-surface-3: #eae3d7;
 
   /* Public — warm editorial light theme (§15.2) */
   --color-pub-bg: #fbf9f5;
@@ -41,21 +42,21 @@
   --color-pub-gold: #c9a84c;
   --color-pub-gold-deep: #a07a2a;
 
-  /* Internal platform — dark-first (§2). fg/line/semantic on dark surfaces. */
-  --color-fg: hsl(220 20% 95%);
-  --color-fg-soft: hsl(220 15% 65%);
-  --color-fg-muted: hsl(220 12% 45%);
-  --color-line: hsl(220 20% 18%);
-  --color-line-2: hsl(220 20% 25%);
-  --color-line-3: hsl(220 20% 35%);
-  --color-ok: hsl(142 69% 45%);
-  --color-ok-bg: hsl(142 50% 12%);
-  --color-warn: hsl(38 92% 55%);
-  --color-warn-bg: hsl(38 60% 12%);
-  --color-danger: hsl(0 72% 60%);
-  --color-danger-bg: hsl(0 50% 12%);
-  --color-info: hsl(204 94% 55%);
-  --color-info-bg: hsl(204 60% 12%);
+  /* Internal platform — LIGHT warm (consistent with the public site). */
+  --color-fg: #211d18;
+  --color-fg-soft: #5a5248;
+  --color-fg-muted: #928a7c;
+  --color-line: #e6dfd3;
+  --color-line-2: #d8cebc;
+  --color-line-3: #c9bda6;
+  --color-ok: hsl(142 64% 30%);
+  --color-ok-bg: hsl(142 50% 92%);
+  --color-warn: hsl(35 92% 36%);
+  --color-warn-bg: hsl(38 88% 90%);
+  --color-danger: hsl(0 70% 44%);
+  --color-danger-bg: hsl(0 78% 95%);
+  --color-info: hsl(204 76% 36%);
+  --color-info-bg: hsl(204 78% 93%);
 }
 
 /* Layout & motion tokens (§15.4 / §15.6) */
@@ -190,7 +191,7 @@ body { margin: 0; }
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   color: var(--color-fg);
-  background: var(--color-brand-deep);
+  background: var(--color-pub-bg);
 }
 .internal-theme :focus-visible { outline: 2px solid var(--color-brand-primary); outline-offset: 2px; }
 .int-skeleton {

@@ -42,7 +42,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="dark internal-theme flex min-h-screen items-center justify-center bg-brand-deep p-6">
+    <div className="internal-theme flex min-h-screen items-center justify-center bg-pub-bg p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-primary font-display text-2xl font-bold text-brand-deep">

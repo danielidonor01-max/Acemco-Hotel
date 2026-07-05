@@ -92,7 +92,7 @@ export function Sidebar() {
           {!collapsed && (
             <div className="flex-1 leading-none">
               <p className="font-display text-sm font-semibold text-fg">Acemco Express</p>
-              <p className="text-[10px] uppercase tracking-widest text-brand-primary">Operations</p>
+              <p className="text-[10px] uppercase tracking-widest text-brand-primary-dark">Operations</p>
             </div>
           )}
           <button onClick={closeMobile} className="ml-auto rounded p-1 text-fg-soft hover:bg-brand-surface-2 lg:hidden" aria-label="Close menu">
@@ -193,7 +193,7 @@ function LeafLink({
         "flex items-center gap-3 py-2.5 text-sm transition-colors",
         nested ? "pl-5 pr-4" : "px-4",
         active
-          ? "border-l-2 border-brand-primary bg-brand-primary/10 font-medium text-brand-primary"
+          ? "border-l-2 border-brand-primary bg-brand-primary/10 font-medium text-brand-primary-dark"
           : "border-l-2 border-transparent text-fg-soft hover:text-fg",
       )}
     >

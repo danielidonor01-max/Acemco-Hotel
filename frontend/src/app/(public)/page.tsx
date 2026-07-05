@@ -150,9 +150,9 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Offers */}
+      {/* Events */}
       <Section band="cream">
-        <SectionHeading overline="Offers" heading={<>Reasons to <em>stay longer</em></>} />
+        <SectionHeading overline="What's On" heading={<>Moments worth <em>gathering for</em></>} />
         <RevealGroup className="mt-12 grid gap-6 md:grid-cols-3">
           {offers.map((o) => (
             <RevealItem key={o.id}>

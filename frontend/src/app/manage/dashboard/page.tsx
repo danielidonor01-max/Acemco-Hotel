@@ -46,7 +46,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex items-center justify-between">
               <CardTitle>Arrivals Today</CardTitle>
-              <Link href="/manage/reservations" className="inline-flex items-center gap-1 text-sm text-brand-primary hover:text-brand-primary-light">
+              <Link href="/manage/reservations" className="inline-flex items-center gap-1 text-sm text-brand-primary-dark hover:text-brand-primary-light">
                 View all <ArrowRight size={14} />
               </Link>
             </CardHeader>
@@ -57,7 +57,7 @@ export default function DashboardPage() {
                     <Link href={`/manage/reservations/${r.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-brand-surface-2">
                       <div>
                         <p className="text-sm font-medium text-fg">
-                          {r.guestName} {r.isVip && <span className="ml-1 text-brand-primary">★</span>}
+                          {r.guestName} {r.isVip && <span className="ml-1 text-brand-primary-dark">★</span>}
                         </p>
                         <p className="text-xs text-fg-muted">
                           {getRoomType(r.roomTypeSlug)?.name} · {r.adults + r.children} guest(s)
@@ -144,7 +144,7 @@ function MiniStat({
   if (!show) return null;
   return (
     <Card className="flex items-center gap-3 p-4">
-      <span className={tone === "warn" ? "text-warn" : "text-brand-primary"}><Icon size={22} strokeWidth={1.5} /></span>
+      <span className={tone === "warn" ? "text-warn" : "text-brand-primary-dark"}><Icon size={22} strokeWidth={1.5} /></span>
       <div>
         <p className="text-2xl font-bold text-fg">{value}</p>
         <p className="text-xs text-fg-muted">{label}</p>

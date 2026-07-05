@@ -161,6 +161,29 @@ async function main() {
     );
   }
 
+  // 5b) One checked-in in-house guest (so website room-service ordering can be verified).
+  const chk = await client.query("SELECT count(*)::int n FROM reservations WHERE status='CHECKED_IN'");
+  if (chk.rows[0].n === 0) {
+    const room = (await client.query("SELECT id, room_type_id FROM rooms WHERE room_number='101'")).rows[0];
+    if (room) {
+      const guestId = uuid();
+      await client.query(
+        `INSERT INTO guests (id, first_name, last_name, phone, email, is_vip, updated_at)
+         VALUES ($1,'James','Morrison','+44 7700 900123','james.m@example.com',true,now()) ON CONFLICT DO NOTHING`,
+        [guestId],
+      );
+      await client.query(
+        `INSERT INTO reservations (id, reservation_number, guest_id, room_id, room_type_id, check_in_date, check_out_date,
+           adults, children, status, source, total_amount, deposit_paid, confirmed_at, updated_at)
+         VALUES ($1,'RES-2026-09001',$2,$3,$4, current_date - interval '1 day', current_date + interval '2 day',
+           1,0,'CHECKED_IN','WEBSITE',195000,true,now(),now())`,
+        [uuid(), guestId, room.id, room.room_type_id],
+      );
+      await client.query("UPDATE rooms SET status='OCCUPIED' WHERE id=$1", [room.id]);
+      console.log('Seeded in-house guest: Room 101 · Morrison (for order verification).');
+    }
+  }
+
   // 6) Menus (reset + insert)
   await client.query('DELETE FROM order_items');
   await client.query('DELETE FROM menu_items');

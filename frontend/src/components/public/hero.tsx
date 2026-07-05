@@ -1,13 +1,16 @@
 import { MediaFrame } from "./media-frame";
 import { Overline } from "./ui";
 import { Reveal } from "./reveal";
+import { getHeroImage } from "@/lib/data/content";
 import { cn } from "@/lib/utils";
 
 /**
  * Full-bleed cinematic hero (§15.8). Media fills the section; a heavy scrim
  * guarantees white-on-dark legibility even over a light CMS placeholder.
+ * The image resolves from the Sanity `pageMedia` document matching `slot`
+ * (falls back to a dignified placeholder when unset).
  */
-export function Hero({
+export async function Hero({
   slot,
   overline,
   title,
@@ -24,6 +27,7 @@ export function Hero({
   size?: "full" | "page";
   align?: "center" | "left";
 }) {
+  const src = await getHeroImage(slot);
   return (
     <section
       className={cn(
@@ -32,7 +36,7 @@ export function Hero({
         align === "center" ? "items-center justify-center text-center" : "items-end",
       )}
     >
-      <MediaFrame slot={slot} background overlay="scrim-hero" kenburns priority sizes="100vw" />
+      <MediaFrame slot={slot} src={src} background overlay="scrim-hero" kenburns priority sizes="100vw" />
       <div
         className={cn(
           "pub-container relative z-20 pb-16 pt-32",

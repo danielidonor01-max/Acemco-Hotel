@@ -8,7 +8,7 @@ import { amenities } from "@/lib/cms";
 
 export const metadata: Metadata = {
   title: "Facilities",
-  description: "Everything you need for a considered stay — pool, spa, dining, meetings, and more.",
+  description: "A rooftop swimming pool and a 24-hour gym for a considered stay.",
 };
 
 export default function FacilitiesPage() {
@@ -18,11 +18,11 @@ export default function FacilitiesPage() {
         slot="facilities.hero"
         overline="The Hotel"
         title={<>Room to <em>do more</em></>}
-        subtitle="A rooftop pool, a quiet spa, spaces to meet and to move — all a lift ride away."
+        subtitle="A rooftop swimming pool and a fully equipped gym — a lift ride away."
       />
 
       <Section band="cream">
-        <RevealGroup className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <RevealGroup className="grid gap-6 md:grid-cols-2">
           {amenities.map((a) => (
             <RevealItem key={a.title}>
               <ExperienceCard amenity={a} />
@@ -32,20 +32,20 @@ export default function FacilitiesPage() {
       </Section>
 
       <EditorialSplit
-        slot="facilities.rooftop"
+        slot="facilities.pool"
         band="sand"
         direction="image-right"
-        overline="The Rooftop Pool"
+        overline="Swimming Pool"
         heading={<>Above it all, <em>from dawn</em></>}
         body={<p>An infinity edge that looks out over the city — a place to swim at sunrise and to gather as the light fades. Towels, loungers, and a poolside menu are all seen to.</p>}
       />
 
       <EditorialSplit
-        slot="facilities.spa"
+        slot="facilities.gym"
         direction="image-left"
-        overline="Wellness & Spa"
-        heading={<>A quiet place to <em>reset</em></>}
-        body={<p>Treatment rooms, a steam suite, and a calm you can feel the moment you step in. Book a treatment at reception or with your stay.</p>}
+        overline="The Gym"
+        heading={<>Move, on <em>your schedule</em></>}
+        body={<p>A fully equipped fitness studio with cardio, free weights, and a view — open 24 hours, so your routine fits around your day, not the other way round.</p>}
       />
     </>
   );

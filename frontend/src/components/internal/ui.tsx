@@ -91,7 +91,7 @@ export function Badge({
     warning: "bg-warn-bg text-warn border-warn/30",
     danger: "bg-danger-bg text-danger border-danger/30",
     info: "bg-info-bg text-info border-info/30",
-    brand: "bg-primary/15 text-primary border-primary/30",
+    brand: "bg-brand-primary/15 text-brand-primary-dark border-brand-primary/40",
   };
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium", tones[tone], className)}>

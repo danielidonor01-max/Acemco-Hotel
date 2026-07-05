@@ -99,7 +99,7 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
                 onClick={() => setActiveCat(c)}
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                  activeCat === c ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-line-2 text-fg-soft hover:text-fg",
+                  activeCat === c ? "border-brand-primary bg-brand-primary/10 text-brand-primary-dark" : "border-line-2 text-fg-soft hover:text-fg",
                 )}
               >
                 {c}
@@ -121,7 +121,7 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
             >
               <span className="text-sm font-medium text-fg">{item.name}</span>
               {item.meta && <span className="mt-0.5 text-xs text-fg-muted">{item.meta}</span>}
-              <span className="mt-2 text-sm font-semibold text-brand-primary">{formatNaira(item.price)}</span>
+              <span className="mt-2 text-sm font-semibold text-brand-primary-dark">{formatNaira(item.price)}</span>
             </button>
           ))}
         </div>
@@ -154,9 +154,9 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
                       <p className="text-xs text-fg-muted">{formatNaira(l.unitPrice)}</p>
                     </div>
                     <div className="inline-flex items-center rounded-md border border-line">
-                      <button onClick={() => setQty(l.menuItemId, l.quantity - 1)} className="p-1 text-fg-soft hover:text-brand-primary" aria-label="Decrease"><Minus size={13} /></button>
+                      <button onClick={() => setQty(l.menuItemId, l.quantity - 1)} className="p-1 text-fg-soft hover:text-brand-primary-dark" aria-label="Decrease"><Minus size={13} /></button>
                       <span className="w-6 text-center text-sm">{l.quantity}</span>
-                      <button onClick={() => setQty(l.menuItemId, l.quantity + 1)} className="p-1 text-fg-soft hover:text-brand-primary" aria-label="Increase"><Plus size={13} /></button>
+                      <button onClick={() => setQty(l.menuItemId, l.quantity + 1)} className="p-1 text-fg-soft hover:text-brand-primary-dark" aria-label="Increase"><Plus size={13} /></button>
                     </div>
                     <span className="w-16 text-right text-sm text-fg">{formatNaira(l.unitPrice * l.quantity)}</span>
                     <button onClick={() => setQty(l.menuItemId, 0)} className="text-fg-muted hover:text-danger" aria-label="Remove"><Trash2 size={14} /></button>

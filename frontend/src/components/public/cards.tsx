@@ -101,7 +101,7 @@ export function OfferCard({ offer }: { offer: Offer }) {
         <p className="pub-body-sm mt-1 text-pub-gold-deep">{offer.validity}</p>
         <p className="pub-body-sm mt-3 flex-1 text-pub-ink-soft">{offer.terms}</p>
         <div className="mt-5">
-          <GhostLink href="/reservations">View offer</GhostLink>
+          <GhostLink href="/events">View event</GhostLink>
         </div>
       </div>
     </article>
