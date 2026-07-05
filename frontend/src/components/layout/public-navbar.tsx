@@ -5,139 +5,135 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { site } from "@/lib/cms";
+import { MediaFrame } from "@/components/public/media-frame";
 import { useCart, useCartUI } from "@/stores/cart.store";
 
-const LEFT = [
+const NAV = [
   { label: "Rooms", href: "/rooms" },
   { label: "Dining", href: "/dining" },
   { label: "Facilities", href: "/facilities" },
   { label: "Event", href: "/events" },
-];
-const RIGHT = [
   { label: "Gallery", href: "/gallery" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
-const ALL = [...LEFT, ...RIGHT];
-
-const WORDMARK = "Acemco";
 
 export function PublicNavbar() {
   const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
-
   const count = useCart((s) => s.count());
   const openCart = useCartUI((s) => s.open);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 80);
+    const onScroll = () => setScrolled(window.scrollY > 40);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  useEffect(() => setMobileOpen(false), [pathname]);
+  useEffect(() => setMenuOpen(false), [pathname]);
 
-  const solid = scrolled || mobileOpen;
-  const linkBase = "pub-overline text-[0.7rem] transition-colors hover:text-pub-gold-deep";
-  const linkColor = solid ? "text-pub-ink-soft" : "text-pub-on-dark/85";
-
-  const NavLink = ({ href, label }: { href: string; label: string }) => {
-    const active = pathname === href || pathname.startsWith(href + "/");
-    return (
-      <Link href={href} className={cn(linkBase, linkColor, active && (solid ? "text-pub-ink" : "text-pub-on-dark"))}>
-        {label}
-      </Link>
-    );
-  };
+  // The floating bar is light when scrolled or the menu is open, translucent-dark over the hero.
+  const light = scrolled || menuOpen;
+  const boxCls = cn(
+    "inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 pub-overline text-[0.7rem] transition-colors",
+    light ? "border-pub-line bg-pub-bg text-pub-ink hover:bg-pub-sand" : "border-white/25 bg-white/10 text-pub-on-dark hover:bg-white/20",
+  );
 
   return (
-    <header
-      className={cn(
-        "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
-        solid ? "border-b border-pub-line bg-pub-bg/95 backdrop-blur-sm" : "border-b border-transparent bg-transparent",
-      )}
-    >
-      <nav className="pub-container flex h-16 items-center md:h-24">
-        {/* Left links (desktop) */}
-        <ul className="hidden flex-1 items-center gap-7 lg:flex">
-          {LEFT.map((i) => (
-            <li key={i.href}><NavLink {...i} /></li>
-          ))}
-        </ul>
-
-        {/* Mobile: hamburger */}
-        <button
-          type="button"
-          onClick={() => setMobileOpen((o) => !o)}
-          aria-label="Toggle menu"
-          className={cn("flex-1 lg:hidden", solid ? "text-pub-ink" : "text-pub-on-dark")}
-        >
-          {mobileOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-
-        {/* Centered wordmark */}
-        <Link
-          href="/"
+    <header className="fixed inset-x-0 top-3 z-50 px-3 md:top-4">
+      <div className="mx-auto w-full max-w-3xl">
+        {/* Floating bar */}
+        <div
           className={cn(
-            "font-display text-xl font-medium uppercase tracking-[0.35em] transition-colors md:text-2xl",
-            solid ? "text-pub-ink" : "text-pub-on-dark",
+            "grid grid-cols-3 items-center rounded-2xl border px-3 py-2.5 backdrop-blur-md transition-colors duration-300 md:px-4 md:py-3",
+            light ? "border-pub-line bg-pub-bg/95 shadow-sm" : "border-white/15 bg-pub-espresso/35",
           )}
         >
-          {WORDMARK}
-        </Link>
+          {/* Left: Reserve */}
+          <div className="flex justify-start">
+            <Link href="/reservations" className={boxCls}>Reserve</Link>
+          </div>
 
-        {/* Right links + actions */}
-        <div className="flex flex-1 items-center justify-end gap-6">
-          <ul className="hidden items-center gap-7 lg:flex">
-            {RIGHT.map((i) => (
-              <li key={i.href}><NavLink {...i} /></li>
-            ))}
-          </ul>
+          {/* Center: wordmark */}
           <Link
-            href="/reservations"
+            href="/"
             className={cn(
-              "hidden rounded-full px-5 py-2.5 pub-cta transition-colors lg:inline-flex",
-              solid ? "bg-pub-gold text-pub-ink hover:bg-pub-gold-deep hover:text-pub-on-dark" : "border border-pub-on-dark/60 text-pub-on-dark hover:bg-pub-on-dark hover:text-pub-espresso",
+              "text-center font-display text-xl font-medium uppercase tracking-[0.35em] transition-colors md:text-2xl",
+              light ? "text-pub-ink" : "text-pub-on-dark",
             )}
           >
-            Reserve
+            Acemco
           </Link>
-          <button
-            type="button"
-            onClick={openCart}
-            aria-label="Open cart"
-            className={cn("relative transition-colors", solid ? "text-pub-ink hover:text-pub-gold-deep" : "text-pub-on-dark hover:text-pub-gold")}
-          >
-            <ShoppingBag size={20} strokeWidth={1.5} />
-            {mounted && count > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-pub-gold px-1 text-[0.65rem] font-semibold text-pub-ink">
-                {count}
-              </span>
-            )}
-          </button>
-        </div>
-      </nav>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 top-16 z-40 bg-pub-espresso lg:hidden">
-          <ul className="pub-container flex flex-col gap-1 py-8">
-            {ALL.map((item) => (
-              <li key={item.href}>
-                <Link href={item.href} className="block py-3 pub-display-3 text-pub-on-dark">{item.label}</Link>
-              </li>
-            ))}
-            <li className="mt-4">
-              <Link href="/reservations" className="inline-flex rounded-full bg-pub-gold px-7 py-3 pub-cta text-pub-ink">
-                Reserve a Room
-              </Link>
-            </li>
-          </ul>
+          {/* Right: cart + hamburger */}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={openCart}
+              aria-label="Open cart"
+              className={cn("relative rounded-lg p-2 transition-colors", light ? "text-pub-ink hover:bg-pub-sand" : "text-pub-on-dark hover:bg-white/15")}
+            >
+              <ShoppingBag size={19} strokeWidth={1.5} />
+              {mounted && count > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-pub-gold px-1 text-[0.6rem] font-semibold text-pub-ink">
+                  {count}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              className={cn("rounded-lg border p-2.5 transition-colors", light ? "border-pub-line text-pub-ink hover:bg-pub-sand" : "border-white/25 text-pub-on-dark hover:bg-white/15")}
+            >
+              {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* Dropdown menu panel */}
+        {menuOpen && (
+          <div className="mt-2 overflow-hidden rounded-2xl border border-pub-line bg-pub-surface shadow-xl">
+            <nav className="flex flex-col items-center gap-3 px-6 pt-8 pb-2">
+              {NAV.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "font-sans text-[14px] font-medium uppercase tracking-[0.18em] transition-colors hover:text-pub-gold-deep",
+                      active ? "text-pub-gold-deep" : "text-pub-ink",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <div className="mt-6 flex gap-6">
+                {site.socials.map((s) => (
+                  <a key={s.label} href={s.href} className="pub-overline text-[0.7rem] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
+                    {s.label} ↗
+                  </a>
+                ))}
+              </div>
+            </nav>
+            {/* Featured image (CMS slot) */}
+            <div className="relative mx-3 mb-3 mt-6 overflow-hidden rounded-xl">
+              <MediaFrame slot="nav.featured" ratio="16/9" overlay="scrim-bottom" sizes="(max-width: 768px) 100vw, 68rem" />
+              <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between px-5 pb-4 md:px-7 md:pb-6">
+                <span className="pub-overline text-pub-on-dark">A warm arrival</span>
+                <span className="hidden h-1.5 w-1.5 rounded-full bg-pub-on-dark/70 sm:block" />
+                <span className="pub-overline text-pub-on-dark">Rooms &amp; suites</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </header>
   );
 }

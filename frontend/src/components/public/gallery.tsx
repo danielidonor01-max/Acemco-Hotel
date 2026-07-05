@@ -55,8 +55,12 @@ export function GallerySection({ tiles }: { tiles: Tile[] }) {
           >
             <ChevronLeft size={30} />
           </button>
-          <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-            <MediaFrame slot={`gallery.${open + 1}`} ratio="3/2" src={tiles[open].slot} className="rounded-2xl" sizes="90vw" />
+          {/* Portrait 9:16 frame — fits mobile; width-driven and capped for desktop. */}
+          <div
+            className="relative aspect-[9/16] max-h-[88vh] w-[88vw] max-w-[440px] overflow-hidden rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MediaFrame slot={`gallery.${open + 1}`} background src={tiles[open].slot} sizes="(max-width: 768px) 88vw, 440px" />
           </div>
           <button
             className="absolute right-4 rounded-full p-2 text-pub-on-dark hover:bg-white/10"

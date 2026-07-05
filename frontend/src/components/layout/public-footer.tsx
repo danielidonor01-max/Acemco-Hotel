@@ -1,89 +1,117 @@
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { site } from "@/lib/cms";
+import { MediaFrame } from "@/components/public/media-frame";
 import { Overline } from "@/components/public/ui";
 
 const QUICK = [
-  { label: "Rooms & Suites", href: "/rooms" },
+  { label: "Rooms", href: "/rooms" },
   { label: "Dining", href: "/dining" },
   { label: "Facilities", href: "/facilities" },
   { label: "Event", href: "/events" },
   { label: "Gallery", href: "/gallery" },
-  { label: "Reserve", href: "/reservations" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
 ];
 
 export function PublicFooter() {
   return (
-    <footer className="bg-pub-espresso text-pub-on-dark-soft">
-      <div className="pub-container grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-4">
-        {/* Brand */}
-        <div className="lg:pr-8">
-          <p className="font-display text-2xl font-medium uppercase tracking-[0.3em] text-pub-on-dark">Acemco</p>
-          <p className="pub-body-sm mt-5 max-w-xs leading-relaxed">
-            A warm, considered stay in {site.city.split(",")[0]} — rooms that feel like arrivals,
-            all-day dining, and a lounge that comes alive after dark.
-          </p>
+    <footer className="bg-pub-bg text-pub-ink">
+      {/* Invitation band */}
+      <div className="pub-container border-b border-pub-line py-14 md:py-20">
+        <div className="flex flex-col items-start justify-between gap-8 md:flex-row md:items-end">
+          <div>
+            <Overline className="text-pub-gold-deep">Stay with us</Overline>
+            <p className="pub-display-2 mt-4 max-w-xl">
+              A quiet address for warm arrivals in {site.city.split(",")[0]}.
+            </p>
+          </div>
+          <Link
+            href="/reservations"
+            className="group inline-flex shrink-0 items-center gap-2.5 rounded-full border border-pub-ink px-7 py-3.5 pub-cta uppercase tracking-[0.15em] text-pub-ink transition-colors hover:bg-pub-ink hover:text-pub-bg"
+          >
+            Reserve a stay
+            <ArrowUpRight size={17} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </Link>
+        </div>
+      </div>
+
+      {/* Main columns */}
+      <div className="pub-container grid gap-12 py-16 md:grid-cols-12 md:gap-8 md:py-20">
+        {/* Brand: tall portrait image + blurb */}
+        <div className="flex gap-6 md:col-span-5">
+          <MediaFrame slot="footer.image" ratio="3/5" className="w-36 shrink-0 rounded-xl sm:w-44 lg:w-52" sizes="(max-width: 768px) 38vw, 208px" />
+          <div className="flex flex-col justify-end">
+            <Overline className="mb-3">{site.tagline}</Overline>
+            <p className="pub-body max-w-xs text-pub-ink-soft">
+              Driven by a passion for hospitality, {site.hotelName} creates warm, considered stays —
+              rooms that feel like arrivals, all-day dining, and a lounge that comes alive after dark.
+            </p>
+          </div>
         </div>
 
         {/* Explore */}
-        <div>
-          <Overline onDark>Explore</Overline>
-          <ul className="mt-4 space-y-2.5">
+        <div className="md:col-span-3 md:col-start-7">
+          <Overline>Explore</Overline>
+          <ul className="mt-5 space-y-3">
             {QUICK.map((q) => (
               <li key={q.href}>
-                <Link href={q.href} className="pub-body-sm transition-colors hover:text-pub-on-dark">{q.label}</Link>
+                <Link href={q.href} className="pub-cta uppercase tracking-[0.15em] text-pub-ink transition-colors hover:text-pub-gold-deep">
+                  {q.label}
+                </Link>
               </li>
             ))}
           </ul>
         </div>
 
-        {/* Contact */}
-        <div>
-          <Overline onDark>Contact</Overline>
-          <ul className="mt-4 space-y-2.5 pub-body-sm">
-            <li>{site.address}</li>
-            <li>{site.city}</li>
-            <li><a href={`tel:${site.phone.replace(/\s/g, "")}`} className="hover:text-pub-on-dark">{site.phone}</a></li>
-            <li><a href={`mailto:${site.email}`} className="hover:text-pub-on-dark">{site.email}</a></li>
-            <li>
-              <a href={`https://wa.me/${site.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-pub-gold hover:text-pub-on-dark">
-                WhatsApp us
-              </a>
-            </li>
-          </ul>
-        </div>
+        {/* Connect — concierge details */}
+        <div className="md:col-span-3">
+          <Overline>Connect</Overline>
+          <address className="mt-5 space-y-1 not-italic pub-body-sm text-pub-ink-soft">
+            <p>{site.address}</p>
+            <p>{site.city}</p>
+          </address>
+          <div className="mt-4 space-y-1.5">
+            <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="block pub-cta text-pub-ink transition-colors hover:text-pub-gold-deep">
+              {site.phone}
+            </a>
+            <a href={`mailto:${site.email}`} className="block pub-body-sm text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
+              {site.email}
+            </a>
+          </div>
 
-        {/* Hours + social */}
-        <div>
-          <Overline onDark>Hours</Overline>
-          <ul className="mt-4 space-y-2.5 pub-body-sm">
+          <dl className="mt-6 space-y-1.5">
             {site.hours.map((h) => (
-              <li key={h.label} className="flex justify-between gap-4">
-                <span>{h.label}</span>
-                <span className="text-pub-on-dark">{h.value}</span>
-              </li>
+              <div key={h.label} className="flex justify-between gap-4 border-b border-pub-line py-1.5 pub-body-sm">
+                <dt className="text-pub-ink-muted">{h.label}</dt>
+                <dd className="text-pub-ink">{h.value}</dd>
+              </div>
             ))}
-          </ul>
-          <div className="mt-6 flex gap-4">
+          </dl>
+
+          <div className="mt-6 flex gap-5">
             {site.socials.map((s) => (
-              <a key={s.label} href={s.href} className="pub-body-sm transition-colors hover:text-pub-on-dark">{s.label}</a>
+              <a key={s.label} href={s.href} className="pub-overline text-[0.7rem] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
+                {s.label} ↗
+              </a>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Large brand wordmark (ballena-style) */}
-      <div className="pub-container overflow-hidden pb-6">
-        <p className="select-none whitespace-nowrap font-display font-medium uppercase leading-none tracking-[0.2em] text-pub-on-dark/10 text-[18vw]">
+      {/* Large brand wordmark — fills the layout width, fully visible (ballena-style) */}
+      <div className="pub-container pb-8">
+        <p className="w-full whitespace-nowrap text-center font-display font-medium uppercase leading-[0.8] tracking-[-0.03em] text-pub-ink [font-size:clamp(3rem,20vw,17rem)]">
           Acemco
         </p>
       </div>
 
-      <div className="border-t border-white/10">
-        <div className="pub-container flex flex-col items-center justify-between gap-3 py-6 pub-body-sm sm:flex-row">
-          <p>Acemco © {2026}. All rights reserved.</p>
+      <div className="border-t border-pub-line">
+        <div className="pub-container flex flex-col items-center justify-between gap-3 py-6 pub-overline text-[0.7rem] text-pub-ink-soft sm:flex-row">
+          <p>Acemco © {2026} · All rights reserved</p>
           <div className="flex gap-6">
-            <Link href="#" className="hover:text-pub-on-dark">Privacy</Link>
-            <Link href="#" className="hover:text-pub-on-dark">Terms</Link>
+            <Link href="#" className="transition-colors hover:text-pub-ink">Privacy Notice</Link>
+            <Link href="#" className="transition-colors hover:text-pub-ink">Terms</Link>
           </div>
         </div>
       </div>
