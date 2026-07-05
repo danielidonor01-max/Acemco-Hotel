@@ -4,3 +4,5 @@ dist/
 *.log
 prisma/*.db
 prisma/*.db-journal
+
+.vercel

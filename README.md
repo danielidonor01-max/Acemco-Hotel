@@ -4,6 +4,17 @@ A full hotel platform: a **public marketing website** (Sanity-driven content), a
 **internal operations platform** (dashboard, reservations, rooms, reception, POS, and
 back-office modules), and a **NestJS + Prisma API** backed by **Supabase (PostgreSQL)**.
 
+## Live
+
+| Surface | URL |
+|---|---|
+| Web (public + `/manage`) | https://acemco-hotel-web.vercel.app |
+| API | https://acemco-hotel-api.vercel.app/api (docs at `/api/docs`) |
+| Database | Supabase `eu-west-3` (migrated + seeded) |
+| CMS | Sanity project `nykyv901` |
+
+Seed logins (`/login`): `ada@acemcohotel.com` / `password123` (HOTEL_MANAGER), `super@acemcohotel.com` / `password123` (SUPER_ADMIN).
+
 ```
 Acemco/
 ├── docs/       Governance: Domain Model · System Blueprint · UI Constitution
