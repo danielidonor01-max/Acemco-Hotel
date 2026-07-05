@@ -6,8 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Supabase: runtime uses the transaction pooler (pgBouncer); migrations use the
+  // direct/session connection. See backend/.env.example for both strings.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================ Auth & Identity (Domain §3.1) ============================
