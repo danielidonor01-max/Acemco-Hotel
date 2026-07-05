@@ -20,10 +20,13 @@ export class AuthController {
   ) {}
 
   private setRefreshCookie(res: Response, token: string) {
+    const isProd = this.config.get('NODE_ENV') === 'production';
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
-      secure: this.config.get('NODE_ENV') === 'production',
-      sameSite: 'lax',
+      // Cross-site (frontend + API on different Vercel domains) needs SameSite=None; Secure.
+      // Prefer same-domain via a Vercel rewrite to keep the cookie first-party.
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
       path: '/api/v1/auth',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
