@@ -1,0 +1,510 @@
+// AEHOP — Prisma schema (PostgreSQL). Conventions per System Blueprint §7:
+// UUID PKs, snake_case columns via @map, createdAt/updatedAt, soft deletes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================ Auth & Identity (Domain §3.1) ============================
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  isActive     Boolean   @default(true) @map("is_active")
+  employeeId   String?   @map("employee_id")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  roles            UserRole[]
+  extraPermissions UserPermission[]
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  module      String
+  action      PermissionAction
+  description String
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Direct grants override role grants (Domain rule).
+model UserPermission {
+  userId       String     @map("user_id")
+  permissionId String     @map("permission_id")
+  granted      Boolean    @default(true)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+enum PermissionAction {
+  VIEW
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  EXPORT
+  PRINT
+}
+
+// ============================ Rooms (Domain §3.2) ============================
+
+model RoomType {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  name             String
+  description      String
+  maxOccupancy     Int      @map("max_occupancy")
+  bedConfiguration String   @map("bed_configuration")
+  basePrice        Decimal  @map("base_price") @db.Decimal(12, 2)
+  features         String[]
+  images           String[]
+  isActive         Boolean  @default(true) @map("is_active")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  rooms        Room[]
+  reservations Reservation[]
+  pricing      RoomPricing[]
+
+  @@map("room_types")
+}
+
+model Room {
+  id         String     @id @default(uuid())
+  roomNumber String     @unique @map("room_number")
+  floor      Int
+  roomTypeId String     @map("room_type_id")
+  status     RoomStatus @default(AVAILABLE)
+  isActive   Boolean    @default(true) @map("is_active")
+  notes      String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  roomType     RoomType      @relation(fields: [roomTypeId], references: [id])
+  reservations Reservation[]
+  checkIns     CheckIn[]
+
+  @@index([roomTypeId])
+  @@index([status])
+  @@map("rooms")
+}
+
+model RoomPricing {
+  id           String   @id @default(uuid())
+  roomTypeId   String   @map("room_type_id")
+  label        String
+  pricePerNight Decimal @map("price_per_night") @db.Decimal(12, 2)
+  validFrom    DateTime @map("valid_from")
+  validTo      DateTime @map("valid_to")
+  isDefault    Boolean  @default(false) @map("is_default")
+  roomType     RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@map("room_pricing")
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+  INSPECTION
+  MAINTENANCE
+  OUT_OF_ORDER
+  BLOCKED
+}
+
+// ============================ Guests (Domain §3.3) ============================
+
+model Guest {
+  id            String    @id @default(uuid())
+  title         Title?
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  email         String?
+  phone         String
+  nationality   String?
+  dateOfBirth   DateTime? @map("date_of_birth")
+  idType        IdType?   @map("id_type")
+  idNumber      String?   @map("id_number")
+  addressStreet String?   @map("address_street")
+  addressCity   String?   @map("address_city")
+  addressCountry String?  @map("address_country")
+  notes         String?
+  isVip         Boolean   @default(false) @map("is_vip")
+  isBlacklisted Boolean   @default(false) @map("is_blacklisted")
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  reservations Reservation[]
+  documents    GuestDocument[]
+  folios       Folio[]
+  orders       Order[]
+
+  @@index([phone])
+  @@map("guests")
+}
+
+model GuestDocument {
+  id           String   @id @default(uuid())
+  guestId      String   @map("guest_id")
+  documentType String   @map("document_type")
+  fileKey      String   @map("file_key")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+  guest        Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@map("guest_documents")
+}
+
+enum Title {
+  MR
+  MRS
+  MS
+  DR
+  PROF
+  OTHER
+}
+
+enum IdType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVER_LICENSE
+}
+
+// ============================ Reservations (Domain §3.4) ============================
+
+model Reservation {
+  id                 String            @id @default(uuid())
+  reservationNumber  String            @unique @map("reservation_number")
+  guestId            String            @map("guest_id")
+  roomId             String?           @map("room_id")
+  roomTypeId         String            @map("room_type_id")
+  checkInDate        DateTime          @map("check_in_date") @db.Date
+  checkOutDate       DateTime          @map("check_out_date") @db.Date
+  adults             Int               @default(1)
+  children           Int               @default(0)
+  status             ReservationStatus @default(PENDING)
+  source             ReservationSource @default(WEBSITE)
+  specialRequests    String?           @map("special_requests")
+  totalAmount        Decimal           @map("total_amount") @db.Decimal(12, 2)
+  depositAmount      Decimal           @default(0) @map("deposit_amount") @db.Decimal(12, 2)
+  depositPaid        Boolean           @default(false) @map("deposit_paid")
+  confirmedAt        DateTime?         @map("confirmed_at")
+  cancelledAt        DateTime?         @map("cancelled_at")
+  cancellationReason String?           @map("cancellation_reason")
+  createdByUserId    String?           @map("created_by_user_id")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  guest    Guest     @relation(fields: [guestId], references: [id])
+  room     Room?     @relation(fields: [roomId], references: [id])
+  roomType RoomType  @relation(fields: [roomTypeId], references: [id])
+  checkIns CheckIn[]
+
+  @@index([guestId])
+  @@index([status])
+  @@index([roomId, checkInDate, checkOutDate])
+  @@map("reservations")
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum ReservationSource {
+  WEBSITE
+  WALK_IN
+  PHONE
+  OTA
+  INTERNAL
+}
+
+// ============================ Reception (Domain §3.5) ============================
+
+model CheckIn {
+  id             String    @id @default(uuid())
+  reservationId  String?   @map("reservation_id")
+  guestId        String    @map("guest_id")
+  roomId         String    @map("room_id")
+  checkedInAt    DateTime  @default(now()) @map("checked_in_at")
+  checkedInByUserId String @map("checked_in_by_user_id")
+  keyIssued      Boolean   @default(false) @map("key_issued")
+
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  room        Room         @relation(fields: [roomId], references: [id])
+  folio       Folio?
+  checkOut    CheckOut?
+
+  @@map("check_ins")
+}
+
+model CheckOut {
+  id              String        @id @default(uuid())
+  checkInId       String        @unique @map("check_in_id")
+  guestId         String        @map("guest_id")
+  roomId          String        @map("room_id")
+  checkedOutAt    DateTime      @default(now()) @map("checked_out_at")
+  checkedOutByUserId String     @map("checked_out_by_user_id")
+  totalCharged    Decimal       @map("total_charged") @db.Decimal(12, 2)
+  paymentMethod   PaymentMethod @map("payment_method")
+  checkIn         CheckIn       @relation(fields: [checkInId], references: [id])
+
+  @@map("check_outs")
+}
+
+model Folio {
+  id        String      @id @default(uuid())
+  guestId   String      @map("guest_id")
+  checkInId String      @unique @map("check_in_id")
+  status    FolioStatus @default(OPEN)
+  openedAt  DateTime    @default(now()) @map("opened_at")
+  settledAt DateTime?   @map("settled_at")
+
+  guest   Guest       @relation(fields: [guestId], references: [id])
+  checkIn CheckIn     @relation(fields: [checkInId], references: [id])
+  lines   FolioLine[]
+
+  @@map("folios")
+}
+
+model FolioLine {
+  id          String        @id @default(uuid())
+  folioId     String        @map("folio_id")
+  description String
+  amount      Decimal       @db.Decimal(12, 2)
+  type        FolioLineType
+  referenceId String?       @map("reference_id")
+  postedAt    DateTime      @default(now()) @map("posted_at")
+  folio       Folio         @relation(fields: [folioId], references: [id], onDelete: Cascade)
+
+  @@map("folio_lines")
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  CREDIT
+}
+
+enum FolioStatus {
+  OPEN
+  SETTLED
+  DISPUTED
+}
+
+enum FolioLineType {
+  ROOM_CHARGE
+  RESTAURANT
+  LOUNGE
+  BOUTIQUE
+  DAMAGE
+  SERVICE
+  DISCOUNT
+  TAX
+}
+
+// ============================ Service: Restaurant / Lounge (Domain §4) ============================
+
+model MenuCategory {
+  id         String     @id @default(uuid())
+  storefront Storefront
+  name       String
+  imageKey   String?    @map("image_key")
+  sortOrder  Int        @default(0) @map("sort_order")
+  isActive   Boolean    @default(true) @map("is_active")
+  items      MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id              String       @id @default(uuid())
+  categoryId      String       @map("category_id")
+  storefront      Storefront
+  name            String
+  description     String?
+  price           Decimal      @db.Decimal(12, 2)
+  imageKey        String?      @map("image_key")
+  isAvailable     Boolean      @default(true) @map("is_available")
+  isSeasonal      Boolean      @default(false) @map("is_seasonal")
+  isHidden        Boolean      @default(false) @map("is_hidden")
+  tags            String[]
+  preparationTime Int?         @map("preparation_time")
+  sortOrder       Int          @default(0) @map("sort_order")
+  category        MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+
+  @@index([storefront])
+  @@map("menu_items")
+}
+
+model Order {
+  id                  String      @id @default(uuid())
+  orderNumber         String      @unique @map("order_number")
+  storefront          Storefront
+  source              OrderSource
+  guestId             String?     @map("guest_id")
+  roomNumber          String?     @map("room_number")
+  tableNumber         String?     @map("table_number")
+  customerName        String?     @map("customer_name")
+  customerPhone       String?     @map("customer_phone")
+  deliveryLocation    String?     @map("delivery_location")
+  specialInstructions String?     @map("special_instructions")
+  status              OrderStatus @default(PENDING)
+  totalAmount         Decimal     @map("total_amount") @db.Decimal(12, 2)
+  handledByUserId     String?     @map("handled_by_user_id")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  guest Guest?      @relation(fields: [guestId], references: [id])
+  items OrderItem[]
+
+  @@index([storefront])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String   @map("order_id")
+  menuItemId String   @map("menu_item_id")
+  quantity   Int
+  unitPrice  Decimal  @map("unit_price") @db.Decimal(12, 2)
+  notes      String?
+  subtotal   Decimal  @db.Decimal(12, 2)
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("order_items")
+}
+
+model RestaurantTable {
+  id          String      @id @default(uuid())
+  tableNumber String      @unique @map("table_number")
+  capacity    Int
+  status      TableStatus @default(AVAILABLE)
+
+  @@map("restaurant_tables")
+}
+
+enum Storefront {
+  RESTAURANT
+  LOUNGE
+  BOUTIQUE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderSource {
+  INTERNAL_POS
+  WEBSITE
+  ROOM_SERVICE
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+}
+
+// ============================ Audit Log (Domain §8.4) — append-only ============================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  module     String
+  targetId   String?  @map("target_id")
+  targetType String?  @map("target_type")
+  before     Json?
+  after      Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([module])
+  @@map("audit_logs")
+}

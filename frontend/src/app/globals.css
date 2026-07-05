@@ -1,0 +1,294 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   AEHOP Design Tokens — derived from 03_UI_Constitution.md v1.1
+   Palette exposed via @theme → generates Tailwind utilities
+   (bg-pub-bg, text-pub-ink, border-pub-line, text-pub-gold …)
+   and CSS variables (--color-pub-bg …) simultaneously.
+   ============================================================ */
+@theme {
+  /* Fonts */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-playfair), Georgia, serif;
+
+  /* Shared brand (internal + public) */
+  --color-brand-primary: #c9a84c;
+  --color-brand-primary-light: #e2c47a;
+  --color-brand-primary-dark: #a07a2a;
+  --color-brand-deep: #0d1321;
+  --color-brand-surface: #151e2e;
+  --color-brand-surface-2: #1e2a3d;
+  --color-brand-surface-3: #263347;
+
+  /* Public — warm editorial light theme (§15.2) */
+  --color-pub-bg: #fbf9f5;
+  --color-pub-surface: #ffffff;
+  --color-pub-sand: #f4efe7;
+  --color-pub-stone: #eae3d7;
+  --color-pub-espresso: #1a1712;
+  --color-pub-espresso-2: #26211a;
+  --color-pub-ink: #211d18;
+  --color-pub-ink-soft: #5a5248;
+  --color-pub-ink-muted: #928a7c;
+  --color-pub-on-dark: #f3ecdf;
+  --color-pub-on-dark-soft: #b9af9d;
+  --color-pub-line: #e6dfd3;
+  --color-pub-line-strong: #d8cebc;
+  --color-pub-gold: #c9a84c;
+  --color-pub-gold-deep: #a07a2a;
+
+  /* Internal platform — dark-first (§2). fg/line/semantic on dark surfaces. */
+  --color-fg: hsl(220 20% 95%);
+  --color-fg-soft: hsl(220 15% 65%);
+  --color-fg-muted: hsl(220 12% 45%);
+  --color-line: hsl(220 20% 18%);
+  --color-line-2: hsl(220 20% 25%);
+  --color-line-3: hsl(220 20% 35%);
+  --color-ok: hsl(142 69% 45%);
+  --color-ok-bg: hsl(142 50% 12%);
+  --color-warn: hsl(38 92% 55%);
+  --color-warn-bg: hsl(38 60% 12%);
+  --color-danger: hsl(0 72% 60%);
+  --color-danger-bg: hsl(0 50% 12%);
+  --color-info: hsl(204 94% 55%);
+  --color-info-bg: hsl(204 60% 12%);
+}
+
+/* Layout & motion tokens (§15.4 / §15.6) */
+:root {
+  --pub-container: 1280px;
+  --pub-section-y: 120px;
+  --pub-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* shadcn tokens — LIGHT (public site) mapped to the warm public palette */
+  --background: var(--color-pub-bg);
+  --foreground: var(--color-pub-ink);
+  --card: var(--color-pub-surface);
+  --card-foreground: var(--color-pub-ink);
+  --popover: var(--color-pub-surface);
+  --popover-foreground: var(--color-pub-ink);
+  --primary: var(--color-pub-gold);
+  --primary-foreground: var(--color-pub-ink);
+  --secondary: var(--color-pub-sand);
+  --secondary-foreground: var(--color-pub-ink);
+  --muted: var(--color-pub-sand);
+  --muted-foreground: var(--color-pub-ink-muted);
+  --accent: var(--color-pub-stone);
+  --accent-foreground: var(--color-pub-ink);
+  --destructive: hsl(0 72% 48%);
+  --border: var(--color-pub-line);
+  --input: var(--color-pub-line);
+  --ring: var(--color-pub-gold);
+  --chart-1: var(--color-pub-gold);
+  --chart-2: #8a7a52;
+  --chart-3: #5a5248;
+  --chart-4: #b9a77e;
+  --chart-5: #d8cebc;
+  --radius: 0.5rem;
+  --sidebar: var(--color-pub-surface);
+  --sidebar-foreground: var(--color-pub-ink);
+  --sidebar-primary: var(--color-pub-gold);
+  --sidebar-primary-foreground: var(--color-pub-ink);
+  --sidebar-accent: var(--color-pub-sand);
+  --sidebar-accent-foreground: var(--color-pub-ink);
+  --sidebar-border: var(--color-pub-line);
+  --sidebar-ring: var(--color-pub-gold);
+}
+@media (max-width: 1024px) { :root { --pub-section-y: 80px; } }
+@media (max-width: 640px)  { :root { --pub-section-y: 56px; } }
+
+html { scroll-behavior: smooth; }
+body { margin: 0; }
+
+/* ============================================================
+   Public base + typography utilities (§15.3)
+   ============================================================ */
+.public-theme {
+  background: var(--color-pub-bg);
+  color: var(--color-pub-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.pub-display-hero {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(2.5rem, 6vw, 5rem); line-height: 1.04;
+  letter-spacing: -0.01em; text-wrap: balance;
+}
+.pub-display-1 {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(2.125rem, 4.4vw, 3.75rem); line-height: 1.08;
+  letter-spacing: -0.01em; text-wrap: balance;
+}
+.pub-display-2 {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(1.875rem, 3.2vw, 2.75rem); line-height: 1.12;
+  letter-spacing: -0.01em; text-wrap: balance;
+}
+.pub-display-3 {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(1.5rem, 2.2vw, 2rem); line-height: 1.2;
+}
+.pub-display-quote {
+  font-family: var(--font-display); font-weight: 400; font-style: italic;
+  font-size: clamp(1.375rem, 2.4vw, 1.875rem); line-height: 1.35;
+}
+.pub-display-hero em, .pub-display-1 em, .pub-display-2 em, .pub-display-3 em {
+  font-style: italic; color: var(--color-pub-gold-deep);
+}
+.pub-overline {
+  font-family: var(--font-sans); font-weight: 500; font-size: 0.75rem;
+  line-height: 1.4; text-transform: uppercase; letter-spacing: 0.18em;
+}
+.pub-body-lg { font-size: 1.125rem; line-height: 1.7; }
+.pub-body    { font-size: 1rem;     line-height: 1.7; }
+.pub-body-sm { font-size: 0.875rem; line-height: 1.6; }
+.pub-cta     { font-weight: 600; font-size: 0.875rem; letter-spacing: 0.04em; }
+.pub-prose   { max-width: 62ch; }
+
+/* Layout helpers */
+.pub-container {
+  width: 100%; max-width: var(--pub-container);
+  margin-inline: auto; padding-inline: 24px;
+}
+@media (min-width: 768px)  { .pub-container { padding-inline: 48px; } }
+@media (min-width: 1024px) { .pub-container { padding-inline: 80px; } }
+.pub-section { padding-block: var(--pub-section-y); }
+
+/* Animated gold underline (§15.7 pub-ghost-link) */
+.pub-underline { position: relative; }
+.pub-underline::after {
+  content: ""; position: absolute; left: 0; bottom: -2px;
+  width: 100%; height: 1px; background: var(--color-pub-gold);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 300ms var(--pub-ease);
+}
+.pub-underline:hover::after { transform: scaleX(1); }
+
+/* Ken-burns hero imagery (§15.6) */
+@keyframes pub-kenburns { from { transform: scale(1); } to { transform: scale(1.06); } }
+.pub-kenburns { animation: pub-kenburns 12s ease-in-out forwards; }
+
+/* Warm skeleton shimmer (§13) */
+@keyframes pub-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.pub-skeleton {
+  background: linear-gradient(90deg,
+    var(--color-pub-stone) 25%, var(--color-pub-sand) 50%, var(--color-pub-stone) 75%);
+  background-size: 200% 100%; animation: pub-shimmer 1.5s infinite ease-in-out;
+}
+
+.public-theme :focus-visible { outline: 2px solid var(--color-pub-gold); outline-offset: 2px; }
+
+/* ============================================================
+   Internal platform base (dark-first, §2 / §5)
+   ============================================================ */
+.internal-theme {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  color: var(--color-fg);
+  background: var(--color-brand-deep);
+}
+.internal-theme :focus-visible { outline: 2px solid var(--color-brand-primary); outline-offset: 2px; }
+.int-skeleton {
+  background: linear-gradient(90deg,
+    var(--color-brand-surface) 25%, var(--color-brand-surface-2) 50%, var(--color-brand-surface) 75%);
+  background-size: 200% 100%; animation: pub-shimmer 1.5s infinite ease-in-out; border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .public-theme *, .pub-kenburns { animation: none !important; transition: none !important; }
+}
+
+@theme inline {
+  --font-heading: var(--font-playfair);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* shadcn tokens — DARK (internal platform) mapped to the brand navy + gold palette */
+.dark {
+  --background: var(--color-brand-deep);
+  --foreground: var(--color-fg);
+  --card: var(--color-brand-surface);
+  --card-foreground: var(--color-fg);
+  --popover: var(--color-brand-surface-2);
+  --popover-foreground: var(--color-fg);
+  --primary: var(--color-brand-primary);
+  --primary-foreground: var(--color-brand-deep);
+  --secondary: var(--color-brand-surface-2);
+  --secondary-foreground: var(--color-fg);
+  --muted: var(--color-brand-surface-2);
+  --muted-foreground: var(--color-fg-muted);
+  --accent: var(--color-brand-surface-3);
+  --accent-foreground: var(--color-fg);
+  --destructive: var(--color-danger);
+  --border: var(--color-line);
+  --input: var(--color-line-2);
+  --ring: var(--color-brand-primary);
+  --chart-1: var(--color-brand-primary);
+  --chart-2: #7a9ec9;
+  --chart-3: #63b58a;
+  --chart-4: #d1a15a;
+  --chart-5: #b98cc9;
+  --sidebar: var(--color-brand-surface);
+  --sidebar-foreground: var(--color-fg);
+  --sidebar-primary: var(--color-brand-primary);
+  --sidebar-primary-foreground: var(--color-brand-deep);
+  --sidebar-accent: var(--color-brand-surface-2);
+  --sidebar-accent-foreground: var(--color-fg);
+  --sidebar-border: var(--color-line);
+  --sidebar-ring: var(--color-brand-primary);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

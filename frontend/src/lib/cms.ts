@@ -1,0 +1,309 @@
+/**
+ * CMS content layer for the public website.
+ *
+ * Per the UI Constitution §15.5, the site is CMS-driven: **every image is a
+ * placeholder**. Media fields below are intentionally left `undefined` — each
+ * <MediaFrame> renders a dignified placeholder keyed by its `slot`. When the
+ * CMS is wired up, these objects are replaced by API responses of the same shape.
+ *
+ * Types mirror the Domain Model (RoomType, MenuItem, SpecialOffer, etc.).
+ */
+
+export type MediaKey = string | undefined;
+
+export interface SiteSettings {
+  hotelName: string;
+  tagline: string;
+  phone: string;
+  whatsapp: string; // E.164 without '+', for wa.me links
+  email: string;
+  address: string;
+  city: string;
+  hours: { label: string; value: string }[];
+  socials: { label: string; href: string }[];
+}
+
+export const site: SiteSettings = {
+  hotelName: "Acemco Express",
+  tagline: "Holiday Inn",
+  phone: "+234 800 000 0000",
+  whatsapp: "2348000000000",
+  email: "reservations@acemcohotel.com",
+  address: "12 Marina Crescent",
+  city: "Warri, Delta State, Nigeria",
+  hours: [
+    { label: "Reception", value: "24 hours" },
+    { label: "Restaurant", value: "07:00 – 23:00" },
+    { label: "Lounge", value: "16:00 – 02:00" },
+  ],
+  socials: [
+    { label: "Instagram", href: "#" },
+    { label: "Facebook", href: "#" },
+    { label: "X", href: "#" },
+  ],
+};
+
+export interface RoomType {
+  slug: string;
+  name: string;
+  tier: string; // overline
+  summary: string;
+  description: string;
+  bedConfiguration: string;
+  maxOccupancy: number;
+  sizeSqm: number;
+  basePrice: number;
+  features: string[];
+  heroSlot: MediaKey;
+  gallerySlots: number; // count of placeholder gallery tiles
+}
+
+export const roomTypes: RoomType[] = [
+  {
+    slug: "deluxe-king",
+    name: "Deluxe King",
+    tier: "Signature Comfort",
+    summary: "A serene king retreat with city views and a marble bath.",
+    description:
+      "Our most-requested room pairs a plush king bed with a quiet sitting nook and floor-to-ceiling windows. Wake to soft light, unwind to the city at dusk.",
+    bedConfiguration: "1 King Bed",
+    maxOccupancy: 2,
+    sizeSqm: 32,
+    basePrice: 65000,
+    features: ["City view", "Marble bath", "Fast Wi-Fi", "Work desk", "Smart TV", "Rain shower"],
+    heroSlot: undefined,
+    gallerySlots: 4,
+  },
+  {
+    slug: "twin-classic",
+    name: "Twin Classic",
+    tier: "For Two Journeys",
+    summary: "Two considered beds, warm textures, and everything close at hand.",
+    description:
+      "Designed for colleagues and companions, the Twin Classic offers two full beds without compromising on the calm, tactile finish that defines every Acemco room.",
+    bedConfiguration: "2 Twin Beds",
+    maxOccupancy: 2,
+    sizeSqm: 30,
+    basePrice: 58000,
+    features: ["Garden view", "Fast Wi-Fi", "Work desk", "Smart TV", "Tea & coffee"],
+    heroSlot: undefined,
+    gallerySlots: 4,
+  },
+  {
+    slug: "executive-suite",
+    name: "Executive Suite",
+    tier: "Room to Arrive",
+    summary: "A separate living room, a private bar, and the best light in the house.",
+    description:
+      "The Executive Suite is a home for longer stays and slower mornings — a distinct lounge, a generous bedroom, and a bath that invites you to linger.",
+    bedConfiguration: "1 King Bed + Sofa",
+    maxOccupancy: 3,
+    sizeSqm: 58,
+    basePrice: 120000,
+    features: ["Separate lounge", "Private bar", "City view", "Rain shower", "Fast Wi-Fi", "Nespresso"],
+    heroSlot: undefined,
+    gallerySlots: 6,
+  },
+  {
+    slug: "garden-family",
+    name: "Garden Family Room",
+    tier: "Together, Unhurried",
+    summary: "Space for the whole party, opening onto the courtyard garden.",
+    description:
+      "A flexible layout for families, with a king and two singles, opening directly onto the courtyard so mornings begin with birdsong and shade.",
+    bedConfiguration: "1 King + 2 Single Beds",
+    maxOccupancy: 4,
+    sizeSqm: 48,
+    basePrice: 95000,
+    features: ["Courtyard access", "Family layout", "Fast Wi-Fi", "Two Smart TVs", "Tea & coffee"],
+    heroSlot: undefined,
+    gallerySlots: 4,
+  },
+];
+
+export function getRoomType(slug: string): RoomType | undefined {
+  return roomTypes.find((r) => r.slug === slug);
+}
+
+export interface Amenity {
+  title: string;
+  overline: string;
+  description: string;
+  slot: MediaKey;
+}
+
+export const amenities: Amenity[] = [
+  { title: "The Restaurant", overline: "Dining", description: "Seasonal West-African and continental plates, served all day.", slot: undefined },
+  { title: "The Lounge", overline: "Cocktails", description: "Signature cocktails and small plates as the evening settles.", slot: undefined },
+  { title: "Rooftop Pool", overline: "Leisure", description: "An infinity edge above the city, open sunrise to sunset.", slot: undefined },
+  { title: "Wellness & Spa", overline: "Restore", description: "Treatment rooms, steam, and a quiet space to reset.", slot: undefined },
+  { title: "Meetings & Events", overline: "Gather", description: "Four adaptable rooms for boardrooms and celebrations alike.", slot: undefined },
+  { title: "Fitness Studio", overline: "Move", description: "A fully equipped studio with a view, open 24 hours.", slot: undefined },
+];
+
+export type Storefront = "RESTAURANT" | "LOUNGE";
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  tags: string[];
+  isAvailable: boolean;
+  isHidden: boolean;
+  slot: MediaKey;
+}
+
+export interface MenuCategory {
+  id: string;
+  name: string;
+  items: MenuItem[];
+}
+
+export interface Venue {
+  slug: "restaurant" | "lounge";
+  storefront: Storefront;
+  name: string;
+  overline: string;
+  story: string;
+  hours: string;
+  heroSlot: MediaKey;
+  categories: MenuCategory[];
+}
+
+export const venues: Venue[] = [
+  {
+    slug: "restaurant",
+    storefront: "RESTAURANT",
+    name: "The Restaurant",
+    overline: "All-Day Dining",
+    story:
+      "A room built around the table. Our kitchen leans on the market — what is best today shapes what reaches your plate tonight.",
+    hours: "07:00 – 23:00 daily",
+    heroSlot: undefined,
+    categories: [
+      {
+        id: "starters",
+        name: "Starters",
+        items: [
+          { id: "r-1", name: "Pepper Soup, Catfish", description: "Aromatic broth, scent leaf, fresh catfish.", price: 6500, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-2", name: "Suya Beef Skewers", description: "Charred, dusted with yaji, red onion.", price: 7000, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-3", name: "Garden Salad", description: "Leaves, avocado, citrus dressing.", price: 5000, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
+        ],
+      },
+      {
+        id: "mains",
+        name: "Mains",
+        items: [
+          { id: "r-4", name: "Jollof Rice & Grilled Chicken", description: "Smoky party jollof, chicken, plantain.", price: 9500, tags: [], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-5", name: "Seared Barramundi", description: "Coconut sauce, greens, jasmine rice.", price: 14000, tags: [], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-6", name: "Egusi & Pounded Yam", description: "Melon seed stew, assorted, pounded yam.", price: 11000, tags: [], isAvailable: false, isHidden: false, slot: undefined },
+          { id: "r-7", name: "Ribeye, Pepper Glaze", description: "300g grass-fed, ata rodo glaze, fries.", price: 21000, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
+        ],
+      },
+      {
+        id: "desserts",
+        name: "Desserts",
+        items: [
+          { id: "r-8", name: "Coconut Panna Cotta", description: "Passionfruit, toasted coconut.", price: 5500, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-9", name: "Chocolate Fondant", description: "Warm centre, vanilla ice cream.", price: 6000, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
+        ],
+      },
+    ],
+  },
+  {
+    slug: "lounge",
+    storefront: "LOUNGE",
+    name: "The Lounge",
+    overline: "Cocktails & Small Plates",
+    story:
+      "When the light goes low, the Lounge comes alive — considered cocktails, a short vinyl list, and plates made for sharing.",
+    hours: "16:00 – 02:00 daily",
+    heroSlot: undefined,
+    categories: [
+      {
+        id: "signatures",
+        name: "Signatures",
+        items: [
+          { id: "l-1", name: "Marina Sundown", description: "Aged rum, hibiscus, lime, bitters.", price: 8000, tags: [], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "l-2", name: "Smoked Old Fashioned", description: "Bourbon, cane sugar, oak smoke.", price: 9000, tags: [], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "l-3", name: "Zobo Spritz", description: "Hibiscus, sparkling, citrus. Zero proof.", price: 5500, tags: ["Zero-proof"], isAvailable: true, isHidden: false, slot: undefined },
+        ],
+      },
+      {
+        id: "small-plates",
+        name: "Small Plates",
+        items: [
+          { id: "l-4", name: "Peppered Snails", description: "Bell pepper, onion, scotch bonnet.", price: 8500, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "l-5", name: "Plantain & Dip", description: "Crisp plantain, smoked pepper dip.", price: 4500, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "l-6", name: "Chapman Wings", description: "Glazed, sesame, spring onion.", price: 7500, tags: [], isAvailable: true, isHidden: false, slot: undefined },
+        ],
+      },
+    ],
+  },
+];
+
+export function getVenue(slug: string): Venue | undefined {
+  return venues.find((v) => v.slug === slug);
+}
+
+export interface Offer {
+  id: string;
+  title: string;
+  ribbon: string;
+  validity: string;
+  terms: string;
+  slot: MediaKey;
+}
+
+export const offers: Offer[] = [
+  { id: "o-1", title: "Third Night Complimentary", ribbon: "Seasonal", validity: "Through Sept 2026", terms: "Stay two nights, the third is on us — on Deluxe and Suite rooms.", slot: undefined },
+  { id: "o-2", title: "Dine & Stay", ribbon: "Package", validity: "Weekends", terms: "Room, breakfast for two, and a ₦15,000 dining credit.", slot: undefined },
+  { id: "o-3", title: "Early Arrival", ribbon: "Advance", validity: "Book 21 days ahead", terms: "Save 15% and enjoy a guaranteed early check-in.", slot: undefined },
+];
+
+export interface Testimonial {
+  quote: string;
+  name: string;
+  origin: string;
+}
+
+export const testimonials: Testimonial[] = [
+  { quote: "The kind of quiet luxury that lets you actually rest. We left already planning our return.", name: "Adaeze O.", origin: "Lagos" },
+  { quote: "Faultless service and a suite that felt like a private apartment. The best stay in the region, full stop.", name: "James M.", origin: "London" },
+  { quote: "From the rooftop pool to the lounge at midnight, every detail was considered. Remarkable.", name: "Tunde & Bola", origin: "Abuja" },
+];
+
+/** Boutique products (Domain §4.2) — retail items with SKU + stock. */
+export interface BoutiqueProduct {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  sku: string;
+  stockQty: number;
+  slot: MediaKey;
+}
+
+export const boutiqueProducts: BoutiqueProduct[] = [
+  { id: "b-1", name: "Acemco Signature Candle", category: "Home", price: 12000, sku: "HM-CDL-01", stockQty: 24, slot: undefined },
+  { id: "b-2", name: "Woven Beach Tote", category: "Accessories", price: 18000, sku: "AC-TOT-02", stockQty: 8, slot: undefined },
+  { id: "b-3", name: "Hibiscus Body Oil", category: "Wellness", price: 9500, sku: "WL-OIL-03", stockQty: 0, slot: undefined },
+  { id: "b-4", name: "Linen Robe", category: "Apparel", price: 32000, sku: "AP-ROB-04", stockQty: 12, slot: undefined },
+  { id: "b-5", name: "Local Roast Coffee 250g", category: "Pantry", price: 7000, sku: "PT-COF-05", stockQty: 40, slot: undefined },
+  { id: "b-6", name: "Handmade Leather Journal", category: "Accessories", price: 15000, sku: "AC-JRN-06", stockQty: 6, slot: undefined },
+  { id: "b-7", name: "Sunscreen SPF50", category: "Wellness", price: 8000, sku: "WL-SUN-07", stockQty: 30, slot: undefined },
+  { id: "b-8", name: "Acemco Tee", category: "Apparel", price: 11000, sku: "AP-TEE-08", stockQty: 20, slot: undefined },
+];
+
+/** Gallery tiles — mixed ratios per §15.5. All placeholders. */
+export const gallerySlots: { ratio: "1/1" | "3/4"; slot: MediaKey }[] = [
+  { ratio: "3/4", slot: undefined },
+  { ratio: "1/1", slot: undefined },
+  { ratio: "1/1", slot: undefined },
+  { ratio: "3/4", slot: undefined },
+  { ratio: "1/1", slot: undefined },
+  { ratio: "3/4", slot: undefined },
+  { ratio: "3/4", slot: undefined },
+  { ratio: "1/1", slot: undefined },
+];

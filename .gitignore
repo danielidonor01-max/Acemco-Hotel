@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+dist/
+out/
+build/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Prisma local db
+*.db
+*.db-journal
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Local agent/session config
+.claude/
