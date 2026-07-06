@@ -28,6 +28,12 @@ export class FinanceController {
     return this.finance.summary();
   }
 
+  @Get('revenue-daily')
+  @RequirePermissions('finance:VIEW')
+  revenueDaily(@Query('days') days?: string) {
+    return this.finance.revenueDaily(Math.min(Number(days) || 7, 31));
+  }
+
   @Get('transactions')
   @RequirePermissions('finance:VIEW')
   list(@Query('type') type?: TransactionType, @Query('status') status?: TransactionStatus) {

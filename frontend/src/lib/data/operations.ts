@@ -115,6 +115,59 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   return data;
 }
 
+/* ---------------- Inventory / HR / Maintenance updates ---------------- */
+export async function updateInventoryItem(id: string, input: Partial<NewInventoryItem>): Promise<void> {
+  await apiRequest(`/inventory/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+export async function updateEmployee(id: string, input: Partial<Omit<NewEmployee, "employeeNumber">>): Promise<void> {
+  await apiRequest(`/employees/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+export interface NewLeave { employeeId: string; type: LeaveRequest["type"]; startDate: string; endDate: string; days: number; }
+export async function createLeave(input: NewLeave): Promise<void> {
+  await apiRequest("/leave-requests", { method: "POST", body: JSON.stringify(input) });
+}
+export interface NewAsset { assetNumber: string; name: string; category: string; location: string; status: Asset["status"]; nextInspection?: string; }
+export async function createAsset(input: NewAsset): Promise<void> {
+  await apiRequest("/assets", { method: "POST", body: JSON.stringify(input) });
+}
+
+/* ---------------- Finance create + daily revenue ---------------- */
+export interface NewTransaction {
+  type: Transaction["type"]; amount: number; direction: Transaction["direction"];
+  account: string; description: string; date: string; status?: Transaction["status"];
+}
+export async function createTransaction(input: NewTransaction): Promise<void> {
+  await apiRequest("/finance/transactions", { method: "POST", body: JSON.stringify(input) });
+}
+export async function getRevenueDaily(days = 7): Promise<{ date: string; amount: number }[]> {
+  if (!hasApi()) return [];
+  const { data } = await apiRequest<{ date: string; amount: number }[]>(`/finance/revenue-daily?days=${days}`);
+  return data;
+}
+
+/* ---------------- Folio (guest billing) ---------------- */
+export interface FolioLine { id: string; description: string; amount: number; type: string; postedAt: string; }
+export interface FolioView {
+  folio: { id: string; status: string } | null;
+  lines: FolioLine[];
+  balance: number;
+}
+export async function getFolio(reservationId: string): Promise<FolioView> {
+  const { data } = await apiRequest<{ folio: { id: string; status: string } | null; lines: any[]; balance: number }>(`/folios/reservation/${reservationId}`);
+  return { folio: data.folio, balance: Number(data.balance), lines: data.lines.map((l) => ({ ...l, amount: Number(l.amount) })) };
+}
+export async function addFolioLine(folioId: string, input: { description: string; amount: number; type: string }): Promise<void> {
+  await apiRequest(`/folios/${folioId}/lines`, { method: "POST", body: JSON.stringify(input) });
+}
+
+/* ---------------- Audit log ---------------- */
+export interface AuditEntry { id: string; action: string; module: string; targetId?: string; occurredAt: string; user: string; }
+export async function listAuditLogs(): Promise<AuditEntry[]> {
+  if (!hasApi()) return [];
+  const { data } = await apiRequest<AuditEntry[]>("/audit-logs?limit=100");
+  return data;
+}
+
 export interface ReportsOverview {
   occupancyRate: number;
   revenueByAccount: Record<string, number>;

@@ -100,7 +100,19 @@ export async function checkInReservation(id: string, roomId?: string): Promise<R
   return mapApi(data);
 }
 
-export async function checkOutReservation(id: string): Promise<Reservation> {
-  const { data } = await apiRequest<ApiReservation>(`/reservations/${id}/check-out`, { method: "POST" });
+export async function checkOutReservation(id: string, paymentMethod = "CASH"): Promise<Reservation> {
+  const { data } = await apiRequest<ApiReservation>(`/reservations/${id}/check-out`, {
+    method: "POST",
+    body: JSON.stringify({ paymentMethod }),
+  });
+  return mapApi(data);
+}
+
+export interface WalkIn extends NewReservation { roomId?: string }
+export async function walkInReservation(input: WalkIn): Promise<Reservation> {
+  const { data } = await apiRequest<ApiReservation>("/reservations/walk-in", {
+    method: "POST",
+    body: JSON.stringify({ ...input, source: "WALK_IN" }),
+  });
   return mapApi(data);
 }

@@ -58,11 +58,12 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
 
   const send = useMutation({
     mutationFn: async () => {
-      if (live && kind === "food") {
+      if (live) {
         const order = await createOrder({
-          storefront: storefront as Storefront,
+          storefront,
           items: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes })),
-          tableNumber: ref || undefined,
+          tableNumber: kind !== "retail" ? ref || undefined : undefined,
+          customerName: kind === "retail" ? ref || undefined : undefined,
         });
         return order.orderNumber;
       }

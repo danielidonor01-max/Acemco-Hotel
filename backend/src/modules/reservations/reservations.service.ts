@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { Prisma, ReservationStatus } from '@prisma/client';
+import { Prisma, ReservationStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
 import { reservationNumber } from '../../common/utils/number-generator';
@@ -134,14 +134,24 @@ export class ReservationsService {
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
   }
 
+  /** Walk-in: create + confirm + check-in in one step (guest arrives without a booking). */
+  async walkIn(dto: CreateReservationDto & { roomId?: string }, userId: string) {
+    const created = await this.create({ ...dto, source: 'WALK_IN' }, userId);
+    await this.prisma.reservation.update({ where: { id: created.id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
+    return this.checkIn(created.id, dto.roomId, userId);
+  }
+
   private readonly detailInclude = {
     guest: { select: { firstName: true, lastName: true, isVip: true, phone: true } },
     roomType: { select: { name: true } },
     room: { select: { roomNumber: true } },
   } as const;
 
-  /** Check-in interlock (Domain §5): reservation → CHECKED_IN, room → OCCUPIED. */
-  async checkIn(id: string, roomId?: string) {
+  /**
+   * Check-in interlock (Domain §5): reservation → CHECKED_IN, room → OCCUPIED,
+   * plus a CheckIn record and an OPEN folio with the room charge posted.
+   */
+  async checkIn(id: string, roomId: string | undefined, userId: string) {
     const r = await this.get(id);
     if (r.status !== 'CONFIRMED') {
       throw new ConflictException({ code: 'INVALID_STATE', message: `Only a confirmed reservation can be checked in (currently ${r.status}).` });
@@ -154,25 +164,55 @@ export class ReservationsService {
     if (!room) throw new ConflictException({ code: 'NO_ROOM', message: 'No available room of this type to assign.' });
     if (room.status !== 'AVAILABLE') throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
 
-    const [reservation] = await this.prisma.$transaction([
-      this.prisma.reservation.update({ where: { id }, data: { status: 'CHECKED_IN', roomId: room.id }, include: this.detailInclude }),
-      this.prisma.room.update({ where: { id: room.id }, data: { status: 'OCCUPIED' } }),
-    ]);
-    return reservation;
+    return this.prisma.$transaction(async (tx) => {
+      const reservation = await tx.reservation.update({ where: { id }, data: { status: 'CHECKED_IN', roomId: room.id }, include: this.detailInclude });
+      await tx.room.update({ where: { id: room.id }, data: { status: 'OCCUPIED' } });
+      const checkIn = await tx.checkIn.create({
+        data: { reservationId: id, guestId: r.guestId, roomId: room.id, checkedInByUserId: userId, keyIssued: true },
+      });
+      await tx.folio.create({
+        data: {
+          guestId: r.guestId,
+          checkInId: checkIn.id,
+          status: 'OPEN',
+          lines: { create: [{ description: `Room charge · ${reservation.reservationNumber}`, amount: r.totalAmount, type: 'ROOM_CHARGE' }] },
+        },
+      });
+      return reservation;
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
-  /** Check-out interlock (Domain §5): reservation → CHECKED_OUT, room → CLEANING. */
-  async checkOut(id: string) {
+  /**
+   * Check-out interlock (Domain §5): reservation → CHECKED_OUT, room → CLEANING,
+   * settle the folio and record a CheckOut with the total charged + payment method.
+   */
+  async checkOut(id: string, userId: string, paymentMethod: PaymentMethod = 'CASH') {
     const r = await this.get(id);
     if (r.status !== 'CHECKED_IN') {
       throw new ConflictException({ code: 'INVALID_STATE', message: `Only a checked-in reservation can be checked out (currently ${r.status}).` });
     }
-    const ops: Prisma.PrismaPromise<unknown>[] = [
-      this.prisma.reservation.update({ where: { id }, data: { status: 'CHECKED_OUT' }, include: this.detailInclude }),
-    ];
-    if (r.roomId) ops.push(this.prisma.room.update({ where: { id: r.roomId }, data: { status: 'CLEANING' } }));
-    const [reservation] = await this.prisma.$transaction(ops);
-    return reservation;
+    const checkIn = await this.prisma.checkIn.findFirst({
+      where: { reservationId: id, checkOut: null },
+      orderBy: { checkedInAt: 'desc' },
+      include: { folio: { include: { lines: true } } },
+    });
+    const balance = checkIn?.folio ? checkIn.folio.lines.reduce((s, l) => s + Number(l.amount), 0) : Number(r.totalAmount);
+
+    return this.prisma.$transaction(async (tx) => {
+      const reservation = await tx.reservation.update({ where: { id }, data: { status: 'CHECKED_OUT' }, include: this.detailInclude });
+      if (r.roomId) await tx.room.update({ where: { id: r.roomId }, data: { status: 'CLEANING' } });
+      if (checkIn) {
+        await tx.checkOut.create({
+          data: { checkInId: checkIn.id, guestId: r.guestId, roomId: r.roomId ?? checkIn.roomId, checkedOutByUserId: userId, totalCharged: balance, paymentMethod },
+        });
+        if (checkIn.folio) await tx.folio.update({ where: { id: checkIn.folio.id }, data: { status: 'SETTLED', settledAt: new Date() } });
+      }
+      // Queue a checkout-clean housekeeping task for the room.
+      if (r.room?.roomNumber) {
+        await tx.housekeepingTask.create({ data: { roomNumber: r.room.roomNumber, type: 'CHECKOUT_CLEAN', priority: 'HIGH', status: 'PENDING' } });
+      }
+      return reservation;
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   async cancel(id: string, reason?: string) {

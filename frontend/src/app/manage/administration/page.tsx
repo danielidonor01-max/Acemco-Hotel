@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Shield, Plus, Pencil, Loader2, Lock, Trash2, Users as UsersIcon, KeyRound } from "lucide-react";
+import { Shield, Plus, Pencil, Loader2, Lock, Trash2, Users as UsersIcon, KeyRound, History } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, Button, Badge } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
@@ -18,6 +18,7 @@ import {
   listUsers, createUser, updateUser,
   type AdminRole, type AdminUser, type PermissionGroup,
 } from "@/lib/data/admin";
+import { listAuditLogs } from "@/lib/data/operations";
 
 const labelize = (s: string) => s.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -52,9 +53,11 @@ export default function AdministrationPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="roles"><Shield size={15} className="mr-1.5" /> Roles</TabsTrigger>
           <TabsTrigger value="users"><UsersIcon size={15} className="mr-1.5" /> Users</TabsTrigger>
+          <TabsTrigger value="activity"><History size={15} className="mr-1.5" /> Activity</TabsTrigger>
         </TabsList>
         <TabsContent value="roles"><RolesTab /></TabsContent>
         <TabsContent value="users"><UsersTab /></TabsContent>
+        <TabsContent value="activity"><ActivityTab /></TabsContent>
       </Tabs>
     </PageShell>
   );
@@ -244,6 +247,20 @@ function RoleDialog({ role, groups, onClose, onSaved }: {
       </DialogContent>
     </Dialog>
   );
+}
+
+/* ============================ Activity (audit log) ============================ */
+
+function ActivityTab() {
+  const { data: logs = [], isLoading } = useQuery({ queryKey: ["admin", "audit"], queryFn: listAuditLogs });
+  const columns: Column<(typeof logs)[number]>[] = [
+    { key: "occurredAt", header: "When", sortValue: (l) => l.occurredAt, render: (l) => <span className="text-muted-foreground">{new Date(l.occurredAt).toLocaleString()}</span> },
+    { key: "user", header: "User", render: (l) => <span className="font-medium text-foreground">{l.user}</span> },
+    { key: "action", header: "Action", render: (l) => <Badge tone="neutral">{l.action}</Badge> },
+    { key: "module", header: "Module", render: (l) => <span className="capitalize text-muted-foreground">{l.module.replace(/_/g, " ")}</span> },
+    { key: "targetId", header: "Target", render: (l) => <span className="text-xs text-muted-foreground">{l.targetId ?? "—"}</span> },
+  ];
+  return <DataTable columns={columns} data={logs} isLoading={isLoading} />;
 }
 
 /* ============================ Users ============================ */

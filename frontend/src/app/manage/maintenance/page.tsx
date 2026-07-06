@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listAssets, listWorkOrders, createWorkOrder, updateWorkOrderStatus } from "@/lib/data/operations";
+import { DatePicker } from "@/components/internal/date-picker";
+import { listAssets, listWorkOrders, createWorkOrder, updateWorkOrderStatus, createAsset } from "@/lib/data/operations";
 import { type Asset, type WorkOrder } from "@/lib/mock-modules";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
@@ -20,11 +21,13 @@ const PRIORITY_TONE = { LOW: "neutral", NORMAL: "info", HIGH: "warning", CRITICA
 const WO_STATUSES: WorkOrder["status"][] = ["OPEN", "IN_PROGRESS", "ON_HOLD", "COMPLETED"];
 const WO_TYPES: WorkOrder["type"][] = ["CORRECTIVE", "PREVENTIVE", "INSPECTION"];
 const WO_PRIORITIES: WorkOrder["priority"][] = ["LOW", "NORMAL", "HIGH", "CRITICAL"];
+const ASSET_STATUSES: Asset["status"][] = ["OPERATIONAL", "INSPECTION_DUE", "NEEDS_REPAIR", "UNDER_REPAIR", "DECOMMISSIONED"];
 
 export default function MaintenancePage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
+  const [creatingAsset, setCreatingAsset] = useState(false);
   const { data: assets = [] } = useQuery({ queryKey: ["assets"], queryFn: listAssets });
   const { data: workOrders = [], isLoading } = useQuery({ queryKey: ["work-orders"], queryFn: listWorkOrders });
   const canUpdate = hasPermission("maintenance", "UPDATE");
@@ -95,11 +98,62 @@ export default function MaintenancePage() {
           <DataTable columns={woColumns} data={workOrders} isLoading={isLoading} emptyState={<EmptyState icon={Wrench} title="No work orders" />} />
         </TabsContent>
         <TabsContent value="assets" className="mt-4">
+          {hasPermission("maintenance", "CREATE") && (
+            <div className="mb-3 flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => setCreatingAsset(true)}><Plus size={15} /> Add asset</Button>
+            </div>
+          )}
           <DataTable columns={assetColumns} data={assets} emptyState={<EmptyState icon={Wrench} title="No assets" />} />
         </TabsContent>
       </Tabs>
       {creating && <WorkOrderDialog assets={assets} onClose={() => setCreating(false)} />}
+      {creatingAsset && <AssetDialog onClose={() => setCreatingAsset(false)} />}
     </PageShell>
+  );
+}
+
+function AssetDialog({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ assetNumber: "", name: "", category: "", location: "", status: "OPERATIONAL" as Asset["status"], nextInspection: "" });
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const save = useMutation({
+    mutationFn: () => createAsset({
+      assetNumber: form.assetNumber.trim(), name: form.name.trim(), category: form.category.trim(),
+      location: form.location.trim(), status: form.status, nextInspection: form.nextInspection || undefined,
+    }),
+    onSuccess: () => { toast.success("Asset added."); qc.invalidateQueries({ queryKey: ["assets"] }); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const canSave = form.assetNumber.trim() && form.name.trim() && form.category.trim() && form.location.trim() && !save.isPending;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New Asset</DialogTitle>
+          <DialogDescription>Register a piece of equipment or infrastructure.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5"><Label htmlFor="a-num">Asset no.</Label><Input id="a-num" value={form.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} placeholder="AST-0047" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="a-name">Name</Label><Input id="a-name" value={form.name} onChange={(e) => set("name", e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label htmlFor="a-cat">Category</Label><Input id="a-cat" value={form.category} onChange={(e) => set("category", e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label htmlFor="a-loc">Location</Label><Input id="a-loc" value={form.location} onChange={(e) => set("location", e.target.value)} /></div>
+            <div className="grid gap-1.5">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => set("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{ASSET_STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ").toLowerCase()}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5"><Label>Next inspection</Label><DatePicker value={form.nextInspection} onChange={(v) => set("nextInspection", v)} placeholder="Optional" /></div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={!canSave} onClick={() => save.mutate()}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Add asset</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

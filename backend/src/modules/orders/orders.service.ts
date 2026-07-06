@@ -2,13 +2,20 @@ import { ConflictException, Injectable, NotFoundException, UnprocessableEntityEx
 import { OrderStatus, OrderSource, Storefront, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { orderNumber } from '../../common/utils/number-generator';
+import { FinanceService } from '../finance/finance.service';
+import { FoliosService } from '../folios/folios.service';
 import { CreateOrderDto, PublicOrderDto } from './dto/order.dto';
 
 const FLOW: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERED', 'COMPLETED'];
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly finance: FinanceService,
+    private readonly folios: FoliosService,
+  ) {}
 
   /** Public menu for a storefront — excludes hidden items (Domain rule). */
   publicMenu(storefront: Storefront) {
@@ -72,7 +79,7 @@ export class OrdersService {
 
   async create(dto: CreateOrderDto, userId?: string) {
     const { lines, total } = await this.buildLines(dto.storefront, dto.items);
-    return this.prisma.order.create({
+    const order = await this.prisma.order.create({
       data: {
         orderNumber: await this.nextNumber(dto.storefront),
         storefront: dto.storefront,
@@ -90,6 +97,8 @@ export class OrdersService {
       },
       include: { items: true },
     });
+    if (order.roomNumber) await this.folios.postOrderToRoom(order.roomNumber, order.storefront, total, order.orderNumber).catch(() => undefined);
+    return order;
   }
 
   /**
@@ -128,7 +137,7 @@ export class OrdersService {
       });
     }
     const { lines, total } = await this.buildLines(dto.storefront as Storefront, dto.items);
-    return this.prisma.order.create({
+    const order = await this.prisma.order.create({
       data: {
         orderNumber: await this.nextNumber(dto.storefront as Storefront),
         storefront: dto.storefront as Storefront,
@@ -143,6 +152,9 @@ export class OrdersService {
       },
       include: { items: true },
     });
+    // Post the room-service charge to the guest's open folio (best-effort interlock).
+    await this.folios.postOrderToRoom(check.roomNumber, dto.storefront as Storefront, total, order.orderNumber).catch(() => undefined);
+    return order;
   }
 
   async advance(id: string) {
@@ -152,7 +164,22 @@ export class OrdersService {
     }
     const i = FLOW.indexOf(order.status);
     const next = FLOW[i + 1];
-    return this.prisma.order.update({ where: { id }, data: { status: next } });
+    const updated = await this.prisma.order.update({ where: { id }, data: { status: next } });
+    // Recognise revenue when the order completes (Domain §7 — F&B revenue posting).
+    if (next === 'COMPLETED') {
+      await this.finance
+        .create({
+          type: 'REVENUE',
+          amount: Number(order.totalAmount),
+          direction: 'CREDIT',
+          account: 'F&B Revenue',
+          description: `Order ${order.orderNumber}`,
+          date: todayISO(),
+          status: 'POSTED',
+        })
+        .catch(() => undefined);
+    }
+    return updated;
   }
 
   async cancel(id: string) {

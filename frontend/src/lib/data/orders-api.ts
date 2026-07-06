@@ -1,8 +1,10 @@
-import { apiRequest } from "@/lib/api";
-import { hasApi } from "@/lib/config";
+import { apiRequest, publicRequest } from "@/lib/api";
+import { hasApi, hasPublicApi } from "@/lib/config";
 import type { Order, OrderStatus, OrderSource } from "@/lib/orders";
 import { venues, boutiqueProducts, type Storefront } from "@/lib/cms";
 import { getVenue } from "@/lib/data/menus";
+
+interface ApiMenuCat { id: string; name: string; items: { id: string; name: string; price: string | number; tags: string[]; isAvailable: boolean; isHidden: boolean }[] }
 
 interface ApiOrderItem {
   menuItemId: string;
@@ -66,7 +68,7 @@ export async function cancelOrder(id: string): Promise<void> {
 }
 
 export interface NewOrder {
-  storefront: Storefront;
+  storefront: Storefront | "BOUTIQUE";
   items: { menuItemId: string; quantity: number; notes?: string }[];
   tableNumber?: string;
   customerName?: string;
@@ -101,6 +103,23 @@ export interface PosCatalogue {
 
 export async function getPosCatalogue(storefront: Storefront | "BOUTIQUE"): Promise<PosCatalogue> {
   if (storefront === "BOUTIQUE") {
+    // Prefer the live boutique menu (real item IDs) so sales post to the API.
+    if (hasPublicApi()) {
+      try {
+        const cats = await publicRequest<ApiMenuCat[]>("/menus/boutique");
+        if (cats?.length) {
+          const items: Sellable[] = cats.flatMap((c) =>
+            c.items.filter((i) => !i.isHidden).map((i) => ({
+              id: i.id, name: i.name, price: Number(i.price), category: c.name,
+              available: i.isAvailable, meta: (i.tags ?? []).join(" · ") || undefined,
+            })),
+          );
+          if (items.length) return { items, categories: [...new Set(items.map((i) => i.category))], kind: "retail", live: true };
+        }
+      } catch {
+        /* fall through to local sample */
+      }
+    }
     const items: Sellable[] = boutiqueProducts.map((p) => ({
       id: p.id, name: p.name, price: p.price, category: p.category,
       available: p.stockQty > 0,

@@ -67,6 +67,7 @@ const MENU = [
   { sf: 'RESTAURANT', cat: 'Mains', items: [['Jollof Rice & Grilled Chicken', 'Smoky party jollof, chicken, plantain.', 9500, [], true], ['Seared Barramundi', 'Coconut sauce, greens, jasmine rice.', 14000, [], true], ['Egusi & Pounded Yam', 'Melon seed stew, assorted, pounded yam.', 11000, [], false], ['Ribeye, Pepper Glaze', '300g grass-fed, ata rodo glaze, fries.', 21000, ['Spicy'], true]] },
   { sf: 'LOUNGE', cat: 'Signatures', items: [['Marina Sundown', 'Aged rum, hibiscus, lime, bitters.', 8000, [], true], ['Smoked Old Fashioned', 'Bourbon, cane sugar, oak smoke.', 9000, [], true], ['Zobo Spritz', 'Hibiscus, sparkling, citrus. Zero proof.', 5500, ['Zero-proof'], true]] },
   { sf: 'LOUNGE', cat: 'Small Plates', items: [['Peppered Snails', 'Bell pepper, onion, scotch bonnet.', 8500, ['Spicy'], true], ['Plantain & Dip', 'Crisp plantain, smoked pepper dip.', 4500, ['Vegetarian'], true]] },
+  { sf: 'BOUTIQUE', cat: 'Boutique', items: [['Signature Candle', 'Hand-poured soy candle, house scent.', 6000, ['Retail'], true], ['Acemco Tote', 'Heavy canvas tote, gold print.', 9000, ['Retail'], true], ['Travel Amenity Kit', 'Curated toiletries in a zip pouch.', 7500, ['Retail'], true]] },
 ];
 
 async function main() {
@@ -166,6 +167,10 @@ async function main() {
       id text PRIMARY KEY, room_number text NOT NULL, type "HousekeepingType" NOT NULL DEFAULT 'CHECKOUT_CLEAN',
       status "HousekeepingStatus" NOT NULL DEFAULT 'PENDING', priority "HousekeepingPriority" NOT NULL DEFAULT 'NORMAL',
       assigned_to text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS settings (
+      id text PRIMARY KEY, hotel_name text NOT NULL, tagline text NOT NULL DEFAULT '', phone text NOT NULL DEFAULT '',
+      whatsapp text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', address text NOT NULL DEFAULT '', city text NOT NULL DEFAULT '',
+      updated_at timestamptz NOT NULL DEFAULT now());
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);
     CREATE INDEX IF NOT EXISTS leave_requests_employee_id_idx ON leave_requests(employee_id);
     CREATE INDEX IF NOT EXISTS finance_transactions_type_idx ON finance_transactions(type);
@@ -424,7 +429,12 @@ async function main() {
       );
     }
   }
-  console.log('Seeded operational modules (inventory, assets, work orders, employees, leave, payroll, finance, housekeeping).');
+  await client.query(
+    `INSERT INTO settings (id, hotel_name, tagline, phone, whatsapp, email, address, city, updated_at)
+     VALUES ('hotel','Acemco Express','Holiday Inn','+234 800 000 0000','2348000000000','reservations@acemcohotel.com','12 Marina Crescent','Warri, Delta State, Nigeria',now())
+     ON CONFLICT (id) DO NOTHING`,
+  );
+  console.log('Seeded operational modules (inventory, assets, work orders, employees, leave, payroll, finance, housekeeping, settings).');
 
   // Verify
   const counts = {};

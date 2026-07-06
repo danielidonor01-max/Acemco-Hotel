@@ -35,6 +35,30 @@ export class FinanceService {
     return this.prisma.financeTransaction.update({ where: { id }, data: { status } });
   }
 
+  /** Posted revenue per day for the last `days` days (fills gaps with 0). */
+  async revenueDaily(days = 7) {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
+    const rows = await this.prisma.financeTransaction.findMany({
+      where: { type: 'REVENUE', status: 'POSTED', date: { gte: since } },
+      select: { date: true, amount: true },
+    });
+    const byDay = new Map<string, number>();
+    for (const r of rows) {
+      const key = r.date.toISOString().slice(0, 10);
+      byDay.set(key, (byDay.get(key) ?? 0) + Number(r.amount));
+    }
+    const out: { date: string; amount: number }[] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(since);
+      d.setDate(since.getDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      out.push({ date: key, amount: byDay.get(key) ?? 0 });
+    }
+    return out;
+  }
+
   /** Revenue / expense roll-up (POSTED only) for Finance dashboard + Reports. */
   async summary() {
     const posted = await this.prisma.financeTransaction.findMany({ where: { status: 'POSTED' } });

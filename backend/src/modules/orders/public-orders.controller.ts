@@ -13,10 +13,10 @@ export class PublicOrdersController {
   constructor(private readonly orders: OrdersService) {}
 
   @Get('menus/:storefront')
-  @ApiOperation({ summary: 'Public menu for a storefront (restaurant | lounge)' })
+  @ApiOperation({ summary: 'Public menu for a storefront (restaurant | lounge | boutique)' })
   menu(@Param('storefront') storefront: string) {
     const sf = storefront.toUpperCase();
-    if (sf !== 'RESTAURANT' && sf !== 'LOUNGE') {
+    if (sf !== 'RESTAURANT' && sf !== 'LOUNGE' && sf !== 'BOUTIQUE') {
       throw new BadRequestException({ code: 'INVALID_STOREFRONT', message: 'Unknown storefront.' });
     }
     return this.orders.publicMenu(sf as Storefront);

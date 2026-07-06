@@ -16,6 +16,7 @@ const createEmployeeSchema = z.object({
   startDate: z.string(),
 });
 const updateEmployeeSchema = z.object({
+  name: z.string().min(1).optional(),
   department: z.string().optional(),
   position: z.string().optional(),
   employmentType: z.nativeEnum(EmploymentType).optional(),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ReservationSource } from '@prisma/client';
+import { ReservationSource, PaymentMethod } from '@prisma/client';
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Expected YYYY-MM-DD');
 
@@ -57,3 +57,5 @@ export type PublicReservationDto = z.infer<typeof publicReservationSchema>;
 export const cancelSchema = z.object({ reason: z.string().optional() });
 
 export const checkInSchema = z.object({ roomId: z.string().uuid().optional() });
+
+export const checkOutSchema = z.object({ paymentMethod: z.nativeEnum(PaymentMethod).optional() });

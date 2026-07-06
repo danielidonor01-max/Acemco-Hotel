@@ -1,14 +1,23 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { notFound } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { Phone, Users, CalendarDays, Home } from "lucide-react";
-import { PageShell, Card, CardHeader, CardTitle, CardContent, StatusBadge, Badge } from "@/components/internal/ui";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Phone, Users, CalendarDays, Home, Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { PageShell, Card, CardHeader, CardTitle, CardContent, StatusBadge, Badge, Button } from "@/components/internal/ui";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReservationActions } from "@/components/internal/reservation-actions";
 import { getReservationById } from "@/lib/data/reservations";
+import { getFolio, addFolioLine } from "@/lib/data/operations";
+import { useAuth } from "@/providers/auth-provider";
 import { getRoomType } from "@/lib/cms";
 import { formatNaira } from "@/lib/utils";
+
+const FOLIO_LINE_TYPES = ["SERVICE", "RESTAURANT", "LOUNGE", "BOUTIQUE", "DAMAGE", "DISCOUNT", "TAX"];
 
 export default function ReservationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -63,19 +72,9 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
           </Card>
         </div>
 
-        {/* Folio summary */}
+        {/* Folio */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle>Folio</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <Row label={`Room · ${nights} night(s)`} value={formatNaira((room?.basePrice ?? 0) * nights)} />
-              <Row label="Taxes & service" value={formatNaira(Math.round(r.totalAmount * 0.075))} />
-              <div className="flex justify-between border-t border-line pt-3 text-base font-semibold text-fg">
-                <span>Total</span>
-                <span>{formatNaira(r.totalAmount)}</span>
-              </div>
-            </CardContent>
-          </Card>
+          <FolioPanel reservationId={r.id} nights={nights} baseTotal={r.totalAmount} />
         </div>
       </div>
     </PageShell>
@@ -99,5 +98,92 @@ function Row({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <span className="text-fg">{value}</span>
     </div>
+  );
+}
+
+function FolioPanel({ reservationId, nights, baseTotal }: { reservationId: string; nights: number; baseTotal: number }) {
+  const { hasPermission } = useAuth();
+  const [adding, setAdding] = useState(false);
+  const { data, isLoading } = useQuery({ queryKey: ["folio", reservationId], queryFn: () => getFolio(reservationId) });
+  const canEdit = hasPermission("reservations", "UPDATE");
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle>Folio</CardTitle>
+        {data?.folio && <Badge tone={data.folio.status === "SETTLED" ? "success" : "info"}>{data.folio.status.toLowerCase()}</Badge>}
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {isLoading ? (
+          <p className="text-fg-soft">Loading folio…</p>
+        ) : data?.folio ? (
+          <>
+            {data.lines.map((l) => (
+              <Row key={l.id} label={l.description} value={formatNaira(l.amount)} />
+            ))}
+            <div className="flex justify-between border-t border-line pt-3 text-base font-semibold text-fg">
+              <span>Balance</span>
+              <span>{formatNaira(data.balance)}</span>
+            </div>
+            {canEdit && data.folio.status === "OPEN" && (
+              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setAdding(true)}>
+                <Plus size={14} /> Add charge
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* No folio yet (guest not checked in) — show the reservation estimate. */}
+            <Row label={`Room · ${nights} night(s)`} value={formatNaira(baseTotal)} />
+            <Row label="Taxes & service" value={formatNaira(Math.round(baseTotal * 0.075))} />
+            <div className="flex justify-between border-t border-line pt-3 text-base font-semibold text-fg">
+              <span>Estimated total</span>
+              <span>{formatNaira(baseTotal)}</span>
+            </div>
+            <p className="text-xs text-fg-muted">A folio opens automatically at check-in.</p>
+          </>
+        )}
+      </CardContent>
+      {adding && data?.folio && <AddChargeDialog folioId={data.folio.id} reservationId={reservationId} onClose={() => setAdding(false)} />}
+    </Card>
+  );
+}
+
+function AddChargeDialog({ folioId, reservationId, onClose }: { folioId: string; reservationId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ description: "", amount: "", type: "SERVICE" });
+  const save = useMutation({
+    mutationFn: () => addFolioLine(folioId, { description: form.description.trim(), amount: Number(form.amount) || 0, type: form.type }),
+    onSuccess: () => { toast.success("Charge posted."); qc.invalidateQueries({ queryKey: ["folio", reservationId] }); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const canSave = form.description.trim() && Number(form.amount) !== 0 && !save.isPending;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add charge</DialogTitle>
+          <DialogDescription>Post a line to the guest folio. Use a negative amount for a discount.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-1.5"><Label htmlFor="fl-desc">Description</Label><Input id="fl-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5"><Label htmlFor="fl-amt">Amount (₦)</Label><Input id="fl-amt" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+            <div className="grid gap-1.5">
+              <Label>Type</Label>
+              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{FOLIO_LINE_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t.toLowerCase()}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={!canSave} onClick={() => save.mutate()}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Post charge</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

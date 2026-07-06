@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listInventory, createInventoryItem } from "@/lib/data/operations";
+import { listInventory, createInventoryItem, updateInventoryItem } from "@/lib/data/operations";
 import { type InventoryItem, type Department } from "@/lib/mock-modules";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ export default function InventoryPage() {
   const [dept, setDept] = useState<Department | "ALL">("ALL");
   const [lowOnly, setLowOnly] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<InventoryItem | null>(null);
+  const canEdit = hasPermission("inventory", "UPDATE");
   const { data: items = [], isLoading } = useQuery({ queryKey: ["inventory"], queryFn: listInventory });
 
   const filtered = useMemo(
@@ -105,25 +107,34 @@ export default function InventoryPage() {
         columns={columns}
         data={filtered}
         isLoading={isLoading}
+        onRowClick={canEdit ? (i) => setEditing(i) : undefined}
         emptyState={<EmptyState icon={Package} title="No items match" description="Try a different department or clear the low-stock filter." />}
       />
       {creating && <ItemDialog onClose={() => setCreating(false)} />}
+      {editing && <ItemDialog item={editing} onClose={() => setEditing(null)} />}
     </PageShell>
   );
 }
 
-function ItemDialog({ onClose }: { onClose: () => void }) {
+function ItemDialog({ item, onClose }: { item?: InventoryItem; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ name: "", sku: "", department: "GENERAL" as Department, unit: "", currentQty: "0", minStockLevel: "0", unitCost: "0", location: "" });
+  const isEdit = !!item;
+  const [form, setForm] = useState({
+    name: item?.name ?? "", sku: item?.sku ?? "", department: (item?.department ?? "GENERAL") as Department, unit: item?.unit ?? "",
+    currentQty: String(item?.currentQty ?? 0), minStockLevel: String(item?.minStockLevel ?? 0), unitCost: String(item?.unitCost ?? 0), location: item?.location ?? "",
+  });
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = useMutation({
-    mutationFn: () => createInventoryItem({
-      name: form.name.trim(), sku: form.sku.trim(), department: form.department, unit: form.unit.trim(),
-      currentQty: Number(form.currentQty) || 0, minStockLevel: Number(form.minStockLevel) || 0,
-      unitCost: Number(form.unitCost) || 0, location: form.location.trim() || undefined,
-    }),
-    onSuccess: () => { toast.success("Item added."); qc.invalidateQueries({ queryKey: ["inventory"] }); onClose(); },
+    mutationFn: () => {
+      const payload = {
+        name: form.name.trim(), department: form.department, unit: form.unit.trim(),
+        currentQty: Number(form.currentQty) || 0, minStockLevel: Number(form.minStockLevel) || 0,
+        unitCost: Number(form.unitCost) || 0, location: form.location.trim() || undefined,
+      };
+      return isEdit ? updateInventoryItem(item!.id, payload) : createInventoryItem({ ...payload, sku: form.sku.trim() });
+    },
+    onSuccess: () => { toast.success(isEdit ? "Item updated." : "Item added."); qc.invalidateQueries({ queryKey: ["inventory"] }); onClose(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const canSave = form.name.trim() && form.sku.trim() && form.unit.trim() && !save.isPending;
@@ -132,13 +143,13 @@ function ItemDialog({ onClose }: { onClose: () => void }) {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Inventory Item</DialogTitle>
-          <DialogDescription>Add an item to the stock register.</DialogDescription>
+          <DialogTitle>{isEdit ? "Edit Item" : "New Inventory Item"}</DialogTitle>
+          <DialogDescription>{isEdit ? "Update stock levels, cost, or location." : "Add an item to the stock register."}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5"><Label htmlFor="i-name">Name</Label><Input id="i-name" value={form.name} onChange={(e) => set("name", e.target.value)} /></div>
-            <div className="grid gap-1.5"><Label htmlFor="i-sku">SKU</Label><Input id="i-sku" value={form.sku} onChange={(e) => set("sku", e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label htmlFor="i-sku">SKU</Label><Input id="i-sku" value={form.sku} disabled={isEdit} onChange={(e) => set("sku", e.target.value)} /></div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">

@@ -1,17 +1,39 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { FileBarChart, BedDouble, TrendingUp, TrendingDown, Wallet, Boxes, Wrench, Banknote } from "lucide-react";
-import { PageShell, Card, CardContent, StatCard, Badge } from "@/components/internal/ui";
+import { FileBarChart, BedDouble, TrendingUp, TrendingDown, Wallet, Boxes, Wrench, Banknote, Download } from "lucide-react";
+import { PageShell, Card, CardContent, StatCard, Badge, Button } from "@/components/internal/ui";
 import { getReportsOverview } from "@/lib/data/operations";
 import { reportDefs } from "@/lib/mock-modules";
+import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
+import { exportCsv } from "@/lib/export";
 
 export default function ReportsPage() {
+  const { hasPermission } = useAuth();
   const { data: o, isLoading } = useQuery({ queryKey: ["reports-overview"], queryFn: getReportsOverview });
 
+  function onExport() {
+    if (!o) return;
+    const rows: [string, string | number][] = [
+      ["Occupancy rate (%)", o.occupancyRate],
+      ["Total revenue (posted)", o.totalRevenue],
+      ["Total expenses (posted)", o.totalExpense],
+      ["Net position", o.netPosition],
+      ["Inventory valuation", o.inventoryValuation],
+      ["Work-order spend", o.workOrderSpend],
+      ...(o.latestPayroll ? [[`Payroll (${o.latestPayroll.periodName}) net`, o.latestPayroll.totalNet] as [string, number]] : []),
+      ...Object.entries(o.revenueByAccount).map(([acct, amt]) => [`Revenue · ${acct}`, amt] as [string, number]),
+    ];
+    exportCsv("acemco-reports-overview", ["Metric", "Value"], rows);
+  }
+
   return (
-    <PageShell title="Reports" breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Reports" }]}>
+    <PageShell
+      title="Reports"
+      breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Reports" }]}
+      actions={hasPermission("reports", "EXPORT") && <Button variant="outline" disabled={!o} onClick={onExport}><Download size={16} /> Export overview</Button>}
+    >
       {/* Live at-a-glance figures */}
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">At a glance</h2>
       {isLoading || !o ? (

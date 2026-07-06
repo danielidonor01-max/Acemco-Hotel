@@ -765,3 +765,19 @@ model HousekeepingTask {
 
   @@map("housekeeping_tasks")
 }
+
+// ============================ Settings (Domain §8.1) — singleton hotel profile ============================
+
+model Setting {
+  id        String   @id @default("hotel")
+  hotelName String   @map("hotel_name")
+  tagline   String   @default("")
+  phone     String   @default("")
+  whatsapp  String   @default("")
+  email     String   @default("")
+  address   String   @default("")
+  city      String   @default("")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}

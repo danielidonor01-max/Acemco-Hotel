@@ -15,10 +15,13 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { HousekeepingModule } from './modules/housekeeping/housekeeping.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { FoliosModule } from './modules/folios/folios.module';
 import { HealthModule } from './modules/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
@@ -38,13 +41,16 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     FinanceModule,
     HousekeepingModule,
     DashboardModule,
+    SettingsModule,
+    FoliosModule,
     HealthModule,
   ],
   providers: [
-    // Global pipeline: JWT auth → RBAC → handler → envelope → error filter.
+    // Global pipeline: JWT auth → RBAC → handler → envelope → audit → error filter.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })

@@ -9,7 +9,7 @@ import {
 import { PageShell, StatCard, Card, CardHeader, CardTitle, CardContent, StatusBadge } from "@/components/internal/ui";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
-import { getDashboardStats, listHousekeeping } from "@/lib/data/operations";
+import { getDashboardStats, listHousekeeping, getRevenueDaily } from "@/lib/data/operations";
 import { listReservations } from "@/lib/data/reservations";
 import { getRoomType } from "@/lib/cms";
 
@@ -17,9 +17,11 @@ const EMPTY = { occupancyRate: 0, revenueToday: 0, arrivalsToday: 0, departuresT
 
 export default function DashboardPage() {
   const { hasPermission } = useAuth();
-  const { data: s = EMPTY } = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, select: (d) => d ?? EMPTY });
+  const { data: s = EMPTY } = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, select: (d) => d ?? EMPTY, retry: 2 });
   const { data: reservations = [] } = useQuery({ queryKey: ["reservations"], queryFn: listReservations });
   const { data: tasks = [] } = useQuery({ queryKey: ["housekeeping"], queryFn: listHousekeeping });
+  const { data: revenueDaily = [] } = useQuery({ queryKey: ["revenue-daily"], queryFn: () => getRevenueDaily(7), retry: 2 });
+  const maxRev = Math.max(1, ...revenueDaily.map((d) => d.amount));
 
   const arrivals = reservations.filter((r) => r.status === "CONFIRMED").slice(0, 5);
   const pending = reservations.filter((r) => r.status === "PENDING");
@@ -128,18 +130,21 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* Revenue trend (illustrative) */}
+        {/* Revenue trend (live — posted revenue) */}
         {hasPermission("finance", "VIEW") && (
           <Card>
             <CardHeader><CardTitle>Revenue — Last 7 Days</CardTitle></CardHeader>
             <CardContent>
               <div className="flex h-40 items-end gap-2">
-                {[62, 48, 80, 55, 90, 72, 100].map((h, i) => (
-                  <div key={i} className="flex-1 rounded-t bg-brand-primary/70" style={{ height: `${h}%` }} />
+                {revenueDaily.map((d) => (
+                  <div key={d.date} className="flex flex-1 flex-col items-center justify-end" title={`${d.date}: ${formatNaira(d.amount)}`}>
+                    <div className="w-full rounded-t bg-brand-primary/70" style={{ height: `${Math.round((d.amount / maxRev) * 100)}%` }} />
+                  </div>
                 ))}
+                {revenueDaily.length === 0 && <p className="w-full text-center text-sm text-fg-muted">No revenue data yet.</p>}
               </div>
               <div className="mt-2 flex justify-between text-xs text-fg-muted">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <span key={d}>{d}</span>)}
+                {revenueDaily.map((d) => <span key={d.date}>{new Date(d.date).toLocaleDateString(undefined, { weekday: "short" })}</span>)}
               </div>
             </CardContent>
           </Card>
