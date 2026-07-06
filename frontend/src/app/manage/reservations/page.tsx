@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Calendar } from "lucide-react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { Plus, Calendar, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageShell, Button, Badge, StatusBadge, EmptyState } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
 import { Modal } from "@/components/internal/modal";
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { hasPermission } from "@/lib/permissions";
 import { formatNaira, cn } from "@/lib/utils";
 import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
-import { listReservations } from "@/lib/data/reservations";
+import { listReservations, createReservation, isApiEnabled } from "@/lib/data/reservations";
 import { roomTypes, getRoomType } from "@/lib/cms";
 
 const FILTERS: { label: string; value: ReservationStatus | "ALL" }[] = [
@@ -121,8 +122,9 @@ export default function ReservationsPage() {
       <NewReservationModal
         open={open}
         onClose={() => setOpen(false)}
-        onCreate={(r) => {
-          queryClient.setQueryData<Reservation[]>(["reservations"], (prev = []) => [r, ...prev]);
+        onCreated={(r) => {
+          if (isApiEnabled()) queryClient.invalidateQueries({ queryKey: ["reservations"] });
+          else queryClient.setQueryData<Reservation[]>(["reservations"], (prev = []) => [r, ...prev]);
           setOpen(false);
         }}
         nextNumber={`RES-2026-${String(54 + list.length).padStart(5, "0")}`}
@@ -132,15 +134,49 @@ export default function ReservationsPage() {
 }
 
 function NewReservationModal({
-  open, onClose, onCreate, nextNumber,
+  open, onClose, onCreated, nextNumber,
 }: {
-  open: boolean; onClose: () => void; onCreate: (r: Reservation) => void; nextNumber: string;
+  open: boolean; onClose: () => void; onCreated: (r: Reservation) => void; nextNumber: string;
 }) {
   const [form, setForm] = useState({
     guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug,
     checkInDate: "", checkOutDate: "", adults: 2, children: 0,
   });
   const [error, setError] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: async (): Promise<Reservation> => {
+      const [firstName, ...rest] = form.guestName.trim().split(/\s+/);
+      const lastName = rest.join(" ") || firstName;
+      if (isApiEnabled()) {
+        return createReservation({
+          firstName, lastName, phone: form.guestPhone.trim(),
+          roomTypeSlug: form.roomTypeSlug,
+          checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
+          adults: form.adults, children: form.children,
+        });
+      }
+      const rt = getRoomType(form.roomTypeSlug)!;
+      const nights = Math.round((+new Date(form.checkOutDate) - +new Date(form.checkInDate)) / 86_400_000);
+      return {
+        id: `res-${Date.now()}`,
+        reservationNumber: nextNumber,
+        guestName: form.guestName, guestPhone: form.guestPhone,
+        roomTypeSlug: form.roomTypeSlug,
+        checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
+        adults: form.adults, children: form.children,
+        status: "PENDING", source: "INTERNAL",
+        totalAmount: rt.basePrice * nights, depositPaid: false,
+      };
+    },
+    onSuccess: (r) => {
+      toast.success(`Reservation ${r.reservationNumber} created.`);
+      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0 });
+      setError(null);
+      onCreated(r);
+    },
+    onError: (e: Error) => setError(e.message),
+  });
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -149,25 +185,8 @@ function NewReservationModal({
       setError("Check-out date must be after check-in date.");
       return;
     }
-    const rt = getRoomType(form.roomTypeSlug)!;
-    const nights = Math.round((+new Date(form.checkOutDate) - +new Date(form.checkInDate)) / 86_400_000);
-    onCreate({
-      id: `res-${Date.now()}`,
-      reservationNumber: nextNumber,
-      guestName: form.guestName,
-      guestPhone: form.guestPhone,
-      roomTypeSlug: form.roomTypeSlug,
-      checkInDate: form.checkInDate,
-      checkOutDate: form.checkOutDate,
-      adults: form.adults,
-      children: form.children,
-      status: "PENDING",
-      source: "INTERNAL",
-      totalAmount: rt.basePrice * nights,
-      depositPaid: false,
-    });
-    setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0 });
     setError(null);
+    create.mutate();
   }
 
   const inputCls = "mt-1 w-full rounded-md border border-line bg-brand-surface px-3 py-2 text-sm text-fg focus:border-brand-primary focus:outline-none";
@@ -223,7 +242,9 @@ function NewReservationModal({
 
         <div className="flex justify-end gap-3 border-t border-line pt-4">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit">Create Reservation</Button>
+          <Button type="submit" disabled={create.isPending}>
+            {create.isPending && <Loader2 size={14} className="animate-spin" />} Create Reservation
+          </Button>
         </div>
       </form>
     </Modal>

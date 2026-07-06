@@ -51,13 +51,25 @@ export class ReservationsService {
   }
 
   async create(dto: CreateReservationDto, userId?: string) {
-    const guest = await this.prisma.guest.findFirst({ where: { id: dto.guestId, deletedAt: null } });
-    if (!guest) throw new NotFoundException({ code: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
-    if (guest.isBlacklisted) throw new UnprocessableEntityException({ code: 'GUEST_BLACKLISTED', message: 'A blacklisted guest cannot make a reservation.' });
-
-    const roomType = await this.prisma.roomType.findUnique({ where: { id: dto.roomTypeId } });
+    // Resolve the room type by id or slug.
+    const roomType = dto.roomTypeId
+      ? await this.prisma.roomType.findUnique({ where: { id: dto.roomTypeId } })
+      : await this.prisma.roomType.findUnique({ where: { slug: dto.roomTypeSlug! } });
     if (!roomType) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
-    await this.assertAvailability(dto.roomTypeId);
+
+    // Resolve the guest: existing by id, or find-or-create by phone.
+    let guest = dto.guestId
+      ? await this.prisma.guest.findFirst({ where: { id: dto.guestId, deletedAt: null } })
+      : await this.prisma.guest.findFirst({ where: { phone: dto.phone, deletedAt: null } });
+    if (dto.guestId && !guest) throw new NotFoundException({ code: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
+    if (guest?.isBlacklisted) throw new UnprocessableEntityException({ code: 'GUEST_BLACKLISTED', message: 'A blacklisted guest cannot make a reservation.' });
+    if (!guest) {
+      guest = await this.prisma.guest.create({
+        data: { firstName: dto.firstName!, lastName: dto.lastName!, phone: dto.phone!, email: dto.email?.toLowerCase() },
+      });
+    }
+
+    await this.assertAvailability(roomType.id);
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
@@ -66,8 +78,8 @@ export class ReservationsService {
     return this.prisma.reservation.create({
       data: {
         reservationNumber: await this.nextNumber(),
-        guestId: dto.guestId,
-        roomTypeId: dto.roomTypeId,
+        guestId: guest.id,
+        roomTypeId: roomType.id,
         checkInDate: new Date(dto.checkInDate),
         checkOutDate: new Date(dto.checkOutDate),
         adults: dto.adults,
@@ -77,6 +89,7 @@ export class ReservationsService {
         totalAmount: total,
         createdByUserId: userId,
       },
+      include: { guest: { select: { firstName: true, lastName: true, isVip: true } }, roomType: { select: { name: true } } },
     });
   }
 
@@ -119,6 +132,47 @@ export class ReservationsService {
     // Re-verify availability at confirmation time (Invariant 6).
     await this.assertAvailability(r.roomTypeId);
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
+  }
+
+  private readonly detailInclude = {
+    guest: { select: { firstName: true, lastName: true, isVip: true, phone: true } },
+    roomType: { select: { name: true } },
+    room: { select: { roomNumber: true } },
+  } as const;
+
+  /** Check-in interlock (Domain §5): reservation → CHECKED_IN, room → OCCUPIED. */
+  async checkIn(id: string, roomId?: string) {
+    const r = await this.get(id);
+    if (r.status !== 'CONFIRMED') {
+      throw new ConflictException({ code: 'INVALID_STATE', message: `Only a confirmed reservation can be checked in (currently ${r.status}).` });
+    }
+    const room = roomId
+      ? await this.prisma.room.findUnique({ where: { id: roomId } })
+      : r.roomId
+        ? await this.prisma.room.findUnique({ where: { id: r.roomId } })
+        : await this.prisma.room.findFirst({ where: { roomTypeId: r.roomTypeId, status: 'AVAILABLE', isActive: true }, orderBy: { roomNumber: 'asc' } });
+    if (!room) throw new ConflictException({ code: 'NO_ROOM', message: 'No available room of this type to assign.' });
+    if (room.status !== 'AVAILABLE') throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
+
+    const [reservation] = await this.prisma.$transaction([
+      this.prisma.reservation.update({ where: { id }, data: { status: 'CHECKED_IN', roomId: room.id }, include: this.detailInclude }),
+      this.prisma.room.update({ where: { id: room.id }, data: { status: 'OCCUPIED' } }),
+    ]);
+    return reservation;
+  }
+
+  /** Check-out interlock (Domain §5): reservation → CHECKED_OUT, room → CLEANING. */
+  async checkOut(id: string) {
+    const r = await this.get(id);
+    if (r.status !== 'CHECKED_IN') {
+      throw new ConflictException({ code: 'INVALID_STATE', message: `Only a checked-in reservation can be checked out (currently ${r.status}).` });
+    }
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      this.prisma.reservation.update({ where: { id }, data: { status: 'CHECKED_OUT' }, include: this.detailInclude }),
+    ];
+    if (r.roomId) ops.push(this.prisma.room.update({ where: { id: r.roomId }, data: { status: 'CLEANING' } }));
+    const [reservation] = await this.prisma.$transaction(ops);
+    return reservation;
   }
 
   async cancel(id: string, reason?: string) {

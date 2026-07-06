@@ -1,19 +1,27 @@
+"use client";
+
+import { use } from "react";
 import { notFound } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Phone, Users, CalendarDays, Home } from "lucide-react";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, StatusBadge, Badge } from "@/components/internal/ui";
 import { ReservationActions } from "@/components/internal/reservation-actions";
-import { getReservation } from "@/lib/mock";
+import { getReservationById } from "@/lib/data/reservations";
 import { getRoomType } from "@/lib/cms";
 import { formatNaira } from "@/lib/utils";
 
-export default async function ReservationDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const r = getReservation(id);
-  if (!r) notFound();
+export default function ReservationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { data: r, isLoading } = useQuery({ queryKey: ["reservation", id], queryFn: () => getReservationById(id) });
+
+  if (isLoading) {
+    return (
+      <PageShell title="Reservation" breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Reservations", href: "/manage/reservations" }, { label: "…" }]}>
+        <p className="text-sm text-fg-soft">Loading reservation…</p>
+      </PageShell>
+    );
+  }
+  if (!r) return notFound();
 
   const room = getRoomType(r.roomTypeSlug);
   const nights = Math.round((+new Date(r.checkOutDate) - +new Date(r.checkInDate)) / 86_400_000);
@@ -37,7 +45,7 @@ export default async function ReservationDetailPage({
               <Detail icon={Users} label="Guest">
                 {r.guestName} {r.isVip && <span className="text-brand-primary-dark" title="VIP">★</span>}
               </Detail>
-              <Detail icon={Phone} label="Phone">{r.guestPhone}</Detail>
+              <Detail icon={Phone} label="Phone">{r.guestPhone || "—"}</Detail>
               <Detail icon={Home} label="Room type">{room?.name}{r.roomNumber ? ` · Room ${r.roomNumber}` : ""}</Detail>
               <Detail icon={Users} label="Occupancy">{r.adults} adult(s), {r.children} child(ren)</Detail>
               <Detail icon={CalendarDays} label="Check-in">{r.checkInDate}</Detail>

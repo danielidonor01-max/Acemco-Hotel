@@ -23,7 +23,13 @@ export class GuestsService {
         : {}),
     };
     const [items, total] = await Promise.all([
-      this.prisma.guest.findMany({ where, skip: (page - 1) * pageSize, take: pageSize, orderBy: { createdAt: 'desc' } }),
+      this.prisma.guest.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { reservations: true } } },
+      }),
       this.prisma.guest.count({ where }),
     ]);
     return paginate(items, total, page, pageSize);

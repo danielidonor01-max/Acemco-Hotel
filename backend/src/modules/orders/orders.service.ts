@@ -29,11 +29,18 @@ export class OrdersService {
       ...(filter.storefront ? { storefront: filter.storefront } : {}),
       ...(filter.status ? { status: filter.status } : {}),
     };
-    return this.prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, include: { items: true } });
+    return this.prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { items: { include: { menuItem: { select: { name: true } } } } },
+    });
   }
 
   async get(id: string) {
-    const order = await this.prisma.order.findUnique({ where: { id }, include: { items: true } });
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: { include: { menuItem: { select: { name: true } } } } },
+    });
     if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found.' });
     return order;
   }

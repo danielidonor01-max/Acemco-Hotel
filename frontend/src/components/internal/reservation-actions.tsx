@@ -1,18 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle, LogIn, XCircle } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle, LogIn, XCircle, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "./ui";
 import { Modal } from "./modal";
+import { confirmReservation, cancelReservation, isApiEnabled } from "@/lib/data/reservations";
 import type { Reservation } from "@/lib/mock";
 
 /**
  * Status-appropriate reservation actions. Destructive actions require a confirm
- * dialog (§8.1). Mutations are mocked here — wired to the API in a later phase.
+ * dialog (§8.1). Wired to the API (confirm / cancel) with query invalidation.
  */
 export function ReservationActions({ reservation }: { reservation: Reservation }) {
+  const qc = useQueryClient();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [status, setStatus] = useState(reservation.status);
+  const live = isApiEnabled();
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["reservation", reservation.id] });
+    qc.invalidateQueries({ queryKey: ["reservations"] });
+  };
+
+  const confirm = useMutation({
+    mutationFn: () => (live ? confirmReservation(reservation.id) : Promise.resolve()),
+    onSuccess: () => { setStatus("CONFIRMED"); toast.success("Reservation confirmed."); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const cancel = useMutation({
+    mutationFn: () => (live ? cancelReservation(reservation.id) : Promise.resolve()),
+    onSuccess: () => { setStatus("CANCELLED"); setConfirmCancel(false); toast.success("Reservation cancelled."); invalidate(); },
+    onError: (e: Error) => { toast.error(e.message); setConfirmCancel(false); },
+  });
 
   if (status === "CANCELLED" || status === "CHECKED_OUT" || status === "NO_SHOW") {
     return <p className="text-sm text-fg-muted">No actions available for a {status.replace(/_/g, " ").toLowerCase()} reservation.</p>;
@@ -21,8 +43,8 @@ export function ReservationActions({ reservation }: { reservation: Reservation }
   return (
     <div className="flex flex-wrap gap-2">
       {status === "PENDING" && (
-        <Button onClick={() => setStatus("CONFIRMED")}>
-          <CheckCircle size={16} /> Confirm
+        <Button onClick={() => confirm.mutate()} disabled={confirm.isPending}>
+          {confirm.isPending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />} Confirm
         </Button>
       )}
       {status === "CONFIRMED" && (
@@ -40,15 +62,11 @@ export function ReservationActions({ reservation }: { reservation: Reservation }
       <Modal open={confirmCancel} onClose={() => setConfirmCancel(false)} title="Cancel reservation?" description="This will release the room's availability. This action is logged.">
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setConfirmCancel(false)}>Keep it</Button>
-          <Button variant="destructive" onClick={() => { setStatus("CANCELLED"); setConfirmCancel(false); }}>
-            Cancel Reservation
+          <Button variant="destructive" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+            {cancel.isPending && <Loader2 size={16} className="animate-spin" />} Cancel Reservation
           </Button>
         </div>
       </Modal>
-
-      {status !== reservation.status && (
-        <span className="inline-flex items-center text-sm text-ok">Updated → {status.replace(/_/g, " ").toLowerCase()} (mock)</span>
-      )}
     </div>
   );
 }

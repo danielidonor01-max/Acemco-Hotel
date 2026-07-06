@@ -7,7 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { paginationSchema } from '../../common/utils/pagination';
-import { createReservationSchema, cancelSchema, CreateReservationDto } from './dto/reservation.dto';
+import { createReservationSchema, cancelSchema, checkInSchema, CreateReservationDto } from './dto/reservation.dto';
 
 @ApiTags('reservations')
 @Controller('v1/reservations')
@@ -49,5 +49,19 @@ export class ReservationsController {
   @ApiOperation({ summary: 'Cancel a reservation' })
   cancel(@Param('id') id: string, @Body(new ZodValidationPipe(cancelSchema)) dto: { reason?: string }) {
     return this.reservations.cancel(id, dto.reason);
+  }
+
+  @Post(':id/check-in')
+  @RequirePermissions('reservations:UPDATE')
+  @ApiOperation({ summary: 'Check in a confirmed reservation (assigns a room)' })
+  checkIn(@Param('id') id: string, @Body(new ZodValidationPipe(checkInSchema)) dto: { roomId?: string }) {
+    return this.reservations.checkIn(id, dto.roomId);
+  }
+
+  @Post(':id/check-out')
+  @RequirePermissions('reservations:UPDATE')
+  @ApiOperation({ summary: 'Check out an in-house reservation' })
+  checkOut(@Param('id') id: string) {
+    return this.reservations.checkOut(id);
   }
 }

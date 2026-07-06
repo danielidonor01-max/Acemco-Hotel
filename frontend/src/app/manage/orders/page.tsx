@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ClipboardList, ChevronRight, Globe, UtensilsCrossed, BedDouble } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, ChevronRight, Globe, UtensilsCrossed, BedDouble, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageShell, Card, Button, Badge, StatusBadge, EmptyState } from "@/components/internal/ui";
-import { useOrders } from "@/stores/orders.store";
+import { listOrders, advanceOrder, cancelOrder } from "@/lib/data/orders-api";
 import { nextStatus, type OrderSource, type OrderStatus } from "@/lib/orders";
 import { formatNaira, cn } from "@/lib/utils";
 
@@ -16,8 +18,21 @@ const SOURCE_META: Record<OrderSource, { label: string; icon: typeof Globe }> = 
 const FILTERS: (OrderStatus | "ALL" | "ACTIVE")[] = ["ACTIVE", "PENDING", "PREPARING", "READY", "COMPLETED", "ALL"];
 
 export default function OrdersPage() {
-  const { orders, advance, cancel } = useOrders();
+  const qc = useQueryClient();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("ACTIVE");
+  const { data: orders = [], isLoading } = useQuery({ queryKey: ["orders"], queryFn: listOrders, refetchInterval: 15000 });
+
+  const advance = useMutation({
+    mutationFn: advanceOrder,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const cancel = useMutation({
+    mutationFn: cancelOrder,
+    onSuccess: () => { toast.success("Order cancelled."); qc.invalidateQueries({ queryKey: ["orders"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const busyId = advance.isPending ? advance.variables : cancel.isPending ? cancel.variables : null;
 
   const filtered = useMemo(() => {
     if (filter === "ALL") return orders;
@@ -38,6 +53,7 @@ export default function OrdersPage() {
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
+            type="button"
             key={f}
             onClick={() => setFilter(f)}
             className={cn(
@@ -50,7 +66,9 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <p className="text-sm text-fg-soft">Loading orders…</p>
+      ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="No orders" description="Orders placed on the website or POS will appear here." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -88,10 +106,10 @@ export default function OrdersPage() {
                   <Badge tone="brand">{formatNaira(o.totalAmount)}</Badge>
                   {!closed && (
                     <div className="flex gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => cancel(o.id)}>Cancel</Button>
+                      <Button size="sm" variant="ghost" disabled={busyId === o.id} onClick={() => cancel.mutate(o.id)}>Cancel</Button>
                       {next && (
-                        <Button size="sm" onClick={() => advance(o.id)}>
-                          {next.toLowerCase()} <ChevronRight size={14} />
+                        <Button size="sm" disabled={busyId === o.id} onClick={() => advance.mutate(o.id)}>
+                          {busyId === o.id ? <Loader2 size={14} className="animate-spin" /> : <>{next.toLowerCase()} <ChevronRight size={14} /></>}
                         </Button>
                       )}
                     </div>
