@@ -41,6 +41,7 @@
   --color-pub-line-strong: #d8cebc;
   --color-pub-gold: #c9a84c;
   --color-pub-gold-deep: #a07a2a;
+  --color-pub-danger: #a3341f; /* warm brick — error text on the public site */
 
   /* Internal platform — LIGHT warm (consistent with the public site). */
   --color-fg: #211d18;

@@ -8,7 +8,7 @@ const QUICK = [
   { label: "Rooms", href: "/rooms" },
   { label: "Dining", href: "/dining" },
   { label: "Facilities", href: "/facilities" },
-  { label: "Event", href: "/events" },
+  { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
@@ -56,7 +56,7 @@ export function PublicFooter() {
           <ul className="mt-5 space-y-3">
             {QUICK.map((q) => (
               <li key={q.href}>
-                <Link href={q.href} className="pub-cta uppercase tracking-[0.15em] text-pub-ink transition-colors hover:text-pub-gold-deep">
+                <Link href={q.href} className="pub-cta uppercase tracking-[0.18em] text-pub-ink transition-colors hover:text-pub-gold-deep">
                   {q.label}
                 </Link>
               </li>
@@ -101,7 +101,7 @@ export function PublicFooter() {
 
       {/* Large brand wordmark — fills the layout width, fully visible (ballena-style) */}
       <div className="pub-container pb-8">
-        <p className="w-full whitespace-nowrap text-center font-display font-medium uppercase leading-[0.8] tracking-[-0.03em] text-pub-ink [font-size:clamp(3rem,20vw,17rem)]">
+        <p className="w-full whitespace-nowrap text-center font-display font-medium uppercase leading-[0.8] tracking-[-0.03em] text-pub-ink [font-size:clamp(2rem,20vw,17rem)]">
           Acemco
         </p>
       </div>
@@ -110,8 +110,8 @@ export function PublicFooter() {
         <div className="pub-container flex flex-col items-center justify-between gap-3 py-6 pub-overline text-[0.7rem] text-pub-ink-soft sm:flex-row">
           <p>Acemco © {2026} · All rights reserved</p>
           <div className="flex gap-6">
-            <Link href="#" className="transition-colors hover:text-pub-ink">Privacy Notice</Link>
-            <Link href="#" className="transition-colors hover:text-pub-ink">Terms</Link>
+            <Link href="/privacy" className="transition-colors hover:text-pub-ink">Privacy Notice</Link>
+            <Link href="/terms" className="transition-colors hover:text-pub-ink">Terms</Link>
           </div>
         </div>
       </div>

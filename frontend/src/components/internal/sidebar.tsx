@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui.store";
-import { hasPermission, currentUser, type Action } from "@/lib/permissions";
+import { type Action } from "@/lib/permissions";
+import { useAuth } from "@/providers/auth-provider";
+
+const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 
 interface NavItem {
   label: string;
@@ -66,6 +69,9 @@ const SECTIONS: { items: NavItem[] }[] = [
 
 export function Sidebar() {
   const { collapsed, toggleCollapsed, mobileOpen, closeMobile } = useUIStore();
+  const { user } = useAuth();
+  const displayName = user?.name ?? "—";
+  const displayRole = (user?.roles ?? [])[0]?.replace(/_/g, " ") ?? "";
 
   return (
     <>
@@ -115,12 +121,12 @@ export function Sidebar() {
         <div className="border-t border-line p-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-surface-3 text-xs font-semibold text-fg">
-              {currentUser.initials}
+              {initials(displayName)}
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1 leading-tight">
-                <p className="truncate text-sm font-medium text-fg">{currentUser.name}</p>
-                <p className="truncate text-xs text-fg-muted">{currentUser.role.replace(/_/g, " ")}</p>
+                <p className="truncate text-sm font-medium text-fg">{displayName}</p>
+                <p className="truncate text-xs text-fg-muted">{displayRole}</p>
               </div>
             )}
             <button
@@ -140,6 +146,7 @@ export function Sidebar() {
 function NavRow({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
+  const { hasPermission } = useAuth();
 
   // Permission gate (§8.11): only show items the user can VIEW.
   const permitted = item.enabled || !item.perm || hasPermission(item.perm[0], item.perm[1]);

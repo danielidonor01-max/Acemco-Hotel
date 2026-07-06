@@ -14,6 +14,7 @@ export function RoomCard({ room }: { room: RoomType }) {
           slot={`room.${room.slug}.card`}
           ratio="4/5"
           src={room.heroSlot}
+          alt={`${room.name} — ${room.tier}`}
           zoom
           overlay="scrim-bottom"
           sizes="(max-width: 768px) 100vw, 33vw"
@@ -61,6 +62,7 @@ export function ExperienceCard({ amenity, href }: { amenity: Amenity; href?: str
         slot={`amenity.${amenity.title}`}
         ratio="4/5"
         src={amenity.slot}
+        alt={amenity.title}
         zoom
         overlay="scrim-bottom"
         sizes="(max-width: 768px) 100vw, 33vw"
@@ -91,7 +93,7 @@ export function OfferCard({ offer }: { offer: Offer }) {
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-pub-line bg-pub-surface">
       <div className="relative">
-        <MediaFrame slot={`offer.${offer.id}`} ratio="4/5" src={offer.slot} zoom overlay="scrim-bottom" sizes="(max-width: 768px) 100vw, 33vw" />
+        <MediaFrame slot={`offer.${offer.id}`} ratio="4/5" src={offer.slot} alt={offer.title} zoom overlay="scrim-bottom" sizes="(max-width: 768px) 100vw, 33vw" />
         <span className="absolute left-4 top-4 z-20 rounded-full bg-pub-gold px-3 py-1 pub-overline text-pub-ink">
           {offer.ribbon}
         </span>

@@ -91,7 +91,7 @@ function Placeholder({ slot, ratio }: { slot: string; ratio: string }) {
   const label = `${slot.replace(/[.\-_/]+/g, " · ").toUpperCase()} — ${ratio.replace("/", ":")}`;
   return (
     <div
-      className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl border border-pub-line-strong bg-pub-stone/90 text-pub-ink-muted"
+      className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[inherit] border border-pub-line-strong bg-pub-stone/90 text-pub-ink-muted"
       style={{
         backgroundImage:
           "repeating-linear-gradient(135deg, transparent, transparent 11px, rgba(146,138,124,0.08) 11px, rgba(146,138,124,0.08) 12px)",

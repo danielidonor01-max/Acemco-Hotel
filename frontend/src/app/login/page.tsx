@@ -4,14 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { config, hasApi } from "@/lib/config";
+import { setAccessToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("ada@acemcohotel.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("super@acemco.com");
+  const [password, setPassword] = useState("Admin123!");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +33,9 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.success) throw new Error(json?.error?.message ?? "Login failed");
+      if (!res.ok || !json?.success) throw new Error(json?.error?.message ?? "Invalid email or password.");
+      // Prime the in-memory access token; the refresh cookie bootstraps the provider on /manage.
+      if (json.data?.accessToken) setAccessToken(json.data.accessToken);
       router.push("/manage/dashboard");
     } catch (err) {
       setError((err as Error).message);

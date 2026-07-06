@@ -192,12 +192,12 @@ export function CartDrawer() {
                         Verify guest
                       </button>
                       {verify === "ok" && <p className="mt-2 pub-body-sm text-pub-gold-deep">✓ Verified — welcome, {guest}. Charging to Room {form.room}.</p>}
-                      {verify === "fail" && <p className="mt-2 pub-body-sm text-red-700">We couldn&apos;t verify that room and name. Ordering is available to in-house guests.</p>}
+                      {verify === "fail" && <p className="mt-2 pub-body-sm text-pub-danger">We couldn&apos;t verify that room and name. Ordering is available to in-house guests.</p>}
                     </div>
                   )}
 
                   <Field label="Special instructions" textarea value={form.instructions} onChange={(v) => setForm({ ...form, instructions: v })} />
-                  {error && <p className="pub-body-sm text-red-700">{error}</p>}
+                  {error && <p className="pub-body-sm text-pub-danger">{error}</p>}
                 </div>
               )}
             </div>

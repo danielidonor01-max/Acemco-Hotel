@@ -7,6 +7,7 @@ import { RoomsModule } from './modules/rooms/rooms.module';
 import { GuestsModule } from './modules/guests/guests.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -22,6 +23,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     GuestsModule,
     ReservationsModule,
     OrdersModule,
+    AdminModule,
     HealthModule,
   ],
   providers: [

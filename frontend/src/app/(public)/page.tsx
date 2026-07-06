@@ -6,6 +6,7 @@ import { RoomCard, ExperienceCard, OfferCard } from "@/components/public/cards";
 import { BookingWidget } from "@/components/public/booking-widget";
 import { TestimonialSection } from "@/components/public/testimonials";
 import { GallerySection } from "@/components/public/gallery";
+import { NewsletterForm } from "@/components/public/newsletter-form";
 import { PubButton, GhostLink, Overline } from "@/components/public/ui";
 import { Reveal, RevealGroup, RevealItem } from "@/components/public/reveal";
 import { site } from "@/lib/cms";
@@ -190,23 +191,9 @@ function NewsletterBand() {
         <p className="pub-body mt-4 text-pub-ink-soft">
           Seasonal offers and the occasional note from the house. No noise.
         </p>
-        <form className="mt-8 flex flex-col gap-3 sm:flex-row" action="#">
-          <input
-            type="email"
-            required
-            placeholder="Your email address"
-            aria-label="Email address"
-            className="flex-1 rounded-full border border-pub-line bg-pub-surface px-5 py-3 pub-body text-pub-ink focus:border-pub-gold focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="rounded-full bg-pub-gold px-7 py-3 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark"
-          >
-            Subscribe
-          </button>
-        </form>
+        <NewsletterForm />
         <p className="pub-body-sm mt-3 text-pub-ink-muted">
-          We respect your inbox. <Link href="#" className="pub-underline">Privacy</Link>.
+          We respect your inbox. <Link href="/privacy" className="pub-underline">Privacy</Link>.
         </p>
       </div>
     </Section>

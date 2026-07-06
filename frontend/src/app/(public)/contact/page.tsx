@@ -3,8 +3,8 @@ import { MapPin, Phone, Mail, MessageCircle } from "lucide-react";
 import { Hero } from "@/components/public/hero";
 import { Section } from "@/components/public/section";
 import { MediaFrame } from "@/components/public/media-frame";
-import { Overline } from "@/components/public/ui";
 import { Reveal } from "@/components/public/reveal";
+import { ContactForm } from "@/components/public/contact-form";
 import { site } from "@/lib/cms";
 
 export const metadata: Metadata = {
@@ -26,29 +26,7 @@ export default function ContactPage() {
         <div className="grid gap-12 lg:grid-cols-2">
           {/* Form */}
           <Reveal>
-            <Overline className="mb-4">Send a Message</Overline>
-            <form className="space-y-4" action="#">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FieldLabel label="Name" required>
-                  <input required className={inputCls} />
-                </FieldLabel>
-                <FieldLabel label="Phone" required>
-                  <input type="tel" required className={inputCls} />
-                </FieldLabel>
-              </div>
-              <FieldLabel label="Email">
-                <input type="email" className={inputCls} />
-              </FieldLabel>
-              <FieldLabel label="Message" required>
-                <textarea rows={5} required className={inputCls} />
-              </FieldLabel>
-              <button
-                type="submit"
-                className="rounded-full bg-pub-gold px-7 py-3 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark"
-              >
-                Send Message
-              </button>
-            </form>
+            <ContactForm />
           </Reveal>
 
           {/* Info */}
@@ -74,20 +52,6 @@ export default function ContactPage() {
         </div>
       </Section>
     </>
-  );
-}
-
-const inputCls =
-  "mt-1.5 w-full rounded-md border border-pub-line bg-pub-surface px-3 py-2.5 pub-body text-pub-ink focus:border-pub-gold focus:outline-none";
-
-function FieldLabel({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="pub-body-sm font-medium text-pub-ink-soft">
-        {label}{required && <span className="text-pub-gold-deep"> *</span>}
-      </span>
-      {children}
-    </label>
   );
 }
 

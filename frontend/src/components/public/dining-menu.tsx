@@ -65,6 +65,7 @@ function MenuRow({ item, storefront }: { item: MenuItem; storefront: Venue["stor
         slot={`menu.${item.id}`}
         ratio="1/1"
         src={item.slot}
+        alt={item.name}
         className="w-20 shrink-0 rounded-xl md:w-24"
         sizes="96px"
       />
@@ -85,7 +86,8 @@ function MenuRow({ item, storefront }: { item: MenuItem; storefront: Venue["stor
           {item.isAvailable ? (
             <button
               onClick={onAdd}
-              className="inline-flex items-center gap-1.5 rounded-full border border-pub-ink px-3.5 py-1.5 text-[0.8rem] font-semibold text-pub-ink transition-colors hover:bg-pub-ink hover:text-pub-bg"
+              aria-label={`Add ${item.name} to cart`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-pub-ink px-3.5 py-1.5 pub-cta text-pub-ink transition-colors hover:bg-pub-ink hover:text-pub-bg"
             >
               {added ? <Check size={14} /> : <Plus size={14} />}
               {added ? "Added" : "Add"}

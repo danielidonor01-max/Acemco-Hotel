@@ -13,7 +13,7 @@ const NAV = [
   { label: "Rooms", href: "/rooms" },
   { label: "Dining", href: "/dining" },
   { label: "Facilities", href: "/facilities" },
-  { label: "Event", href: "/events" },
+  { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },

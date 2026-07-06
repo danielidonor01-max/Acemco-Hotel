@@ -43,11 +43,17 @@ const MODULE_ACTIONS = {
   administration: ['VIEW', 'UPDATE'],
 };
 const allPerms = () => Object.entries(MODULE_ACTIONS).flatMap(([m, as]) => as.map((a) => `${m}:${a}`));
+const mods = (...names) => names.flatMap((m) => (MODULE_ACTIONS[m] || []).map((a) => `${m}:${a}`));
+// system: true → locked (cannot be renamed or deleted). Default operational roles are
+// editable/removable so hotel admins can remodel them from the Administration screen.
 const ROLE_GRANTS = {
-  SUPER_ADMIN: { description: 'Unrestricted access to all modules.', perms: '*' },
-  HOTEL_MANAGER: { description: 'Full operational access, no system settings.', perms: allPerms().filter((p) => p !== 'settings:UPDATE' && !p.startsWith('administration:')) },
-  RECEPTION: { description: 'Reservations, check-in/out, guest management.', perms: ['rooms:VIEW', 'rooms:UPDATE', 'reservations:VIEW', 'reservations:CREATE', 'reservations:UPDATE', 'reception:VIEW', 'reception:CREATE', 'guests:VIEW', 'guests:CREATE', 'guests:UPDATE', 'pos.restaurant:VIEW', 'pos.lounge:VIEW'] },
-  RESTAURANT_MANAGER: { description: 'Restaurant POS, menu, inventory.', perms: ['pos.restaurant:VIEW', 'pos.restaurant:CREATE', 'pos.restaurant:UPDATE', 'inventory:VIEW', 'reports:VIEW'] },
+  SUPER_ADMIN: { description: 'Unrestricted access to all modules and settings.', system: true, perms: '*' },
+  HOTEL_MANAGER: { description: 'Full operational access, no system settings.', system: true, perms: allPerms().filter((p) => p !== 'settings:UPDATE' && !p.startsWith('administration:')) },
+  RECEPTION: { description: 'Reservations, check-in/out, and guest management.', system: true, perms: ['rooms:VIEW', 'rooms:UPDATE', 'reservations:VIEW', 'reservations:CREATE', 'reservations:UPDATE', 'reception:VIEW', 'reception:CREATE', 'guests:VIEW', 'guests:CREATE', 'guests:UPDATE', 'pos.restaurant:VIEW', 'pos.lounge:VIEW'] },
+  'Inventory Manager': { description: 'Full inventory management and stock reporting.', system: false, perms: [...mods('inventory'), 'reports:VIEW'] },
+  'POS Manager': { description: 'Restaurant, lounge, and boutique point of sale.', system: false, perms: [...mods('pos.restaurant', 'pos.lounge', 'pos.boutique'), 'inventory:VIEW', 'reports:VIEW'] },
+  Maintenance: { description: 'Assets, work orders, and room maintenance.', system: false, perms: [...mods('maintenance'), 'rooms:VIEW', 'housekeeping:VIEW'] },
+  HR: { description: 'Employee records, leave, and payroll view.', system: false, perms: [...mods('hr'), 'payroll:VIEW', 'reports:VIEW'] },
 };
 const ROOM_TYPES = [
   { slug: 'deluxe-king', name: 'Deluxe King', bed: '1 King Bed', occ: 2, price: 65000, features: ['City view', 'Marble bath', 'Fast Wi-Fi', 'Smart TV'], sort: 1 },
@@ -110,9 +116,9 @@ async function main() {
   for (const [name, def] of Object.entries(ROLE_GRANTS)) {
     const id = uuid();
     const r = await client.query(
-      `INSERT INTO roles (id, name, description, is_system) VALUES ($1,$2,$3,true)
-       ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description RETURNING id`,
-      [id, name, def.description],
+      `INSERT INTO roles (id, name, description, is_system) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, is_system = EXCLUDED.is_system RETURNING id`,
+      [id, name, def.description, def.system === true],
     );
     roleId[name] = r.rows[0].id;
     const keys = def.perms === '*' ? allPerms() : def.perms;
@@ -122,21 +128,27 @@ async function main() {
     }
   }
 
-  // 4) Users
-  const hash = await bcrypt.hash('password123', 10);
+  // 4) Users — a single Super Admin seat. All other staff are created in-app
+  //    from Administration → Users (no public signup exists).
+  const hash = await bcrypt.hash('Admin123!', 10);
   const users = [
-    { email: 'super@acemcohotel.com', name: 'System Administrator', role: 'SUPER_ADMIN' },
-    { email: 'ada@acemcohotel.com', name: 'Ada Okoro', role: 'HOTEL_MANAGER' },
+    { email: 'super@acemco.com', name: 'Super Admin', role: 'SUPER_ADMIN' },
   ];
   for (const u of users) {
     const id = uuid();
     const r = await client.query(
       `INSERT INTO users (id, email, password_hash, name, is_active, updated_at) VALUES ($1,$2,$3,$4,true,now())
-       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING id`,
+       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, name = EXCLUDED.name RETURNING id`,
       [id, u.email, hash, u.name],
     );
     await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [r.rows[0].id, roleId[u.role]]);
   }
+  // Remove legacy demo accounts so the Super Admin is the only seeded login.
+  const keep = users.map((u) => u.email);
+  const purged = await client.query('DELETE FROM users WHERE email = ANY($1::text[]) RETURNING email', [
+    ['ada@acemcohotel.com', 'super@acemcohotel.com'].filter((e) => !keep.includes(e)),
+  ]);
+  if (purged.rowCount) console.log('Removed legacy demo users:', purged.rows.map((r) => r.email).join(', '));
 
   // 5) Room types + rooms
   const typeIds = [];

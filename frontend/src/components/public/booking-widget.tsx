@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Users, BedDouble, Search } from "lucide-react";
 import { roomTypes } from "@/lib/cms";
 import { cn } from "@/lib/utils";
+import { PubDatePicker, PubSelect } from "./fields";
 
 /**
  * BookingWidget (§15.7) — the signature conversion element and the first link
@@ -22,7 +23,7 @@ export function BookingWidget({
   const [checkOut, setCheckOut] = useState("");
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
-  const [roomType, setRoomType] = useState(defaultRoomType ?? "");
+  const [roomType, setRoomType] = useState(defaultRoomType ?? "any");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +32,7 @@ export function BookingWidget({
     if (checkOut) params.set("checkOut", checkOut);
     params.set("adults", String(adults));
     params.set("children", String(children));
-    if (roomType) params.set("roomType", roomType);
+    if (roomType && roomType !== "any") params.set("roomType", roomType);
     router.push(`/reservations?${params.toString()}`);
   }
 
@@ -44,58 +45,40 @@ export function BookingWidget({
       )}
     >
       <WField icon={CalendarDays} label="Check-in">
-        <input
-          type="date"
-          value={checkIn}
-          onChange={(e) => setCheckIn(e.target.value)}
-          className="w-full bg-transparent pub-body text-pub-ink focus:outline-none"
-        />
+        <PubDatePicker bare showIcon={false} value={checkIn} onChange={setCheckIn} placeholder="Add date" />
       </WField>
       <WField icon={CalendarDays} label="Check-out">
-        <input
-          type="date"
-          value={checkOut}
-          min={checkIn || undefined}
-          onChange={(e) => setCheckOut(e.target.value)}
-          className="w-full bg-transparent pub-body text-pub-ink focus:outline-none"
-        />
+        <PubDatePicker bare showIcon={false} value={checkOut} min={checkIn || undefined} onChange={setCheckOut} placeholder="Add date" />
       </WField>
       <WField icon={Users} label="Guests">
         <div className="flex gap-2">
-          <select
-            aria-label="Adults"
-            value={adults}
-            onChange={(e) => setAdults(Number(e.target.value))}
-            className="w-full bg-transparent pub-body text-pub-ink focus:outline-none"
-          >
-            {[1, 2, 3, 4].map((n) => (
-              <option key={n} value={n}>{n} adult{n > 1 ? "s" : ""}</option>
-            ))}
-          </select>
-          <select
-            aria-label="Children"
-            value={children}
-            onChange={(e) => setChildren(Number(e.target.value))}
-            className="w-full bg-transparent pub-body text-pub-ink focus:outline-none"
-          >
-            {[0, 1, 2, 3].map((n) => (
-              <option key={n} value={n}>{n} child{n !== 1 ? "ren" : ""}</option>
-            ))}
-          </select>
+          <PubSelect
+            bare
+            ariaLabel="Adults"
+            value={String(adults)}
+            onChange={(v) => setAdults(Number(v))}
+            options={["1", "2", "3", "4"]}
+            labels={{ "1": "1 adult", "2": "2 adults", "3": "3 adults", "4": "4 adults" }}
+          />
+          <PubSelect
+            bare
+            ariaLabel="Children"
+            value={String(children)}
+            onChange={(v) => setChildren(Number(v))}
+            options={["0", "1", "2", "3"]}
+            labels={{ "0": "0 children", "1": "1 child", "2": "2 children", "3": "3 children" }}
+          />
         </div>
       </WField>
       <WField icon={BedDouble} label="Room type">
-        <select
-          aria-label="Room type"
+        <PubSelect
+          bare
+          ariaLabel="Room type"
           value={roomType}
-          onChange={(e) => setRoomType(e.target.value)}
-          className="w-full bg-transparent pub-body text-pub-ink focus:outline-none"
-        >
-          <option value="">Any room</option>
-          {roomTypes.map((r) => (
-            <option key={r.slug} value={r.slug}>{r.name}</option>
-          ))}
-        </select>
+          onChange={setRoomType}
+          options={["any", ...roomTypes.map((r) => r.slug)]}
+          labels={{ any: "Any room", ...Object.fromEntries(roomTypes.map((r) => [r.slug, r.name])) }}
+        />
       </WField>
 
       <button
@@ -119,12 +102,12 @@ function WField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col rounded-xl border border-pub-line px-3.5 py-2.5">
+    <div className="flex flex-col rounded-xl border border-pub-line px-3.5 py-2.5">
       <span className="pub-overline mb-1 inline-flex items-center gap-1.5 text-pub-ink-muted">
         <Icon size={13} className="text-pub-gold-deep" />
         {label}
       </span>
       {children}
-    </label>
+    </div>
   );
 }

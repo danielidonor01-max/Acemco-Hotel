@@ -7,6 +7,7 @@ import { useRooms } from "@/stores/rooms.store";
 import { publicRequest } from "@/lib/api";
 import { hasPublicApi } from "@/lib/config";
 import { Overline } from "./ui";
+import { PubDatePicker, PubSelect } from "./fields";
 
 /**
  * Reservation request form (public side of the reservation↔ordering interlock).
@@ -38,6 +39,8 @@ export function ReservationForm({
       : 0;
   const estimate = room && nights > 0 ? room.basePrice * nights : 0;
   const datesValid = nights > 0;
+  const fmtDate = (iso: string) =>
+    iso ? new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -85,18 +88,28 @@ export function ReservationForm({
         <div>
           <Overline className="mb-4">Stay Details</Overline>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Check-in" type="date" required value={form.checkIn} onChange={(v) => set("checkIn", v)} />
-            <Field label="Check-out" type="date" required value={form.checkOut} min={form.checkIn} onChange={(v) => set("checkOut", v)} />
-            <SelectField label="Adults" value={form.adults} onChange={(v) => set("adults", v)} options={["1", "2", "3", "4"]} />
-            <SelectField label="Children" value={form.children} onChange={(v) => set("children", v)} options={["0", "1", "2", "3"]} />
+            <FieldShell label="Check-in" required>
+              <PubDatePicker value={form.checkIn} onChange={(v) => set("checkIn", v)} placeholder="Add date" />
+            </FieldShell>
+            <FieldShell label="Check-out" required>
+              <PubDatePicker value={form.checkOut} min={form.checkIn} onChange={(v) => set("checkOut", v)} placeholder="Add date" />
+            </FieldShell>
+            <FieldShell label="Adults">
+              <PubSelect value={form.adults} onChange={(v) => set("adults", v)} options={["1", "2", "3", "4"]} ariaLabel="Adults" />
+            </FieldShell>
+            <FieldShell label="Children">
+              <PubSelect value={form.children} onChange={(v) => set("children", v)} options={["0", "1", "2", "3"]} ariaLabel="Children" />
+            </FieldShell>
             <div className="sm:col-span-2">
-              <SelectField
-                label="Room type"
-                value={form.roomType}
-                onChange={(v) => set("roomType", v)}
-                options={roomTypes.map((r) => r.slug)}
-                labels={Object.fromEntries(roomTypes.map((r) => [r.slug, r.name]))}
-              />
+              <FieldShell label="Room type">
+                <PubSelect
+                  value={form.roomType}
+                  onChange={(v) => set("roomType", v)}
+                  options={roomTypes.map((r) => r.slug)}
+                  labels={Object.fromEntries(roomTypes.map((r) => [r.slug, r.name]))}
+                  ariaLabel="Room type"
+                />
+              </FieldShell>
             </div>
           </div>
         </div>
@@ -122,7 +135,7 @@ export function ReservationForm({
           <Overline className="mb-4">Summary</Overline>
           <dl className="space-y-3 pub-body">
             <Row label="Room" value={room?.name ?? "—"} />
-            <Row label="Dates" value={datesValid ? `${form.checkIn} → ${form.checkOut}` : "Select dates"} />
+            <Row label="Dates" value={datesValid ? `${fmtDate(form.checkIn)} → ${fmtDate(form.checkOut)}` : "Select dates"} />
             <Row label="Nights" value={datesValid ? String(nights) : "—"} />
             <Row label="Guests" value={`${form.adults} adult(s), ${form.children} child(ren)`} />
             <Row label="Availability" value={available > 0 ? `${available} room${available > 1 ? "s" : ""} available` : "None for this type"} />
@@ -165,39 +178,38 @@ const inputCls =
   "mt-1.5 w-full rounded-md border border-pub-line bg-pub-surface px-3 py-2.5 pub-body text-pub-ink focus:border-pub-gold focus:outline-none";
 
 function Field({
-  label, value, onChange, type = "text", required, textarea, min,
+  label, value, onChange, type = "text", required, textarea,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; required?: boolean; textarea?: boolean; min?: string;
+  type?: string; required?: boolean; textarea?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="pub-body-sm font-medium text-pub-ink-soft">
-        {label}{required && <span className="text-pub-gold-deep"> *</span>}
-      </span>
+      <FieldSpan label={label} required={required} />
       {textarea ? (
         <textarea rows={3} value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} />
       ) : (
-        <input type={type} value={value} min={min} onChange={(e) => onChange(e.target.value)} className={inputCls} />
+        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} />
       )}
     </label>
   );
 }
 
-function SelectField({
-  label, value, onChange, options, labels,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  options: string[]; labels?: Record<string, string>;
-}) {
+/** Label wrapper for the non-native controls (date picker / select). */
+function FieldShell({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="pub-body-sm font-medium text-pub-ink-soft">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-        {options.map((o) => (
-          <option key={o} value={o}>{labels ? labels[o] : o}</option>
-        ))}
-      </select>
-    </label>
+    <div className="block">
+      <FieldSpan label={label} required={required} />
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+function FieldSpan({ label, required }: { label: string; required?: boolean }) {
+  return (
+    <span className="pub-body-sm font-medium text-pub-ink-soft">
+      {label}
+      {required && <span className="text-pub-gold-deep"> *</span>}
+    </span>
   );
 }
