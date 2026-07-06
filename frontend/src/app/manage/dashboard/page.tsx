@@ -1,34 +1,45 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   BedDouble, Banknote, CalendarArrowDown, CalendarArrowUp, Calendar,
   Package, Wrench, Sparkles, ArrowRight,
 } from "lucide-react";
 import { PageShell, StatCard, Card, CardHeader, CardTitle, CardContent, StatusBadge } from "@/components/internal/ui";
-import { hasPermission } from "@/lib/permissions";
+import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
-import { dashboardStats as s, reservations, housekeepingTasks } from "@/lib/mock";
+import { getDashboardStats, listHousekeeping } from "@/lib/data/operations";
+import { listReservations } from "@/lib/data/reservations";
 import { getRoomType } from "@/lib/cms";
 
+const EMPTY = { occupancyRate: 0, revenueToday: 0, arrivalsToday: 0, departuresToday: 0, pendingReservations: 0, lowStockAlerts: 0, openWorkOrders: 0, activeHousekeeping: 0 };
+
 export default function DashboardPage() {
+  const { hasPermission } = useAuth();
+  const { data: s = EMPTY } = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, select: (d) => d ?? EMPTY });
+  const { data: reservations = [] } = useQuery({ queryKey: ["reservations"], queryFn: listReservations });
+  const { data: tasks = [] } = useQuery({ queryKey: ["housekeeping"], queryFn: listHousekeeping });
+
   const arrivals = reservations.filter((r) => r.status === "CONFIRMED").slice(0, 5);
   const pending = reservations.filter((r) => r.status === "PENDING");
-  const activeHk = housekeepingTasks.filter((t) => t.status !== "COMPLETED");
+  const activeHk = tasks.filter((t) => t.status !== "COMPLETED");
 
   return (
     <PageShell title="Dashboard" breadcrumb={[{ label: "Dashboard" }]}>
       {/* Stat row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {hasPermission("rooms", "VIEW") && (
-          <StatCard title="Occupancy Rate" value={`${s.occupancyRate}%`} delta="+5% vs last week" deltaType="positive" icon={BedDouble} />
+          <StatCard title="Occupancy Rate" value={`${s.occupancyRate}%`} delta="Live" deltaType="positive" icon={BedDouble} />
         )}
         {hasPermission("finance", "VIEW") && (
-          <StatCard title="Revenue Today" value={formatNaira(s.revenueToday)} delta="+12% vs yesterday" deltaType="positive" icon={Banknote} />
+          <StatCard title="Revenue (posted)" value={formatNaira(s.revenueToday)} delta="Posted revenue" deltaType="positive" icon={Banknote} />
         )}
         {hasPermission("reservations", "VIEW") && (
           <StatCard title="Arrivals Today" value={String(s.arrivalsToday)} delta="Across all room types" icon={CalendarArrowDown} />
         )}
         {hasPermission("reservations", "VIEW") && (
-          <StatCard title="Departures Today" value={String(s.departuresToday)} delta="2 late checkouts" deltaType="neutral" icon={CalendarArrowUp} />
+          <StatCard title="Departures Today" value={String(s.departuresToday)} delta="Scheduled" deltaType="neutral" icon={CalendarArrowUp} />
         )}
       </div>
 
@@ -67,6 +78,7 @@ export default function DashboardPage() {
                     </Link>
                   </li>
                 ))}
+                {arrivals.length === 0 && <li className="px-5 py-6 text-center text-sm text-fg-soft">No arrivals today.</li>}
               </ul>
             </CardContent>
           </Card>
@@ -110,12 +122,13 @@ export default function DashboardPage() {
                     <StatusBadge status={t.status} />
                   </li>
                 ))}
+                {activeHk.length === 0 && <li className="px-5 py-6 text-center text-sm text-fg-soft">All caught up.</li>}
               </ul>
             </CardContent>
           </Card>
         )}
 
-        {/* Revenue placeholder */}
+        {/* Revenue trend (illustrative) */}
         {hasPermission("finance", "VIEW") && (
           <Card>
             <CardHeader><CardTitle>Revenue — Last 7 Days</CardTitle></CardHeader>

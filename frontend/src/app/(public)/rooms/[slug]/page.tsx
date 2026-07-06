@@ -11,6 +11,7 @@ import { Reveal, RevealGroup, RevealItem } from "@/components/public/reveal";
 import { formatNaira } from "@/lib/utils";
 import { roomTypes, getRoomType } from "@/lib/cms";
 import { getRoomType as getRoomTypeData, getRoomTypes as getRoomTypesData } from "@/lib/data/rooms";
+import { getHeroImage } from "@/lib/data/content";
 
 export function generateStaticParams() {
   return roomTypes.map((r) => ({ slug: r.slug }));
@@ -40,6 +41,11 @@ export default async function RoomDetailPage({
 
   const others = (await getRoomTypesData()).filter((r) => r.slug !== room.slug).slice(0, 3);
   const galleryCount = Math.max(0, room.gallerySlots - 1);
+  const galleryImages = await Promise.all(
+    Array.from({ length: galleryCount }).map((_, i) =>
+      getHeroImage(`room.${room.slug}.gallery.${i + 1}`)
+    )
+  );
 
   return (
     <>
@@ -96,7 +102,7 @@ export default async function RoomDetailPage({
           <RevealGroup className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: galleryCount }).map((_, i) => (
               <RevealItem key={i}>
-                <MediaFrame slot={`room.${room.slug}.gallery.${i + 1}`} ratio="4/3" className="rounded-2xl" sizes="(max-width: 768px) 100vw, 33vw" />
+                <MediaFrame slot={`room.${room.slug}.gallery.${i + 1}`} src={galleryImages[i]} ratio="4/3" className="rounded-2xl" sizes="(max-width: 768px) 100vw, 33vw" />
               </RevealItem>
             ))}
           </RevealGroup>

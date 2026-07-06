@@ -5,6 +5,7 @@ import { Section } from "@/components/public/section";
 import { MediaFrame } from "@/components/public/media-frame";
 import { Reveal } from "@/components/public/reveal";
 import { ContactForm } from "@/components/public/contact-form";
+import { getHeroImage } from "@/lib/data/content";
 import { site } from "@/lib/cms";
 
 export const metadata: Metadata = {
@@ -12,7 +13,8 @@ export const metadata: Metadata = {
   description: `Get in touch with ${site.hotelName} — reservations, events, and enquiries.`,
 };
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const mapSrc = await getHeroImage("contact.map");
   return (
     <>
       <Hero
@@ -31,7 +33,7 @@ export default function ContactPage() {
 
           {/* Info */}
           <Reveal delay={0.1}>
-            <MediaFrame slot="contact.map" ratio="16/9" className="rounded-2xl" sizes="(max-width: 1024px) 100vw, 50vw" />
+            <MediaFrame slot="contact.map" src={mapSrc} ratio="16/9" className="rounded-2xl" sizes="(max-width: 1024px) 100vw, 50vw" />
             <ul className="mt-8 space-y-5">
               <InfoRow icon={MapPin} title="Address">
                 {site.address}, {site.city}

@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { site } from "@/lib/cms";
 import { MediaFrame } from "@/components/public/media-frame";
 import { Overline } from "@/components/public/ui";
+import { getHeroImage } from "@/lib/data/content";
 
 const QUICK = [
   { label: "Rooms", href: "/rooms" },
@@ -14,7 +15,8 @@ const QUICK = [
   { label: "Contact", href: "/contact" },
 ];
 
-export function PublicFooter() {
+export async function PublicFooter() {
+  const footerImgSrc = await getHeroImage("footer.image");
   return (
     <footer className="bg-pub-bg text-pub-ink">
       {/* Invitation band */}
@@ -40,7 +42,7 @@ export function PublicFooter() {
       <div className="pub-container grid gap-12 py-16 md:grid-cols-12 md:gap-8 md:py-20">
         {/* Brand: tall portrait image + blurb */}
         <div className="flex gap-6 md:col-span-5">
-          <MediaFrame slot="footer.image" ratio="3/5" className="w-36 shrink-0 rounded-xl sm:w-44 lg:w-52" sizes="(max-width: 768px) 38vw, 208px" />
+          <MediaFrame slot="footer.image" src={footerImgSrc} ratio="3/5" className="w-36 shrink-0 rounded-xl sm:w-44 lg:w-52" sizes="(max-width: 768px) 38vw, 208px" />
           <div className="flex flex-col justify-end">
             <Overline className="mb-3">{site.tagline}</Overline>
             <p className="pub-body max-w-xs text-pub-ink-soft">

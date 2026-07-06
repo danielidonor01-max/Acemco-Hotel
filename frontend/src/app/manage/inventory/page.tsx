@@ -1,26 +1,36 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Package, Plus, AlertTriangle, Boxes, Wallet } from "lucide-react";
-import { PageShell, StatCard, Button, Badge, EmptyState } from "@/components/internal/ui";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Package, Plus, AlertTriangle, Boxes, Wallet, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { PageShell, StatCard, Button, EmptyState } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
-import { inventoryItems, type InventoryItem, type Department } from "@/lib/mock-modules";
-import { hasPermission } from "@/lib/permissions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listInventory, createInventoryItem } from "@/lib/data/operations";
+import { type InventoryItem, type Department } from "@/lib/mock-modules";
+import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 
-const DEPTS: (Department | "ALL")[] = ["ALL", "RESTAURANT", "LOUNGE", "BOUTIQUE", "HOUSEKEEPING", "MAINTENANCE", "OFFICE"];
+const DEPT_OPTIONS: Department[] = ["RESTAURANT", "LOUNGE", "BOUTIQUE", "HOUSEKEEPING", "MAINTENANCE", "OFFICE", "GENERAL"];
+const DEPTS: (Department | "ALL")[] = ["ALL", ...DEPT_OPTIONS];
 
 export default function InventoryPage() {
+  const { hasPermission } = useAuth();
   const [dept, setDept] = useState<Department | "ALL">("ALL");
   const [lowOnly, setLowOnly] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const { data: items = [], isLoading } = useQuery({ queryKey: ["inventory"], queryFn: listInventory });
 
   const filtered = useMemo(
-    () => inventoryItems.filter((i) => (dept === "ALL" || i.department === dept) && (!lowOnly || i.currentQty < i.minStockLevel)),
-    [dept, lowOnly],
+    () => items.filter((i) => (dept === "ALL" || i.department === dept) && (!lowOnly || i.currentQty < i.minStockLevel)),
+    [items, dept, lowOnly],
   );
-
-  const lowCount = inventoryItems.filter((i) => i.currentQty < i.minStockLevel).length;
-  const stockValue = inventoryItems.reduce((s, i) => s + i.currentQty * i.unitCost, 0);
+  const lowCount = items.filter((i) => i.currentQty < i.minStockLevel).length;
+  const stockValue = items.reduce((s, i) => s + i.currentQty * i.unitCost, 0);
 
   const columns: Column<InventoryItem>[] = [
     {
@@ -57,10 +67,10 @@ export default function InventoryPage() {
     <PageShell
       title="Inventory"
       breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Inventory" }]}
-      actions={hasPermission("inventory", "CREATE") && <Button><Plus size={16} /> New Item</Button>}
+      actions={hasPermission("inventory", "CREATE") && <Button onClick={() => setCreating(true)}><Plus size={16} /> New Item</Button>}
     >
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard title="Total Items" value={String(inventoryItems.length)} icon={Boxes} />
+        <StatCard title="Total Items" value={String(items.length)} icon={Boxes} />
         <StatCard title="Low Stock Alerts" value={String(lowCount)} delta="Below minimum level" deltaType={lowCount ? "negative" : "neutral"} icon={AlertTriangle} />
         <StatCard title="Stock Value" value={formatNaira(stockValue)} icon={Wallet} />
       </div>
@@ -68,6 +78,7 @@ export default function InventoryPage() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {DEPTS.map((d) => (
           <button
+            type="button"
             key={d}
             onClick={() => setDept(d)}
             className={cn(
@@ -79,6 +90,7 @@ export default function InventoryPage() {
           </button>
         ))}
         <button
+          type="button"
           onClick={() => setLowOnly((v) => !v)}
           className={cn(
             "ml-auto inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
@@ -92,8 +104,64 @@ export default function InventoryPage() {
       <DataTable
         columns={columns}
         data={filtered}
+        isLoading={isLoading}
         emptyState={<EmptyState icon={Package} title="No items match" description="Try a different department or clear the low-stock filter." />}
       />
+      {creating && <ItemDialog onClose={() => setCreating(false)} />}
     </PageShell>
+  );
+}
+
+function ItemDialog({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ name: "", sku: "", department: "GENERAL" as Department, unit: "", currentQty: "0", minStockLevel: "0", unitCost: "0", location: "" });
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const save = useMutation({
+    mutationFn: () => createInventoryItem({
+      name: form.name.trim(), sku: form.sku.trim(), department: form.department, unit: form.unit.trim(),
+      currentQty: Number(form.currentQty) || 0, minStockLevel: Number(form.minStockLevel) || 0,
+      unitCost: Number(form.unitCost) || 0, location: form.location.trim() || undefined,
+    }),
+    onSuccess: () => { toast.success("Item added."); qc.invalidateQueries({ queryKey: ["inventory"] }); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const canSave = form.name.trim() && form.sku.trim() && form.unit.trim() && !save.isPending;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New Inventory Item</DialogTitle>
+          <DialogDescription>Add an item to the stock register.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5"><Label htmlFor="i-name">Name</Label><Input id="i-name" value={form.name} onChange={(e) => set("name", e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label htmlFor="i-sku">SKU</Label><Input id="i-sku" value={form.sku} onChange={(e) => set("sku", e.target.value)} /></div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label>Department</Label>
+              <Select value={form.department} onValueChange={(v) => set("department", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{DEPT_OPTIONS.map((d) => <SelectItem key={d} value={d} className="capitalize">{d.toLowerCase()}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5"><Label htmlFor="i-unit">Unit</Label><Input id="i-unit" value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="kg, piece, bottle…" /></div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-1.5"><Label htmlFor="i-qty">In stock</Label><Input id="i-qty" type="number" value={form.currentQty} onChange={(e) => set("currentQty", e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label htmlFor="i-min">Min level</Label><Input id="i-min" type="number" value={form.minStockLevel} onChange={(e) => set("minStockLevel", e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label htmlFor="i-cost">Unit cost</Label><Input id="i-cost" type="number" value={form.unitCost} onChange={(e) => set("unitCost", e.target.value)} /></div>
+          </div>
+          <div className="grid gap-1.5"><Label htmlFor="i-loc">Location</Label><Input id="i-loc" value={form.location} onChange={(e) => set("location", e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={!canSave} onClick={() => save.mutate()}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Add item</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

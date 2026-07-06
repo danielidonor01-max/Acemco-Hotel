@@ -19,7 +19,7 @@ const NAV = [
   { label: "Contact", href: "/contact" },
 ];
 
-export function PublicNavbar() {
+export function PublicNavbar({ featuredSrc }: { featuredSrc?: string }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -124,7 +124,7 @@ export function PublicNavbar() {
             </nav>
             {/* Featured image (CMS slot) */}
             <div className="relative mx-3 mb-3 mt-6 overflow-hidden rounded-xl">
-              <MediaFrame slot="nav.featured" ratio="16/9" overlay="scrim-bottom" sizes="(max-width: 768px) 100vw, 68rem" />
+              <MediaFrame slot="nav.featured" src={featuredSrc} ratio="16/9" overlay="scrim-bottom" sizes="(max-width: 768px) 100vw, 68rem" />
               <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between px-5 pb-4 md:px-7 md:pb-6">
                 <span className="pub-overline text-pub-on-dark">A warm arrival</span>
                 <span className="hidden h-1.5 w-1.5 rounded-full bg-pub-on-dark/70 sm:block" />

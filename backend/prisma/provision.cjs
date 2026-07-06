@@ -98,6 +98,81 @@ async function main() {
     console.log('Schema already present — skipping migration.');
   }
 
+  // 1b) Extended operational module tables (inventory, maintenance, HR, payroll,
+  //     finance, housekeeping). Idempotent DDL — safe to run repeatedly.
+  const ENUMS = {
+    InventoryDepartment: ['RESTAURANT', 'LOUNGE', 'BOUTIQUE', 'HOUSEKEEPING', 'MAINTENANCE', 'OFFICE', 'GENERAL'],
+    AssetStatus: ['OPERATIONAL', 'INSPECTION_DUE', 'NEEDS_REPAIR', 'UNDER_REPAIR', 'DECOMMISSIONED'],
+    WorkOrderType: ['CORRECTIVE', 'PREVENTIVE', 'INSPECTION'],
+    WorkOrderPriority: ['LOW', 'NORMAL', 'HIGH', 'CRITICAL'],
+    WorkOrderStatus: ['OPEN', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED'],
+    EmploymentType: ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN'],
+    EmployeeStatus: ['ACTIVE', 'SUSPENDED', 'TERMINATED', 'RESIGNED'],
+    LeaveType: ['ANNUAL', 'SICK', 'MATERNITY', 'PATERNITY', 'UNPAID', 'COMPASSIONATE'],
+    LeaveStatus: ['PENDING', 'APPROVED', 'REJECTED'],
+    PayrollStatus: ['DRAFT', 'PROCESSING', 'APPROVED', 'PAID', 'CLOSED'],
+    TransactionType: ['REVENUE', 'EXPENSE', 'PAYROLL', 'REFUND'],
+    TransactionDirection: ['DEBIT', 'CREDIT'],
+    TransactionStatus: ['PENDING', 'POSTED', 'VOIDED'],
+    HousekeepingType: ['CHECKOUT_CLEAN', 'STAYOVER_CLEAN', 'DEEP_CLEAN', 'INSPECTION', 'TURNDOWN'],
+    HousekeepingStatus: ['PENDING', 'IN_PROGRESS', 'COMPLETED'],
+    HousekeepingPriority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'],
+  };
+  for (const [name, values] of Object.entries(ENUMS)) {
+    const vals = values.map((v) => `'${v}'`).join(', ');
+    await client.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '${name}') THEN
+        CREATE TYPE "${name}" AS ENUM (${vals});
+      END IF;
+    END $$;`);
+  }
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id text PRIMARY KEY, name text NOT NULL, sku text NOT NULL UNIQUE,
+      department "InventoryDepartment" NOT NULL DEFAULT 'GENERAL', unit text NOT NULL,
+      current_qty integer NOT NULL DEFAULT 0, min_stock_level integer NOT NULL DEFAULT 0,
+      unit_cost numeric(12,2) NOT NULL DEFAULT 0, location text,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS assets (
+      id text PRIMARY KEY, asset_number text NOT NULL UNIQUE, name text NOT NULL, category text NOT NULL,
+      location text NOT NULL, status "AssetStatus" NOT NULL DEFAULT 'OPERATIONAL', next_inspection date,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS work_orders (
+      id text PRIMARY KEY, work_order_number text NOT NULL UNIQUE, asset_id text REFERENCES assets(id),
+      type "WorkOrderType" NOT NULL DEFAULT 'CORRECTIVE', priority "WorkOrderPriority" NOT NULL DEFAULT 'NORMAL',
+      status "WorkOrderStatus" NOT NULL DEFAULT 'OPEN', assigned_to text, estimated_cost numeric(12,2) NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS employees (
+      id text PRIMARY KEY, employee_number text NOT NULL UNIQUE, name text NOT NULL, department text NOT NULL,
+      position text NOT NULL, employment_type "EmploymentType" NOT NULL DEFAULT 'FULL_TIME',
+      status "EmployeeStatus" NOT NULL DEFAULT 'ACTIVE', start_date date NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id text PRIMARY KEY, employee_id text NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      type "LeaveType" NOT NULL DEFAULT 'ANNUAL', start_date date NOT NULL, end_date date NOT NULL,
+      days integer NOT NULL DEFAULT 1, status "LeaveStatus" NOT NULL DEFAULT 'PENDING',
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS payroll_periods (
+      id text PRIMARY KEY, period_name text NOT NULL, start_date date NOT NULL, end_date date NOT NULL,
+      status "PayrollStatus" NOT NULL DEFAULT 'DRAFT', total_gross numeric(14,2) NOT NULL DEFAULT 0,
+      total_net numeric(14,2) NOT NULL DEFAULT 0, headcount integer NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS finance_transactions (
+      id text PRIMARY KEY, transaction_number text NOT NULL UNIQUE, type "TransactionType" NOT NULL,
+      amount numeric(14,2) NOT NULL, direction "TransactionDirection" NOT NULL, account text NOT NULL,
+      description text NOT NULL, date date NOT NULL, status "TransactionStatus" NOT NULL DEFAULT 'PENDING',
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS housekeeping_tasks (
+      id text PRIMARY KEY, room_number text NOT NULL, type "HousekeepingType" NOT NULL DEFAULT 'CHECKOUT_CLEAN',
+      status "HousekeepingStatus" NOT NULL DEFAULT 'PENDING', priority "HousekeepingPriority" NOT NULL DEFAULT 'NORMAL',
+      assigned_to text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);
+    CREATE INDEX IF NOT EXISTS leave_requests_employee_id_idx ON leave_requests(employee_id);
+    CREATE INDEX IF NOT EXISTS finance_transactions_type_idx ON finance_transactions(type);
+    CREATE INDEX IF NOT EXISTS finance_transactions_status_idx ON finance_transactions(status);
+  `);
+  console.log('Extended module tables ensured.');
+
   // 2) Permissions
   const permId = {};
   for (const key of allPerms()) {
@@ -214,9 +289,147 @@ async function main() {
     }
   }
 
+  // 7) Operational module seeds (idempotent).
+  const INVENTORY = [
+    ['Basmati Rice', 'RST-RICE-01', 'RESTAURANT', 'kg', 8, 20, 2200, 'Dry Store A'],
+    ['Chicken (whole)', 'RST-CHKN-02', 'RESTAURANT', 'kg', 45, 30, 3500, 'Cold Room 1'],
+    ['Aged Rum', 'LNG-RUM-03', 'LOUNGE', 'bottle', 6, 12, 14000, 'Bar Store'],
+    ['Tonic Water', 'LNG-TNC-04', 'LOUNGE', 'can', 120, 48, 500, 'Bar Store'],
+    ['Bath Towels', 'HK-TWL-05', 'HOUSEKEEPING', 'piece', 60, 80, 3000, 'Linen Room'],
+    ['All-purpose Cleaner', 'HK-CLN-06', 'HOUSEKEEPING', 'litre', 22, 15, 1200, 'Housekeeping Store'],
+    ['LED Bulbs 9W', 'MNT-BLB-07', 'MAINTENANCE', 'piece', 14, 20, 900, 'Workshop'],
+    ['A4 Paper Ream', 'OFF-PPR-08', 'OFFICE', 'ream', 30, 10, 3500, 'Admin Store'],
+    ['Signature Candle (retail)', 'BTQ-CDL-09', 'BOUTIQUE', 'piece', 24, 10, 6000, 'Boutique'],
+    ['Coffee Beans', 'RST-COF-10', 'RESTAURANT', 'kg', 3, 8, 8000, 'Dry Store A'],
+  ];
+  for (const [name, sku, dept, unit, qty, min, cost, loc] of INVENTORY) {
+    await client.query(
+      `INSERT INTO inventory_items (id, name, sku, department, unit, current_qty, min_stock_level, unit_cost, location, updated_at)
+       VALUES ($1,$2,$3,$4::"InventoryDepartment",$5,$6,$7,$8,$9,now())
+       ON CONFLICT (sku) DO UPDATE SET current_qty = EXCLUDED.current_qty, min_stock_level = EXCLUDED.min_stock_level, unit_cost = EXCLUDED.unit_cost`,
+      [uuid(), name, sku, dept, unit, qty, min, cost, loc],
+    );
+  }
+
+  const ASSETS = [
+    ['AST-0042', 'Generator — Main', 'Power', 'Basement', 'OPERATIONAL', '2026-08-01'],
+    ['AST-0043', 'Chiller Unit 1', 'HVAC', 'Roof', 'INSPECTION_DUE', '2026-07-10'],
+    ['AST-0044', 'Elevator A', 'Vertical Transport', 'Core', 'NEEDS_REPAIR', '2026-07-06'],
+    ['AST-0045', 'Pool Pump', 'Leisure', 'Rooftop', 'UNDER_REPAIR', '2026-07-15'],
+    ['AST-0046', 'Kitchen Extractor', 'Kitchen', 'Restaurant', 'OPERATIONAL', '2026-09-01'],
+  ];
+  const assetIdByName = {};
+  for (const [num, name, cat, loc, status, next] of ASSETS) {
+    const r = await client.query(
+      `INSERT INTO assets (id, asset_number, name, category, location, status, next_inspection, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6::"AssetStatus",$7,now())
+       ON CONFLICT (asset_number) DO UPDATE SET status = EXCLUDED.status, next_inspection = EXCLUDED.next_inspection RETURNING id`,
+      [uuid(), num, name, cat, loc, status, next],
+    );
+    assetIdByName[name] = r.rows[0].id;
+  }
+  const WORK_ORDERS = [
+    ['WO-2026-00018', 'Elevator A', 'CORRECTIVE', 'CRITICAL', 'OPEN', 'Ibrahim K.', 180000],
+    ['WO-2026-00019', 'Chiller Unit 1', 'INSPECTION', 'NORMAL', 'IN_PROGRESS', 'Femi O.', 25000],
+    ['WO-2026-00020', 'Pool Pump', 'CORRECTIVE', 'HIGH', 'IN_PROGRESS', 'Ibrahim K.', 60000],
+    ['WO-2026-00021', 'Generator — Main', 'PREVENTIVE', 'NORMAL', 'COMPLETED', 'Femi O.', 40000],
+  ];
+  for (const [num, asset, type, priority, status, who, cost] of WORK_ORDERS) {
+    await client.query(
+      `INSERT INTO work_orders (id, work_order_number, asset_id, type, priority, status, assigned_to, estimated_cost, updated_at)
+       VALUES ($1,$2,$3,$4::"WorkOrderType",$5::"WorkOrderPriority",$6::"WorkOrderStatus",$7,$8,now())
+       ON CONFLICT (work_order_number) DO UPDATE SET status = EXCLUDED.status, priority = EXCLUDED.priority`,
+      [uuid(), num, assetIdByName[asset] ?? null, type, priority, status, who, cost],
+    );
+  }
+
+  const EMPLOYEES = [
+    ['EMP-0042', 'Blessing Aigbe', 'Housekeeping', 'Room Attendant', 'FULL_TIME', 'ACTIVE', '2024-03-01'],
+    ['EMP-0043', 'Emeka Nwosu', 'Housekeeping', 'Supervisor', 'FULL_TIME', 'ACTIVE', '2023-06-15'],
+    ['EMP-0044', 'Ada Okoro', 'Management', 'Hotel Manager', 'FULL_TIME', 'ACTIVE', '2022-01-10'],
+    ['EMP-0045', 'Ibrahim Kabir', 'Maintenance', 'Technician', 'FULL_TIME', 'ACTIVE', '2024-09-01'],
+    ['EMP-0046', 'Chidi Eze', 'Restaurant', 'Chef de Partie', 'FULL_TIME', 'ACTIVE', '2023-11-20'],
+    ['EMP-0047', 'Halima Sani', 'Front Desk', 'Receptionist', 'PART_TIME', 'ACTIVE', '2025-02-01'],
+    ['EMP-0048', 'Peter Obi', 'Lounge', 'Bartender', 'CONTRACT', 'SUSPENDED', '2024-07-05'],
+  ];
+  const empIdByName = {};
+  for (const [num, name, dept, pos, type, status, start] of EMPLOYEES) {
+    const r = await client.query(
+      `INSERT INTO employees (id, employee_number, name, department, position, employment_type, status, start_date, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6::"EmploymentType",$7::"EmployeeStatus",$8,now())
+       ON CONFLICT (employee_number) DO UPDATE SET status = EXCLUDED.status, department = EXCLUDED.department, position = EXCLUDED.position RETURNING id`,
+      [uuid(), num, name, dept, pos, type, status, start],
+    );
+    empIdByName[name] = r.rows[0].id;
+  }
+  if ((await client.query('SELECT count(*)::int n FROM leave_requests')).rows[0].n === 0) {
+    const LEAVE = [
+      ['Halima Sani', 'ANNUAL', '2026-07-14', '2026-07-18', 5, 'PENDING'],
+      ['Chidi Eze', 'SICK', '2026-07-05', '2026-07-06', 2, 'APPROVED'],
+      ['Blessing Aigbe', 'COMPASSIONATE', '2026-07-20', '2026-07-22', 3, 'PENDING'],
+    ];
+    for (const [emp, type, start, end, days, status] of LEAVE) {
+      if (empIdByName[emp]) await client.query(
+        `INSERT INTO leave_requests (id, employee_id, type, start_date, end_date, days, status, updated_at)
+         VALUES ($1,$2,$3::"LeaveType",$4,$5,$6,$7::"LeaveStatus",now())`,
+        [uuid(), empIdByName[emp], type, start, end, days, status],
+      );
+    }
+  }
+
+  if ((await client.query('SELECT count(*)::int n FROM payroll_periods')).rows[0].n === 0) {
+    const PAYROLL = [
+      ['June 2026', '2026-06-01', '2026-06-30', 'PAID', 8400000, 7140000, 42],
+      ['July 2026', '2026-07-01', '2026-07-31', 'PROCESSING', 8550000, 7267500, 43],
+    ];
+    for (const [name, start, end, status, gross, net, hc] of PAYROLL) {
+      await client.query(
+        `INSERT INTO payroll_periods (id, period_name, start_date, end_date, status, total_gross, total_net, headcount, updated_at)
+         VALUES ($1,$2,$3,$4,$5::"PayrollStatus",$6,$7,$8,now())`,
+        [uuid(), name, start, end, status, gross, net, hc],
+      );
+    }
+  }
+
+  const TXNS = [
+    ['TXN-2026-04821', 'REVENUE', 480000, 'CREDIT', 'Room Revenue', 'Reservation RES-2026-00042', '2026-07-05', 'POSTED'],
+    ['TXN-2026-04822', 'REVENUE', 25500, 'CREDIT', 'F&B Revenue', 'Order REST-2026-00219', '2026-07-05', 'POSTED'],
+    ['TXN-2026-04823', 'EXPENSE', 180000, 'DEBIT', 'Repairs & Maintenance', 'WO-2026-00018 Elevator', '2026-07-05', 'PENDING'],
+    ['TXN-2026-04824', 'EXPENSE', 96000, 'DEBIT', 'Utilities', 'Diesel supply', '2026-07-04', 'POSTED'],
+    ['TXN-2026-04825', 'REVENUE', 24500, 'CREDIT', 'F&B Revenue', 'Order LNGE-2026-00061', '2026-07-05', 'POSTED'],
+    ['TXN-2026-04826', 'REFUND', 58000, 'DEBIT', 'Room Revenue', 'Cancellation RES-2026-00053', '2026-07-05', 'POSTED'],
+    ['TXN-2026-04827', 'PAYROLL', 7140000, 'DEBIT', 'Salaries', 'June 2026 payroll', '2026-06-30', 'POSTED'],
+  ];
+  for (const [num, type, amount, dir, account, desc, date, status] of TXNS) {
+    await client.query(
+      `INSERT INTO finance_transactions (id, transaction_number, type, amount, direction, account, description, date, status, updated_at)
+       VALUES ($1,$2,$3::"TransactionType",$4,$5::"TransactionDirection",$6,$7,$8,$9::"TransactionStatus",now())
+       ON CONFLICT (transaction_number) DO UPDATE SET status = EXCLUDED.status, amount = EXCLUDED.amount`,
+      [uuid(), num, type, amount, dir, account, desc, date, status],
+    );
+  }
+
+  if ((await client.query('SELECT count(*)::int n FROM housekeeping_tasks')).rows[0].n === 0) {
+    const TASKS = [
+      ['203', 'CHECKOUT_CLEAN', 'IN_PROGRESS', 'HIGH', 'Blessing A.'],
+      ['116', 'INSPECTION', 'PENDING', 'NORMAL', 'Emeka N.'],
+      ['301', 'STAYOVER_CLEAN', 'PENDING', 'NORMAL', null],
+      ['512', 'TURNDOWN', 'COMPLETED', 'LOW', 'Blessing A.'],
+    ];
+    for (const [room, type, status, priority, who] of TASKS) {
+      await client.query(
+        `INSERT INTO housekeeping_tasks (id, room_number, type, status, priority, assigned_to, updated_at)
+         VALUES ($1,$2,$3::"HousekeepingType",$4::"HousekeepingStatus",$5::"HousekeepingPriority",$6,now())`,
+        [uuid(), room, type, status, priority, who],
+      );
+    }
+  }
+  console.log('Seeded operational modules (inventory, assets, work orders, employees, leave, payroll, finance, housekeeping).');
+
   // Verify
   const counts = {};
-  for (const t of ['permissions', 'roles', 'users', 'room_types', 'rooms', 'menu_categories', 'menu_items']) {
+  for (const t of ['permissions', 'roles', 'users', 'room_types', 'rooms', 'menu_categories', 'menu_items',
+    'inventory_items', 'assets', 'work_orders', 'employees', 'leave_requests', 'payroll_periods', 'finance_transactions', 'housekeeping_tasks']) {
     counts[t] = (await client.query(`SELECT count(*)::int AS n FROM ${t}`)).rows[0].n;
   }
   console.log('Seeded counts:', counts);

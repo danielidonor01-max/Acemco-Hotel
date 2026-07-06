@@ -71,7 +71,7 @@ export const roomTypes: RoomType[] = [
     sizeSqm: 32,
     basePrice: 65000,
     features: ["City view", "Marble bath", "Fast Wi-Fi", "Work desk", "Smart TV", "Rain shower"],
-    heroSlot: undefined,
+    heroSlot: "/images/rooms/deluxe.png",
     gallerySlots: 4,
   },
   {
@@ -86,7 +86,7 @@ export const roomTypes: RoomType[] = [
     sizeSqm: 30,
     basePrice: 58000,
     features: ["Garden view", "Fast Wi-Fi", "Work desk", "Smart TV", "Tea & coffee"],
-    heroSlot: undefined,
+    heroSlot: "/images/rooms/twin.png",
     gallerySlots: 4,
   },
   {
@@ -101,7 +101,7 @@ export const roomTypes: RoomType[] = [
     sizeSqm: 58,
     basePrice: 120000,
     features: ["Separate lounge", "Private bar", "City view", "Rain shower", "Fast Wi-Fi", "Nespresso"],
-    heroSlot: undefined,
+    heroSlot: "/images/rooms/executive.png",
     gallerySlots: 6,
   },
   {
@@ -116,7 +116,7 @@ export const roomTypes: RoomType[] = [
     sizeSqm: 48,
     basePrice: 95000,
     features: ["Courtyard access", "Family layout", "Fast Wi-Fi", "Two Smart TVs", "Tea & coffee"],
-    heroSlot: undefined,
+    heroSlot: "/images/rooms/family.png",
     gallerySlots: 4,
   },
 ];
@@ -133,8 +133,8 @@ export interface Amenity {
 }
 
 export const amenities: Amenity[] = [
-  { title: "Swimming Pool", overline: "Leisure", description: "An infinity edge above the city — open from sunrise to the last light.", slot: undefined },
-  { title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio with a view, open 24 hours.", slot: undefined },
+  { title: "Swimming Pool", overline: "Leisure", description: "An infinity edge above the city — open from sunrise to the last light.", slot: "/images/amenities/pool.png" },
+  { title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio with a view, open 24 hours.", slot: "/images/amenities/gym.png" },
 ];
 
 export type Storefront = "RESTAURANT" | "LOUNGE";
@@ -176,33 +176,33 @@ export const venues: Venue[] = [
     story:
       "A room built around the table. Our kitchen leans on the market — what is best today shapes what reaches your plate tonight.",
     hours: "07:00 – 23:00 daily",
-    heroSlot: undefined,
+    heroSlot: "/images/dining/restaurant.png",
     categories: [
       {
         id: "starters",
         name: "Starters",
         items: [
-          { id: "r-1", name: "Pepper Soup, Catfish", description: "Aromatic broth, scent leaf, fresh catfish.", price: 6500, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "r-2", name: "Suya Beef Skewers", description: "Charred, dusted with yaji, red onion.", price: 7000, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "r-3", name: "Garden Salad", description: "Leaves, avocado, citrus dressing.", price: 5000, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-1", name: "Pepper Soup, Catfish", description: "Aromatic broth, scent leaf, fresh catfish.", price: 6500, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
+          { id: "r-2", name: "Suya Beef Skewers", description: "Charred, dusted with yaji, red onion.", price: 7000, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
+          { id: "r-3", name: "Garden Salad", description: "Leaves, avocado, citrus dressing.", price: 5000, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
         ],
       },
       {
         id: "mains",
         name: "Mains",
         items: [
-          { id: "r-4", name: "Jollof Rice & Grilled Chicken", description: "Smoky party jollof, chicken, plantain.", price: 9500, tags: [], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "r-5", name: "Seared Barramundi", description: "Coconut sauce, greens, jasmine rice.", price: 14000, tags: [], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "r-6", name: "Egusi & Pounded Yam", description: "Melon seed stew, assorted, pounded yam.", price: 11000, tags: [], isAvailable: false, isHidden: false, slot: undefined },
-          { id: "r-7", name: "Ribeye, Pepper Glaze", description: "300g grass-fed, ata rodo glaze, fries.", price: 21000, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-4", name: "Jollof Rice & Grilled Chicken", description: "Smoky party jollof, chicken, plantain.", price: 9500, tags: [], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
+          { id: "r-5", name: "Seared Barramundi", description: "Coconut sauce, greens, jasmine rice.", price: 14000, tags: [], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
+          { id: "r-6", name: "Egusi & Pounded Yam", description: "Melon seed stew, assorted, pounded yam.", price: 11000, tags: [], isAvailable: false, isHidden: false, slot: "/images/dining/restaurant.png" },
+          { id: "r-7", name: "Ribeye, Pepper Glaze", description: "300g grass-fed, ata rodo glaze, fries.", price: 21000, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
         ],
       },
       {
         id: "desserts",
         name: "Desserts",
         items: [
-          { id: "r-8", name: "Coconut Panna Cotta", description: "Passionfruit, toasted coconut.", price: 5500, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "r-9", name: "Chocolate Fondant", description: "Warm centre, vanilla ice cream.", price: 6000, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "r-8", name: "Coconut Panna Cotta", description: "Passionfruit, toasted coconut.", price: 5500, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
+          { id: "r-9", name: "Chocolate Fondant", description: "Warm centre, vanilla ice cream.", price: 6000, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: "/images/dining/restaurant.png" },
         ],
       },
     ],
@@ -215,24 +215,24 @@ export const venues: Venue[] = [
     story:
       "When the light goes low, the Lounge comes alive — considered cocktails, a short vinyl list, and plates made for sharing.",
     hours: "16:00 – 02:00 daily",
-    heroSlot: undefined,
+    heroSlot: "/images/dining/lounge.png",
     categories: [
       {
         id: "signatures",
         name: "Signatures",
         items: [
-          { id: "l-1", name: "Marina Sundown", description: "Aged rum, hibiscus, lime, bitters.", price: 8000, tags: [], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "l-2", name: "Smoked Old Fashioned", description: "Bourbon, cane sugar, oak smoke.", price: 9000, tags: [], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "l-3", name: "Zobo Spritz", description: "Hibiscus, sparkling, citrus. Zero proof.", price: 5500, tags: ["Zero-proof"], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "l-1", name: "Marina Sundown", description: "Aged rum, hibiscus, lime, bitters.", price: 8000, tags: [], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
+          { id: "l-2", name: "Smoked Old Fashioned", description: "Bourbon, cane sugar, oak smoke.", price: 9000, tags: [], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
+          { id: "l-3", name: "Zobo Spritz", description: "Hibiscus, sparkling, citrus. Zero proof.", price: 5500, tags: ["Zero-proof"], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
         ],
       },
       {
         id: "small-plates",
         name: "Small Plates",
         items: [
-          { id: "l-4", name: "Peppered Snails", description: "Bell pepper, onion, scotch bonnet.", price: 8500, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "l-5", name: "Plantain & Dip", description: "Crisp plantain, smoked pepper dip.", price: 4500, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: undefined },
-          { id: "l-6", name: "Chapman Wings", description: "Glazed, sesame, spring onion.", price: 7500, tags: [], isAvailable: true, isHidden: false, slot: undefined },
+          { id: "l-4", name: "Peppered Snails", description: "Bell pepper, onion, scotch bonnet.", price: 8500, tags: ["Spicy"], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
+          { id: "l-5", name: "Plantain & Dip", description: "Crisp plantain, smoked pepper dip.", price: 4500, tags: ["Vegetarian"], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
+          { id: "l-6", name: "Chapman Wings", description: "Glazed, sesame, spring onion.", price: 7500, tags: [], isAvailable: true, isHidden: false, slot: "/images/dining/lounge.png" },
         ],
       },
     ],
@@ -254,9 +254,9 @@ export interface Offer {
 
 // Events (the public "Event" section). CMS-managed; sample content until populated.
 export const offers: Offer[] = [
-  { id: "o-1", title: "Live Jazz Nights", ribbon: "Every Friday", validity: "From 8:00 PM · The Lounge", terms: "An intimate evening of live jazz, signature cocktails, and small plates.", slot: undefined },
-  { id: "o-2", title: "Sunday Rooftop Brunch", ribbon: "Weekly", validity: "Sundays · 11:00 AM – 3:00 PM", terms: "A leisurely poolside brunch buffet with free-flowing mimosas.", slot: undefined },
-  { id: "o-3", title: "Wine & Dine Tasting", ribbon: "Monthly", validity: "Last Saturday of the month", terms: "A curated five-course dinner paired with fine wines by our sommelier.", slot: undefined },
+  { id: "o-1", title: "Live Jazz Nights", ribbon: "Every Friday", validity: "From 8:00 PM · The Lounge", terms: "An intimate evening of live jazz, signature cocktails, and small plates.", slot: "/images/dining/lounge.png" },
+  { id: "o-2", title: "Sunday Rooftop Brunch", ribbon: "Weekly", validity: "Sundays · 11:00 AM – 3:00 PM", terms: "A leisurely poolside brunch buffet with free-flowing mimosas.", slot: "/images/amenities/pool.png" },
+  { id: "o-3", title: "Wine & Dine Tasting", ribbon: "Monthly", validity: "Last Saturday of the month", terms: "A curated five-course dinner paired with fine wines by our sommelier.", slot: "/images/dining/restaurant.png" },
 ];
 
 export interface Testimonial {
@@ -295,12 +295,12 @@ export const boutiqueProducts: BoutiqueProduct[] = [
 
 /** Gallery tiles — mixed ratios per §15.5. All placeholders. */
 export const gallerySlots: { ratio: "1/1" | "3/4"; slot: MediaKey }[] = [
-  { ratio: "3/4", slot: undefined },
-  { ratio: "1/1", slot: undefined },
-  { ratio: "1/1", slot: undefined },
-  { ratio: "3/4", slot: undefined },
-  { ratio: "1/1", slot: undefined },
-  { ratio: "3/4", slot: undefined },
-  { ratio: "3/4", slot: undefined },
-  { ratio: "1/1", slot: undefined },
+  { ratio: "3/4", slot: "/images/rooms/deluxe.png" },
+  { ratio: "1/1", slot: "/images/rooms/twin.png" },
+  { ratio: "1/1", slot: "/images/rooms/executive.png" },
+  { ratio: "3/4", slot: "/images/rooms/family.png" },
+  { ratio: "1/1", slot: "/images/amenities/pool.png" },
+  { ratio: "3/4", slot: "/images/amenities/gym.png" },
+  { ratio: "3/4", slot: "/images/lobby.png" },
+  { ratio: "1/1", slot: "/images/facade.png" },
 ];

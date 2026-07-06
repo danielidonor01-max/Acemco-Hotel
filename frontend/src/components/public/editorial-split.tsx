@@ -1,10 +1,11 @@
 import { MediaFrame } from "./media-frame";
 import { Overline, GhostLink } from "./ui";
 import { Reveal } from "./reveal";
+import { getHeroImage } from "@/lib/data/content";
 import { cn } from "@/lib/utils";
 
 /** The workhorse editorial 7/5 image + text block (§15.4). */
-export function EditorialSplit({
+export async function EditorialSplit({
   slot,
   overline,
   heading,
@@ -21,6 +22,7 @@ export function EditorialSplit({
   direction?: "image-left" | "image-right";
   band?: "cream" | "sand";
 }) {
+  const src = await getHeroImage(slot);
   const onDark = false;
   return (
     <section className={cn("pub-section", band === "sand" ? "bg-pub-sand" : "bg-pub-bg", "text-pub-ink")}>
@@ -34,6 +36,7 @@ export function EditorialSplit({
           <MediaFrame
             slot={slot}
             ratio="3/4"
+            src={src}
             zoom={false}
             className="rounded-2xl"
             sizes="(max-width: 1024px) 100vw, 55vw"

@@ -29,7 +29,7 @@ function toRoomType(api: ApiRoomType): RoomType {
     sizeSqm: sample?.sizeSqm ?? 30,
     basePrice: Number(api.basePrice),
     features: api.features?.length ? api.features : sample?.features ?? [],
-    heroSlot: api.images?.[0], // Sanity/S3 image key when present, else placeholder
+    heroSlot: api.images?.[0] ?? sample?.heroSlot, // Sanity/S3 image key when present, else static fallback
     gallerySlots: sample?.gallerySlots ?? 4,
   };
 }

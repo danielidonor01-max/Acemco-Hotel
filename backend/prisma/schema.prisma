@@ -513,3 +513,255 @@ model AuditLog {
   @@index([module])
   @@map("audit_logs")
 }
+
+// ============================ Inventory (Domain §5.1) ============================
+
+enum InventoryDepartment {
+  RESTAURANT
+  LOUNGE
+  BOUTIQUE
+  HOUSEKEEPING
+  MAINTENANCE
+  OFFICE
+  GENERAL
+}
+
+model InventoryItem {
+  id            String              @id @default(uuid())
+  name          String
+  sku           String              @unique
+  department    InventoryDepartment @default(GENERAL)
+  unit          String
+  currentQty    Int                 @default(0) @map("current_qty")
+  minStockLevel Int                 @default(0) @map("min_stock_level")
+  unitCost      Decimal             @default(0) @map("unit_cost") @db.Decimal(12, 2)
+  location      String?
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  @@map("inventory_items")
+}
+
+// ============================ Maintenance (Domain §5.3) ============================
+
+enum AssetStatus {
+  OPERATIONAL
+  INSPECTION_DUE
+  NEEDS_REPAIR
+  UNDER_REPAIR
+  DECOMMISSIONED
+}
+
+model Asset {
+  id             String      @id @default(uuid())
+  assetNumber    String      @unique @map("asset_number")
+  name           String
+  category       String
+  location       String
+  status         AssetStatus @default(OPERATIONAL)
+  nextInspection DateTime?   @map("next_inspection") @db.Date
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  workOrders     WorkOrder[]
+
+  @@map("assets")
+}
+
+enum WorkOrderType {
+  CORRECTIVE
+  PREVENTIVE
+  INSPECTION
+}
+
+enum WorkOrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+}
+
+model WorkOrder {
+  id              String            @id @default(uuid())
+  workOrderNumber String            @unique @map("work_order_number")
+  assetId         String?           @map("asset_id")
+  type            WorkOrderType     @default(CORRECTIVE)
+  priority        WorkOrderPriority @default(NORMAL)
+  status          WorkOrderStatus   @default(OPEN)
+  assignedTo      String?           @map("assigned_to")
+  estimatedCost   Decimal           @default(0) @map("estimated_cost") @db.Decimal(12, 2)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  asset           Asset?            @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@map("work_orders")
+}
+
+// ============================ HR (Domain §6.1) ============================
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  RESIGNED
+}
+
+model Employee {
+  id             String         @id @default(uuid())
+  employeeNumber String         @unique @map("employee_number")
+  name           String
+  department     String
+  position       String
+  employmentType EmploymentType @default(FULL_TIME) @map("employment_type")
+  status         EmployeeStatus @default(ACTIVE)
+  startDate      DateTime       @map("start_date") @db.Date
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  leaveRequests  LeaveRequest[]
+
+  @@map("employees")
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  MATERNITY
+  PATERNITY
+  UNPAID
+  COMPASSIONATE
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id         String      @id @default(uuid())
+  employeeId String      @map("employee_id")
+  type       LeaveType   @default(ANNUAL)
+  startDate  DateTime    @map("start_date") @db.Date
+  endDate    DateTime    @map("end_date") @db.Date
+  days       Int         @default(1)
+  status     LeaveStatus @default(PENDING)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("leave_requests")
+}
+
+// ============================ Payroll (Domain §6.2) ============================
+
+enum PayrollStatus {
+  DRAFT
+  PROCESSING
+  APPROVED
+  PAID
+  CLOSED
+}
+
+model PayrollPeriod {
+  id         String        @id @default(uuid())
+  periodName String        @map("period_name")
+  startDate  DateTime      @map("start_date") @db.Date
+  endDate    DateTime      @map("end_date") @db.Date
+  status     PayrollStatus @default(DRAFT)
+  totalGross Decimal       @default(0) @map("total_gross") @db.Decimal(14, 2)
+  totalNet   Decimal       @default(0) @map("total_net") @db.Decimal(14, 2)
+  headcount  Int           @default(0)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  @@map("payroll_periods")
+}
+
+// ============================ Finance (Domain §7) ============================
+
+enum TransactionType {
+  REVENUE
+  EXPENSE
+  PAYROLL
+  REFUND
+}
+
+enum TransactionDirection {
+  DEBIT
+  CREDIT
+}
+
+enum TransactionStatus {
+  PENDING
+  POSTED
+  VOIDED
+}
+
+model FinanceTransaction {
+  id                String               @id @default(uuid())
+  transactionNumber String               @unique @map("transaction_number")
+  type              TransactionType
+  amount            Decimal              @db.Decimal(14, 2)
+  direction         TransactionDirection
+  account           String
+  description       String
+  date              DateTime             @db.Date
+  status            TransactionStatus    @default(PENDING)
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([status])
+  @@map("finance_transactions")
+}
+
+// ============================ Housekeeping (Domain §5.2) ============================
+
+enum HousekeepingType {
+  CHECKOUT_CLEAN
+  STAYOVER_CLEAN
+  DEEP_CLEAN
+  INSPECTION
+  TURNDOWN
+}
+
+enum HousekeepingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum HousekeepingPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model HousekeepingTask {
+  id         String               @id @default(uuid())
+  roomNumber String               @map("room_number")
+  type       HousekeepingType     @default(CHECKOUT_CLEAN)
+  status     HousekeepingStatus   @default(PENDING)
+  priority   HousekeepingPriority @default(NORMAL)
+  assignedTo String?              @map("assigned_to")
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+
+  @@map("housekeeping_tasks")
+}

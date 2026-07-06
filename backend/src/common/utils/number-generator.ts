@@ -8,3 +8,9 @@ export function orderNumber(storefront: 'RESTAURANT' | 'LOUNGE' | 'BOUTIQUE', se
   const prefix = storefront === 'LOUNGE' ? 'LNGE' : storefront === 'BOUTIQUE' ? 'BTQ' : 'REST';
   return `${prefix}-${year}-${pad(seq)}`;
 }
+export function workOrderNumber(seq: number, year = new Date().getFullYear()): string {
+  return `WO-${year}-${pad(seq)}`;
+}
+export function transactionNumber(seq: number, year = new Date().getFullYear()): string {
+  return `TXN-${year}-${pad(seq)}`;
+}

@@ -34,7 +34,7 @@ export async function getVenue(slug: string): Promise<Venue | undefined> {
             tags: i.tags ?? [],
             isAvailable: i.isAvailable,
             isHidden: i.isHidden,
-            slot: i.imageKey ?? undefined,
+            slot: i.imageKey ?? sample?.categories.flatMap((cat) => cat.items).find((si) => si.name === i.name)?.slot ?? undefined,
           })),
         }));
         return { ...sample, categories };

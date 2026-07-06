@@ -1,27 +1,33 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { BarChart3, TrendingUp, TrendingDown, Wallet, Download } from "lucide-react";
 import { PageShell, StatCard, Button, StatusBadge, Badge, EmptyState } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
-import { transactions, type Transaction } from "@/lib/mock-modules";
-import { hasPermission } from "@/lib/permissions";
+import { listTransactions, getFinanceSummary } from "@/lib/data/operations";
+import { type Transaction } from "@/lib/mock-modules";
+import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 
 type TxFilter = "ALL" | "REVENUE" | "EXPENSE" | "PAYROLL" | "REFUND";
 const FILTERS: TxFilter[] = ["ALL", "REVENUE", "EXPENSE", "PAYROLL", "REFUND"];
 
 export default function FinancePage() {
+  const { hasPermission } = useAuth();
   const [filter, setFilter] = useState<TxFilter>("ALL");
+  const { data: transactions = [], isLoading } = useQuery({ queryKey: ["transactions"], queryFn: listTransactions });
+  const { data: summary } = useQuery({ queryKey: ["finance-summary"], queryFn: getFinanceSummary });
 
+  // Prefer the server roll-up; fall back to computing from the loaded rows.
   const posted = transactions.filter((t) => t.status === "POSTED");
-  const revenue = posted.filter((t) => t.type === "REVENUE").reduce((s, t) => s + t.amount, 0);
-  const expenses = posted.filter((t) => t.type === "EXPENSE" || t.type === "PAYROLL").reduce((s, t) => s + t.amount, 0);
-  const net = revenue - expenses;
+  const revenue = summary?.revenue ?? posted.filter((t) => t.type === "REVENUE").reduce((s, t) => s + t.amount, 0);
+  const expenses = summary ? summary.expense + summary.payroll : posted.filter((t) => t.type === "EXPENSE" || t.type === "PAYROLL").reduce((s, t) => s + t.amount, 0);
+  const net = summary?.net ?? revenue - expenses;
 
   const filtered = useMemo(
     () => (filter === "ALL" ? transactions : transactions.filter((t) => t.type === filter)),
-    [filter],
+    [filter, transactions],
   );
 
   const columns: Column<Transaction>[] = [
@@ -63,6 +69,7 @@ export default function FinancePage() {
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
+            type="button"
             key={f}
             onClick={() => setFilter(f)}
             className={cn(
@@ -78,6 +85,7 @@ export default function FinancePage() {
       <DataTable
         columns={columns}
         data={filtered}
+        isLoading={isLoading}
         emptyState={<EmptyState icon={BarChart3} title="No transactions" />}
       />
     </PageShell>

@@ -8,6 +8,13 @@ import { GuestsModule } from './modules/guests/guests.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { HrModule } from './modules/hr/hr.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { HousekeepingModule } from './modules/housekeeping/housekeeping.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { HealthModule } from './modules/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -24,6 +31,13 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ReservationsModule,
     OrdersModule,
     AdminModule,
+    InventoryModule,
+    MaintenanceModule,
+    HrModule,
+    PayrollModule,
+    FinanceModule,
+    HousekeepingModule,
+    DashboardModule,
     HealthModule,
   ],
   providers: [
