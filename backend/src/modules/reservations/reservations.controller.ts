@@ -7,7 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { paginationSchema } from '../../common/utils/pagination';
-import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, corporateBookingSchema, CreateReservationDto, CorporateBookingDto } from './dto/reservation.dto';
+import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, corporateBookingSchema, assignRoomSchema, CreateReservationDto, CorporateBookingDto, AssignRoomDto } from './dto/reservation.dto';
 
 @ApiTags('reservations')
 @Controller('v1/reservations')
@@ -26,6 +26,20 @@ export class ReservationsController {
   @RequirePermissions('reservations:VIEW')
   get(@Param('id') id: string) {
     return this.reservations.get(id);
+  }
+
+  @Get(':id/available-rooms')
+  @RequirePermissions('reservations:VIEW')
+  @ApiOperation({ summary: 'Rooms of the booked type, flagged assignable for this stay' })
+  availableRooms(@Param('id') id: string) {
+    return this.reservations.availableRooms(id);
+  }
+
+  @Post(':id/assign-room')
+  @RequirePermissions('reservations:UPDATE')
+  @ApiOperation({ summary: 'Pre-assign (or clear) a specific room ahead of check-in' })
+  assignRoom(@Param('id') id: string, @Body(new ZodValidationPipe(assignRoomSchema)) dto: AssignRoomDto) {
+    return this.reservations.assignRoom(id, dto.roomId);
   }
 
   @Post()

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LogIn, LogOut, CheckCircle, ConciergeBell, Loader2, UserPlus, Award, Star, Ban } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DatePicker } from "@/components/internal/date-picker";
 import { listReservations, checkInReservation, checkOutReservation, walkInReservation } from "@/lib/data/reservations";
 import { getGuestProfile } from "@/lib/data/guests";
+import { getAvailableRooms } from "@/lib/data/availability";
 import { type Reservation } from "@/lib/mock";
 import { getRoomType, roomTypes } from "@/lib/cms";
 import { useAuth } from "@/providers/auth-provider";
@@ -105,9 +106,22 @@ function CheckInDialog({ reservation, onClose, onDone }: { reservation: Reservat
     queryFn: () => getGuestProfile(reservation.guestId!),
     enabled: !!reservation.guestId,
   });
+  const { data: rooms = [] } = useQuery({
+    queryKey: ["available-rooms", reservation.id],
+    queryFn: () => getAvailableRooms(reservation.id),
+  });
+
+  // "" = auto-assign the next free room. Preselect any room already held for this stay.
+  const [roomId, setRoomId] = useState("");
+  useEffect(() => {
+    if (reservation.roomNumber) {
+      const held = rooms.find((r) => r.roomNumber === reservation.roomNumber);
+      if (held) setRoomId(held.id);
+    }
+  }, [rooms, reservation.roomNumber]);
 
   const checkIn = useMutation({
-    mutationFn: () => checkInReservation(reservation.id),
+    mutationFn: () => checkInReservation(reservation.id, roomId || undefined),
     onSuccess: (r) => { toast.success(`Checked in${r.roomNumber ? ` · Room ${r.roomNumber}` : ""}.`); onDone(); onClose(); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -182,6 +196,23 @@ function CheckInDialog({ reservation, onClose, onDone }: { reservation: Reservat
               )}
             </div>
           ) : null}
+
+          {/* Room assignment */}
+          <div className="grid gap-1.5">
+            <Label>Assign room</Label>
+            <Select value={roomId || "auto"} onValueChange={(v) => setRoomId(v === "auto" ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto-assign · next free {getRoomType(reservation.roomTypeSlug)?.name}</SelectItem>
+                {rooms.map((rm) => (
+                  <SelectItem key={rm.id} value={rm.id} disabled={!rm.assignable}>
+                    Room {rm.roomNumber} · Floor {rm.floor}
+                    {rm.assignable ? (rm.status !== "AVAILABLE" ? ` · ${rm.status.toLowerCase()}` : "") : ` · ${(rm.reason ?? "unavailable").toLowerCase()}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <DialogFooter>

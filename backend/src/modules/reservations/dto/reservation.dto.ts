@@ -85,3 +85,7 @@ export const corporateBookingSchema = z
 export type CorporateBookingDto = z.infer<typeof corporateBookingSchema>;
 
 export const checkOutSchema = z.object({ paymentMethod: z.nativeEnum(PaymentMethod).optional() });
+
+// Assign (or clear, with null) a specific room to a reservation ahead of check-in.
+export const assignRoomSchema = z.object({ roomId: z.string().uuid().nullable() });
+export type AssignRoomDto = z.infer<typeof assignRoomSchema>;

@@ -22,6 +22,7 @@ import { SearchModule } from './modules/search/search.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { ConferencesModule } from './modules/conferences/conferences.module';
+import { AvailabilityModule } from './modules/availability/availability.module';
 import { HealthModule } from './modules/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -53,6 +54,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     CompaniesModule,
     ChargesModule,
     ConferencesModule,
+    AvailabilityModule,
     HealthModule,
   ],
   providers: [

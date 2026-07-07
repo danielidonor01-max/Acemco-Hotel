@@ -4,13 +4,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
 import { reservationNumber, chargeNumber } from '../../common/utils/number-generator';
 import { CreateReservationDto, PublicReservationDto, CorporateBookingDto } from './dto/reservation.dto';
+import { AvailabilityService } from '../availability/availability.service';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
 
 @Injectable()
 export class ReservationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly availability: AvailabilityService,
+  ) {}
 
   async list(query: PaginationQuery & { status?: ReservationStatus }) {
     const { page, pageSize, status } = query;
@@ -37,11 +41,12 @@ export class ReservationsService {
     return r;
   }
 
-  private async assertAvailability(roomTypeId: string) {
-    // Invariant 6: availability verified at creation time.
-    const available = await this.prisma.room.count({ where: { roomTypeId, status: 'AVAILABLE', isActive: true } });
-    if (available < 1) {
-      throw new ConflictException({ code: 'NO_AVAILABILITY', message: 'No rooms of this type are available.' });
+  private async assertAvailability(roomTypeId: string, checkIn: string | Date, checkOut: string | Date, excludeReservationId?: string) {
+    // Invariant 6: availability verified for the actual date span (not just "free right now"),
+    // so future dates can't be silently oversold.
+    const free = await this.availability.isTypeAvailable(roomTypeId, checkIn, checkOut, excludeReservationId);
+    if (!free) {
+      throw new ConflictException({ code: 'NO_AVAILABILITY', message: 'No rooms of this type are available for those dates.' });
     }
   }
 
@@ -69,10 +74,9 @@ export class ReservationsService {
       });
     }
 
-    await this.assertAvailability(roomType.id);
-
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
+    await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate);
     const total = Number(roomType.basePrice) * nights;
 
     return this.prisma.reservation.create({
@@ -99,7 +103,7 @@ export class ReservationsService {
   async createPublic(dto: PublicReservationDto) {
     const roomType = await this.prisma.roomType.findUnique({ where: { slug: dto.roomTypeSlug } });
     if (!roomType) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
-    await this.assertAvailability(roomType.id);
+    await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate);
 
     let guest = await this.prisma.guest.findFirst({ where: { phone: dto.phone, deletedAt: null } });
     if (guest?.isBlacklisted) throw new UnprocessableEntityException({ code: 'GUEST_BLACKLISTED', message: 'Unable to complete this reservation.' });
@@ -131,8 +135,8 @@ export class ReservationsService {
   async confirm(id: string) {
     const r = await this.get(id);
     if (r.status !== 'PENDING') throw new ConflictException({ code: 'INVALID_STATE', message: `Cannot confirm a ${r.status} reservation.` });
-    // Re-verify availability at confirmation time (Invariant 6).
-    await this.assertAvailability(r.roomTypeId);
+    // Re-verify availability at confirmation time (Invariant 6), excluding this reservation's own hold.
+    await this.assertAvailability(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id);
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
   }
 
@@ -184,13 +188,25 @@ export class ReservationsService {
     if (r.status !== 'CONFIRMED') {
       throw new ConflictException({ code: 'INVALID_STATE', message: `Only a confirmed reservation can be checked in (currently ${r.status}).` });
     }
-    const room = roomId
+    let room = roomId
       ? await this.prisma.room.findUnique({ where: { id: roomId } })
       : r.roomId
         ? await this.prisma.room.findUnique({ where: { id: r.roomId } })
-        : await this.prisma.room.findFirst({ where: { roomTypeId: r.roomTypeId, status: 'AVAILABLE', isActive: true }, orderBy: { roomNumber: 'asc' } });
+        : null;
+    if (!room) {
+      // Auto-assign: first room of the booked type that's free for the whole stay.
+      const candidates = await this.availability.rooms(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id);
+      const pick = candidates.find((c) => c.assignable && c.status === 'AVAILABLE') ?? candidates.find((c) => c.assignable);
+      if (pick) room = await this.prisma.room.findUnique({ where: { id: pick.id } });
+    }
     if (!room) throw new ConflictException({ code: 'NO_ROOM', message: 'No available room of this type to assign.' });
-    if (room.status !== 'AVAILABLE') throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
+    if (room.roomTypeId !== r.roomTypeId) throw new BadRequestException({ code: 'ROOM_TYPE_MISMATCH', message: `Room ${room.roomNumber} is not the booked room type.` });
+    if (AvailabilityService.BLOCKED_FOR_CHECKIN.includes(room.status)) throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
+    // No other overlapping reservation may already hold this specific room.
+    const roomClash = await this.prisma.reservation.count({
+      where: { roomId: room.id, id: { not: id }, ...this.availability.overlapWhere(r.checkInDate, r.checkOutDate) },
+    });
+    if (roomClash) throw new ConflictException({ code: 'ROOM_TAKEN', message: `Room ${room.roomNumber} is already assigned for these dates.` });
 
     return this.prisma.$transaction(async (tx) => {
       const reservation = await tx.reservation.update({ where: { id }, data: { status: 'CHECKED_IN', roomId: room.id }, include: this.detailInclude });
@@ -266,5 +282,33 @@ export class ReservationsService {
     if (r.status === 'CHECKED_IN') throw new UnprocessableEntityException({ code: 'CANNOT_CANCEL_CHECKED_IN', message: 'Process checkout instead of cancelling.' });
     if (r.status === 'CANCELLED' || r.status === 'CHECKED_OUT') throw new ConflictException({ code: 'INVALID_STATE', message: `Reservation is already ${r.status}.` });
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason } });
+  }
+
+  /** Rooms of the booked type, flagged assignable/not for this reservation's dates. */
+  async availableRooms(id: string) {
+    const r = await this.get(id);
+    return this.availability.rooms(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id);
+  }
+
+  /** Pre-assign (or reassign) a specific room to a reservation before check-in. */
+  async assignRoom(id: string, roomId: string | null) {
+    const r = await this.get(id);
+    if (r.status === 'CHECKED_OUT' || r.status === 'CANCELLED' || r.status === 'NO_SHOW') {
+      throw new ConflictException({ code: 'INVALID_STATE', message: `Cannot assign a room to a ${r.status} reservation.` });
+    }
+    if (roomId === null) {
+      return this.prisma.reservation.update({ where: { id }, data: { roomId: null }, include: this.detailInclude });
+    }
+    const room = await this.prisma.room.findUnique({ where: { id: roomId } });
+    if (!room || !room.isActive) throw new NotFoundException({ code: 'ROOM_NOT_FOUND', message: 'Room not found.' });
+    if (room.roomTypeId !== r.roomTypeId) throw new BadRequestException({ code: 'ROOM_TYPE_MISMATCH', message: `Room ${room.roomNumber} is not the booked room type.` });
+    if (AvailabilityService.BLOCKED_FOR_CHECKIN.includes(room.status) && r.status !== 'CHECKED_IN') {
+      throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
+    }
+    const clash = await this.prisma.reservation.count({
+      where: { roomId, id: { not: id }, ...this.availability.overlapWhere(r.checkInDate, r.checkOutDate) },
+    });
+    if (clash) throw new ConflictException({ code: 'ROOM_TAKEN', message: `Room ${room.roomNumber} is already assigned for these dates.` });
+    return this.prisma.reservation.update({ where: { id }, data: { roomId }, include: this.detailInclude });
   }
 }
