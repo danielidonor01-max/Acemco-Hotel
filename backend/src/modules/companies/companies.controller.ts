@@ -55,4 +55,16 @@ export class CompaniesController {
   update(@Param('id') id: string, @Body(new ZodValidationPipe(updateSchema)) dto: z.infer<typeof updateSchema>) {
     return this.companies.update(id, dto);
   }
+
+  @Get(':id/invoice')
+  @RequirePermissions('finance:VIEW')
+  invoice(@Param('id') id: string) {
+    return this.companies.invoice(id);
+  }
+
+  @Post(':id/settle')
+  @RequirePermissions('finance:APPROVE')
+  settle(@Param('id') id: string) {
+    return this.companies.settle(id);
+  }
 }

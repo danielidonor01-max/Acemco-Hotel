@@ -47,3 +47,26 @@ export async function createCompany(input: NewCompany): Promise<Company> {
 export async function updateCompany(id: string, input: Partial<NewCompany> & { status?: CompanyStatus }): Promise<void> {
   await apiRequest(`/companies/${id}`, { method: "PATCH", body: JSON.stringify(input) });
 }
+
+export interface InvoiceCharge {
+  id: string; chargeNumber: string; date: string; department: string; description: string;
+  room: string | null; reference: string | null; amount: number; tax: number; status: string;
+}
+export interface CompanyInvoice {
+  company: { id: string; name: string; tier: CompanyTier; status: CompanyStatus; billingEmail?: string | null };
+  byDepartment: { department: string; amount: number }[];
+  byGuest: { guestId: string; guestName: string; total: number; charges: InvoiceCharge[] }[];
+  taxTotal: number;
+  grandTotal: number;
+  outstanding: number;
+  chargeCount: number;
+}
+
+export async function getCompanyInvoice(id: string): Promise<CompanyInvoice> {
+  const { data } = await apiRequest<CompanyInvoice>(`/companies/${id}/invoice`);
+  return data;
+}
+export async function settleCompanyInvoice(id: string): Promise<{ settled: number }> {
+  const { data } = await apiRequest<{ settled: number }>(`/companies/${id}/settle`, { method: "POST" });
+  return data;
+}
