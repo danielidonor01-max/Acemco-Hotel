@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import { notFound } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Phone, Users, CalendarDays, Home, Plus, Loader2 } from "lucide-react";
+import { Phone, Users, CalendarDays, Home, Plus, Loader2, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, StatusBadge, Badge, Button } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ReservationActions } from "@/components/internal/reservation-actions";
 import { getReservationById } from "@/lib/data/reservations";
 import { getFolio, addFolioLine } from "@/lib/data/operations";
+import { printGuestFolio, type FolioHeader } from "@/lib/print-folio";
 import { useAuth } from "@/providers/auth-provider";
 import { getRoomType } from "@/lib/cms";
 import { formatNaira } from "@/lib/utils";
@@ -84,7 +85,12 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
 
         {/* Folio */}
         <div className="space-y-6">
-          <FolioPanel reservationId={r.id} nights={nights} baseTotal={r.totalAmount} />
+          <FolioPanel
+            reservationId={r.id}
+            nights={nights}
+            baseTotal={r.totalAmount}
+            header={{ guestName: r.guestName, reservationNumber: r.reservationNumber, roomType: room?.name, room: r.roomNumber, checkIn: r.checkInDate, checkOut: r.checkOutDate, company: r.company }}
+          />
         </div>
       </div>
     </PageShell>
@@ -111,7 +117,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FolioPanel({ reservationId, nights, baseTotal }: { reservationId: string; nights: number; baseTotal: number }) {
+function FolioPanel({ reservationId, nights, baseTotal, header }: { reservationId: string; nights: number; baseTotal: number; header: FolioHeader }) {
   const { hasPermission } = useAuth();
   const [adding, setAdding] = useState<{ description: string; type: string } | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ["folio", reservationId], queryFn: () => getFolio(reservationId) });
@@ -121,7 +127,14 @@ function FolioPanel({ reservationId, nights, baseTotal }: { reservationId: strin
     <Card>
       <CardHeader className="flex items-center justify-between">
         <CardTitle>Folio</CardTitle>
-        {data?.folio && <Badge tone={data.folio.status === "SETTLED" ? "success" : "info"}>{data.folio.status.toLowerCase()}</Badge>}
+        <div className="flex items-center gap-2">
+          {data?.folio && <Badge tone={data.folio.status === "SETTLED" ? "success" : "info"}>{data.folio.status.toLowerCase()}</Badge>}
+          {data?.folio && (
+            <button type="button" onClick={() => printGuestFolio({ ...header, status: data.folio!.status }, data.lines, data.balance)} className="rounded p-1 text-fg-muted hover:text-fg" title="Print / PDF">
+              <Printer size={15} />
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {isLoading ? (

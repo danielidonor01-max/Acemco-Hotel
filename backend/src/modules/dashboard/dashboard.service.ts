@@ -2,12 +2,52 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FinanceService } from '../finance/finance.service';
 
+const MS_PER_DAY = 86_400_000;
+const nightsBetween = (a: Date, b: Date) => Math.max(0, Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY));
+
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly finance: FinanceService,
   ) {}
+
+  /** Occupancy, ADR and RevPAR over a trailing window, from reservations + ledger. */
+  async occupancy(days = 30) {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
+
+    const [totalRooms, occupied, statusGroups, stays, roomCharges] = await Promise.all([
+      this.prisma.room.count({ where: { isActive: true } }),
+      this.prisma.room.count({ where: { isActive: true, status: 'OCCUPIED' } }),
+      this.prisma.room.groupBy({ by: ['status'], where: { isActive: true }, _count: { _all: true } }),
+      this.prisma.reservation.findMany({
+        where: { status: { in: ['CHECKED_IN', 'CHECKED_OUT'] }, checkOutDate: { gte: since } },
+        select: { checkInDate: true, checkOutDate: true },
+      }),
+      this.prisma.chargeLedger.findMany({
+        where: { department: 'ROOM', status: { not: 'VOIDED' }, date: { gte: since } },
+        select: { amount: true },
+      }),
+    ]);
+
+    const roomNights = stays.reduce((s, r) => s + nightsBetween(r.checkInDate, r.checkOutDate), 0);
+    const roomRevenue = roomCharges.reduce((s, c) => s + Number(c.amount), 0);
+    const availableNights = totalRooms * days;
+    return {
+      days,
+      totalRooms,
+      occupied,
+      currentOccupancy: totalRooms ? Math.round((occupied / totalRooms) * 100) : 0,
+      occupancyRate: availableNights ? Math.round((roomNights / availableNights) * 100) : 0,
+      roomNights,
+      roomRevenue,
+      adr: roomNights ? Math.round(roomRevenue / roomNights) : 0,
+      revpar: availableNights ? Math.round(roomRevenue / availableNights) : 0,
+      statusBreakdown: statusGroups.map((g) => ({ status: g.status, count: g._count._all })).sort((a, b) => b.count - a.count),
+    };
+  }
 
   async stats() {
     const startOfToday = new Date();

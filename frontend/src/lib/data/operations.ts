@@ -182,3 +182,21 @@ export async function getReportsOverview(): Promise<ReportsOverview | null> {
   const { data } = await apiRequest<ReportsOverview>("/reports/overview");
   return data;
 }
+
+export interface OccupancyReport {
+  days: number;
+  totalRooms: number;
+  occupied: number;
+  currentOccupancy: number;
+  occupancyRate: number;
+  roomNights: number;
+  roomRevenue: number;
+  adr: number;
+  revpar: number;
+  statusBreakdown: { status: string; count: number }[];
+}
+export async function getOccupancyReport(days = 30): Promise<OccupancyReport | null> {
+  if (!hasApi()) return null;
+  const { data } = await apiRequest<OccupancyReport>(`/reports/occupancy?days=${days}`);
+  return data;
+}

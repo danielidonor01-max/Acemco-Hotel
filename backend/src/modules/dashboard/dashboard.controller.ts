@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -18,5 +18,11 @@ export class DashboardController {
   @RequirePermissions('reports:VIEW')
   reportsOverview() {
     return this.dashboard.reportsOverview();
+  }
+
+  @Get('reports/occupancy')
+  @RequirePermissions('reports:VIEW')
+  occupancy(@Query('days') days?: string) {
+    return this.dashboard.occupancy(Math.min(Number(days) || 30, 365));
   }
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { FileBarChart, BedDouble, TrendingUp, TrendingDown, Wallet, Boxes, Wrench, Banknote, Download } from "lucide-react";
+import { FileBarChart, BedDouble, TrendingUp, TrendingDown, Wallet, Boxes, Wrench, Banknote, Download, Gauge, Moon } from "lucide-react";
 import { PageShell, Card, CardContent, StatCard, Badge, Button } from "@/components/internal/ui";
-import { getReportsOverview } from "@/lib/data/operations";
+import { getReportsOverview, getOccupancyReport } from "@/lib/data/operations";
 import { reportDefs } from "@/lib/mock-modules";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { exportCsv } from "@/lib/export";
 export default function ReportsPage() {
   const { hasPermission } = useAuth();
   const { data: o, isLoading } = useQuery({ queryKey: ["reports-overview"], queryFn: getReportsOverview });
+  const { data: occ } = useQuery({ queryKey: ["reports-occupancy"], queryFn: () => getOccupancyReport(30) });
 
   function onExport() {
     if (!o) return;
@@ -49,6 +50,28 @@ export default function ReportsPage() {
           {o.latestPayroll && (
             <StatCard title={`Payroll — ${o.latestPayroll.periodName}`} value={formatNaira(o.latestPayroll.totalNet)} delta={`${o.latestPayroll.headcount} staff · net`} icon={Banknote} />
           )}
+        </div>
+      )}
+
+      {/* Occupancy & ADR (last 30 days) */}
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Occupancy &amp; ADR · last 30 days</h2>
+      {!occ ? (
+        <p className="mb-8 text-sm text-fg-soft">Loading figures…</p>
+      ) : (
+        <div className="mb-8 space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard title="Occupancy (period)" value={`${occ.occupancyRate}%`} delta={`${occ.roomNights} room-nights`} icon={Gauge} />
+            <StatCard title="ADR" value={formatNaira(occ.adr)} delta="Avg daily rate" icon={TrendingUp} />
+            <StatCard title="RevPAR" value={formatNaira(occ.revpar)} delta="Rev per available room" icon={Wallet} />
+            <StatCard title="Occupancy (now)" value={`${occ.currentOccupancy}%`} delta={`${occ.occupied}/${occ.totalRooms} rooms`} icon={BedDouble} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {occ.statusBreakdown.map((s) => (
+              <span key={s.status} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs capitalize text-fg-soft">
+                <Moon size={11} /> {s.status.replace(/_/g, " ").toLowerCase()} · {s.count}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
