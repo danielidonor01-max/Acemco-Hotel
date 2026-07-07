@@ -1,1 +1,0 @@
-AEHOP API — serverless (no static assets).

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Acemco Hotel — Operations API</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; margin: 0; }
+      body {
+        min-height: 100vh; display: grid; place-items: center; padding: 24px;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: radial-gradient(1200px 600px at 50% -10%, #26211a 0%, #14110d 60%, #0d0b08 100%);
+        color: #f3ecdf;
+      }
+      .card {
+        width: 100%; max-width: 520px; border: 1px solid rgba(201,168,76,.25);
+        background: rgba(255,255,255,.03); border-radius: 20px; padding: 40px 36px;
+        box-shadow: 0 24px 60px rgba(0,0,0,.4);
+      }
+      .eyebrow { font-size: .72rem; letter-spacing: .28em; text-transform: uppercase; color: #c9a84c; }
+      h1 { font-size: 1.6rem; margin-top: 12px; letter-spacing: -0.01em; }
+      p { color: #b9af9d; margin-top: 10px; line-height: 1.55; font-size: .95rem; }
+      .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 20px;
+        font-size: .85rem; color: #dcd3c2; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: #46c46a;
+        box-shadow: 0 0 0 4px rgba(70,196,106,.18); }
+      .links { margin-top: 28px; display: grid; gap: 10px; }
+      a.btn { display: flex; justify-content: space-between; align-items: center;
+        text-decoration: none; color: #f3ecdf; border: 1px solid rgba(255,255,255,.12);
+        border-radius: 12px; padding: 13px 16px; font-size: .92rem; transition: border-color .15s, background .15s; }
+      a.btn:hover { border-color: rgba(201,168,76,.6); background: rgba(201,168,76,.06); }
+      a.btn span.arw { color: #c9a84c; }
+      .foot { margin-top: 26px; font-size: .75rem; color: #6f665a; }
+      code { color: #c9a84c; font-family: ui-monospace, SFMono-Regular, monospace; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">Acemco Hotel</p>
+      <h1>Operations API</h1>
+      <p>This is the backend service for the Acemco Express hotel platform. It has no public homepage — endpoints are served under <code>/api/v1</code> and <code>/api/public</code>.</p>
+      <div class="status"><span class="dot"></span> Service is running</div>
+      <nav class="links">
+        <a class="btn" href="https://acemco-hotel-web.vercel.app">Visit the hotel website <span class="arw">→</span></a>
+        <a class="btn" href="/api/docs">API documentation (Swagger) <span class="arw">→</span></a>
+        <a class="btn" href="/api/health">Health check <span class="arw">→</span></a>
+      </nav>
+      <p class="foot">Acemco Express Hotel Operations Platform · secured API</p>
+    </main>
+  </body>
+</html>
