@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { FolioLineType } from '@prisma/client';
+import { ChargeDepartment } from '@prisma/client';
 import { z } from 'zod';
 import { FoliosService } from './folios.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -9,7 +9,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 const lineSchema = z.object({
   description: z.string().min(1),
   amount: z.number(),
-  type: z.nativeEnum(FolioLineType).default('SERVICE'),
+  type: z.nativeEnum(ChargeDepartment).default('SERVICE'),
 });
 
 @ApiTags('folios')

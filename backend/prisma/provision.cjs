@@ -119,6 +119,11 @@ async function main() {
     HousekeepingType: ['CHECKOUT_CLEAN', 'STAYOVER_CLEAN', 'DEEP_CLEAN', 'INSPECTION', 'TURNDOWN'],
     HousekeepingStatus: ['PENDING', 'IN_PROGRESS', 'COMPLETED'],
     HousekeepingPriority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'],
+    ReservationType: ['INDIVIDUAL', 'CORPORATE', 'CONFERENCE'],
+    CompanyTier: ['STANDARD', 'PREFERRED', 'VIP', 'STRATEGIC'],
+    CompanyStatus: ['ACTIVE', 'SUSPENDED', 'INACTIVE'],
+    ChargeDepartment: ['ROOM', 'RESTAURANT', 'LOUNGE', 'BOUTIQUE', 'LAUNDRY', 'CONFERENCE', 'DAMAGE', 'SERVICE', 'DISCOUNT', 'TAX', 'OTHER'],
+    ChargeStatus: ['PENDING', 'POSTED', 'VOIDED', 'INVOICED', 'PAID'],
   };
   for (const [name, values] of Object.entries(ENUMS)) {
     const vals = values.map((v) => `'${v}'`).join(', ');
@@ -174,6 +179,25 @@ async function main() {
       updated_at timestamptz NOT NULL DEFAULT now());
     ALTER TABLE assets ADD COLUMN IF NOT EXISTS area "AssetArea" NOT NULL DEFAULT 'OTHER';
     ALTER TABLE assets ADD COLUMN IF NOT EXISTS room_number text;
+    CREATE TABLE IF NOT EXISTS companies (
+      id text PRIMARY KEY, name text NOT NULL UNIQUE, contact_name text, email text, phone text, address text,
+      billing_email text, tier "CompanyTier" NOT NULL DEFAULT 'STANDARD', status "CompanyStatus" NOT NULL DEFAULT 'ACTIVE',
+      notes text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS type "ReservationType" NOT NULL DEFAULT 'INDIVIDUAL';
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS company_id text REFERENCES companies(id);
+    CREATE TABLE IF NOT EXISTS charge_ledger (
+      id text PRIMARY KEY, charge_number text NOT NULL UNIQUE,
+      reservation_id text REFERENCES reservations(id), guest_id text REFERENCES guests(id),
+      company_id text REFERENCES companies(id), room_id text REFERENCES rooms(id),
+      department "ChargeDepartment" NOT NULL, source_module text NOT NULL, reference_number text,
+      description text NOT NULL, amount numeric(12,2) NOT NULL, tax numeric(12,2) NOT NULL DEFAULT 0,
+      status "ChargeStatus" NOT NULL DEFAULT 'POSTED', date date NOT NULL DEFAULT current_date,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS charge_ledger_company_idx ON charge_ledger(company_id);
+    CREATE INDEX IF NOT EXISTS charge_ledger_guest_idx ON charge_ledger(guest_id);
+    CREATE INDEX IF NOT EXISTS charge_ledger_reservation_idx ON charge_ledger(reservation_id);
+    CREATE INDEX IF NOT EXISTS charge_ledger_status_idx ON charge_ledger(status);
+    CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);
     CREATE INDEX IF NOT EXISTS leave_requests_employee_id_idx ON leave_requests(employee_id);
@@ -471,6 +495,22 @@ async function main() {
      VALUES ('hotel','Acemco Express','Holiday Inn','+234 800 000 0000','2348000000000','reservations@acemcohotel.com','12 Marina Crescent','Warri, Delta State, Nigeria',now())
      ON CONFLICT (id) DO NOTHING`,
   );
+
+  // Corporate accounts (companies that book and are invoiced).
+  const COMPANIES = [
+    ['Chevron Nigeria', 'STRATEGIC', 'accounts@chevron.example', '+234 802 100 0001'],
+    ['Shell Petroleum', 'VIP', 'ap@shell.example', '+234 802 100 0002'],
+    ['NNPC Limited', 'PREFERRED', 'billing@nnpc.example', '+234 802 100 0003'],
+    ['Halliburton', 'STANDARD', 'finance@halliburton.example', '+234 802 100 0004'],
+  ];
+  for (const [name, tier, billingEmail, phone] of COMPANIES) {
+    await client.query(
+      `INSERT INTO companies (id, name, tier, billing_email, phone, status, updated_at)
+       VALUES ($1,$2,$3::"CompanyTier",$4,$5,'ACTIVE',now())
+       ON CONFLICT (name) DO UPDATE SET tier = EXCLUDED.tier`,
+      [uuid(), name, tier, billingEmail, phone],
+    );
+  }
   console.log('Seeded operational modules (inventory, assets, work orders, employees, leave, payroll, finance, housekeeping, settings).');
 
   // Verify

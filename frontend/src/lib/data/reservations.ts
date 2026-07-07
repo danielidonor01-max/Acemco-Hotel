@@ -15,9 +15,11 @@ interface ApiReservation {
   checkInDate: string;
   checkOutDate: string;
   roomId?: string | null;
+  type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
   guest?: { firstName: string; lastName: string; isVip: boolean; phone?: string };
   roomType?: { name: string };
   room?: { roomNumber: string } | null;
+  company?: { name: string } | null;
 }
 
 const slugByName = new Map(roomTypes.map((r) => [r.name, r.slug]));
@@ -39,6 +41,8 @@ function mapApi(r: ApiReservation): Reservation {
     totalAmount: Number(r.totalAmount),
     depositPaid: r.depositPaid,
     isVip: r.guest?.isVip,
+    type: r.type,
+    company: r.company?.name ?? undefined,
   };
 }
 
@@ -74,6 +78,8 @@ export interface NewReservation {
   checkOutDate: string;
   adults: number;
   children: number;
+  type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
+  companyId?: string;
 }
 
 export async function createReservation(input: NewReservation): Promise<Reservation> {

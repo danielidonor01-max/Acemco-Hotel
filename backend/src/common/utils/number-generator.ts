@@ -14,3 +14,9 @@ export function workOrderNumber(seq: number, year = new Date().getFullYear()): s
 export function transactionNumber(seq: number, year = new Date().getFullYear()): string {
   return `TXN-${year}-${pad(seq)}`;
 }
+export function chargeNumber(seq: number, year = new Date().getFullYear()): string {
+  return `CHG-${year}-${pad(seq)}`;
+}
+export function invoiceNumber(seq: number, year = new Date().getFullYear()): string {
+  return `INV-${year}-${pad(seq)}`;
+}

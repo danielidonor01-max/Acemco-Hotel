@@ -14,7 +14,14 @@ import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
 import { listReservations, createReservation, isApiEnabled } from "@/lib/data/reservations";
+import { listCompanies } from "@/lib/data/companies";
 import { roomTypes, getRoomType } from "@/lib/cms";
+
+const RES_TYPES = [
+  { value: "INDIVIDUAL", label: "Individual" },
+  { value: "CORPORATE", label: "Corporate" },
+  { value: "CONFERENCE", label: "Conference / Event" },
+] as const;
 
 const FILTERS: { label: string; value: ReservationStatus | "ALL" }[] = [
   { label: "All", value: "ALL" },
@@ -142,8 +149,10 @@ function NewReservationModal({
   const [form, setForm] = useState({
     guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug,
     checkInDate: "", checkOutDate: "", adults: 2, children: 0,
+    type: "INDIVIDUAL" as "INDIVIDUAL" | "CORPORATE" | "CONFERENCE", companyId: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
 
   const create = useMutation({
     mutationFn: async (): Promise<Reservation> => {
@@ -155,6 +164,8 @@ function NewReservationModal({
           roomTypeSlug: form.roomTypeSlug,
           checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
           adults: form.adults, children: form.children,
+          type: form.type,
+          companyId: form.type !== "INDIVIDUAL" && form.companyId ? form.companyId : undefined,
         });
       }
       const rt = getRoomType(form.roomTypeSlug)!;
@@ -172,7 +183,7 @@ function NewReservationModal({
     },
     onSuccess: (r) => {
       toast.success(`Reservation ${r.reservationNumber} created.`);
-      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0 });
+      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0, type: "INDIVIDUAL", companyId: "" });
       setError(null);
       onCreated(r);
     },
@@ -196,6 +207,23 @@ function NewReservationModal({
     <Modal open={open} onClose={onClose} title="New Reservation" description="Create a reservation on behalf of a guest.">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="block sm:col-span-2">
+            <span className="text-sm font-medium text-fg-soft">Reservation type</span>
+            <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as typeof form.type, companyId: v === "INDIVIDUAL" ? "" : form.companyId })}>
+              <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{RES_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          {form.type !== "INDIVIDUAL" && (
+            <div className="block sm:col-span-2">
+              <span className="text-sm font-medium text-fg-soft">Company {form.type === "CORPORATE" ? "*" : ""}</span>
+              <Select value={form.companyId} onValueChange={(v) => setForm({ ...form, companyId: v })}>
+                <SelectTrigger className="mt-1 w-full"><SelectValue placeholder="Select a corporate account" /></SelectTrigger>
+                <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} · {c.tier.toLowerCase()}</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-fg-muted">Charges on this stay are billed to the company.</p>
+            </div>
+          )}
           <label className="block">
             <span className="text-sm font-medium text-fg-soft">Guest name *</span>
             <input required value={form.guestName} onChange={(e) => setForm({ ...form, guestName: e.target.value })} className={inputCls} />

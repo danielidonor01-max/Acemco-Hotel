@@ -23,6 +23,8 @@ export interface Reservation {
   totalAmount: number;
   depositPaid: boolean;
   isVip?: boolean;
+  type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
+  company?: string;
 }
 
 const rt = (i: number) => roomTypes[i % roomTypes.length];

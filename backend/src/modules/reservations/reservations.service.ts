@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Prisma, ReservationStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
-import { reservationNumber } from '../../common/utils/number-generator';
+import { reservationNumber, chargeNumber } from '../../common/utils/number-generator';
 import { CreateReservationDto, PublicReservationDto } from './dto/reservation.dto';
 
 const MS_PER_DAY = 86_400_000;
@@ -31,7 +31,7 @@ export class ReservationsService {
   async get(id: string) {
     const r = await this.prisma.reservation.findUnique({
       where: { id },
-      include: { guest: true, roomType: true, room: true },
+      include: { guest: true, roomType: true, room: true, company: true },
     });
     if (!r) throw new NotFoundException({ code: 'RESERVATION_NOT_FOUND', message: 'Reservation not found.' });
     return r;
@@ -78,7 +78,9 @@ export class ReservationsService {
     return this.prisma.reservation.create({
       data: {
         reservationNumber: await this.nextNumber(),
+        type: dto.type,
         guestId: guest.id,
+        companyId: dto.companyId,
         roomTypeId: roomType.id,
         checkInDate: new Date(dto.checkInDate),
         checkOutDate: new Date(dto.checkOutDate),
@@ -145,6 +147,7 @@ export class ReservationsService {
     guest: { select: { firstName: true, lastName: true, isVip: true, phone: true } },
     roomType: { select: { name: true } },
     room: { select: { roomNumber: true } },
+    company: { select: { name: true } },
   } as const;
 
   /**
@@ -170,12 +173,22 @@ export class ReservationsService {
       const checkIn = await tx.checkIn.create({
         data: { reservationId: id, guestId: r.guestId, roomId: room.id, checkedInByUserId: userId, keyIssued: true },
       });
-      await tx.folio.create({
+      await tx.folio.create({ data: { guestId: r.guestId, checkInId: checkIn.id, status: 'OPEN' } });
+      // Room charge → the central Charge Ledger (guest + room + company identities).
+      const chargeCount = await tx.chargeLedger.count();
+      await tx.chargeLedger.create({
         data: {
+          chargeNumber: chargeNumber(chargeCount + 1),
+          reservationId: id,
           guestId: r.guestId,
-          checkInId: checkIn.id,
-          status: 'OPEN',
-          lines: { create: [{ description: `Room charge · ${reservation.reservationNumber}`, amount: r.totalAmount, type: 'ROOM_CHARGE' }] },
+          companyId: r.companyId ?? undefined,
+          roomId: room.id,
+          department: 'ROOM',
+          sourceModule: 'reservations',
+          referenceNumber: reservation.reservationNumber,
+          description: `Room charge · ${reservation.reservationNumber}`,
+          amount: r.totalAmount,
+          status: 'POSTED',
         },
       });
       return reservation;
@@ -194,13 +207,20 @@ export class ReservationsService {
     const checkIn = await this.prisma.checkIn.findFirst({
       where: { reservationId: id, checkOut: null },
       orderBy: { checkedInAt: 'desc' },
-      include: { folio: { include: { lines: true } } },
+      include: { folio: true },
     });
-    const balance = checkIn?.folio ? checkIn.folio.lines.reduce((s, l) => s + Number(l.amount), 0) : Number(r.totalAmount);
+    // Balance comes from the Charge Ledger (single source of billing truth).
+    const charges = await this.prisma.chargeLedger.findMany({ where: { reservationId: id, status: { not: 'VOIDED' } } });
+    const balance = charges.length
+      ? charges.reduce((s, c) => s + Number(c.amount) + Number(c.tax), 0)
+      : Number(r.totalAmount);
+    // Corporate stays are billed to the company (INVOICED); individuals settle now (PAID).
+    const settledStatus = r.companyId ? 'INVOICED' : 'PAID';
 
     return this.prisma.$transaction(async (tx) => {
       const reservation = await tx.reservation.update({ where: { id }, data: { status: 'CHECKED_OUT' }, include: this.detailInclude });
       if (r.roomId) await tx.room.update({ where: { id: r.roomId }, data: { status: 'CLEANING' } });
+      await tx.chargeLedger.updateMany({ where: { reservationId: id, status: 'POSTED' }, data: { status: settledStatus } });
       if (checkIn) {
         await tx.checkOut.create({
           data: { checkInId: checkIn.id, guestId: r.guestId, roomId: r.roomId ?? checkIn.roomId, checkedOutByUserId: userId, totalCharged: balance, paymentMethod },

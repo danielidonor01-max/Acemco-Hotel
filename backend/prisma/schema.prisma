@@ -155,6 +155,7 @@ model Room {
   roomType     RoomType      @relation(fields: [roomTypeId], references: [id])
   reservations Reservation[]
   checkIns     CheckIn[]
+  charges      ChargeLedger[]
 
   @@index([roomTypeId])
   @@index([status])
@@ -212,6 +213,7 @@ model Guest {
   documents    GuestDocument[]
   folios       Folio[]
   orders       Order[]
+  charges      ChargeLedger[]
 
   @@index([phone])
   @@map("guests")
@@ -248,7 +250,9 @@ enum IdType {
 model Reservation {
   id                 String            @id @default(uuid())
   reservationNumber  String            @unique @map("reservation_number")
+  type               ReservationType   @default(INDIVIDUAL)
   guestId            String            @map("guest_id")
+  companyId          String?           @map("company_id")
   roomId             String?           @map("room_id")
   roomTypeId         String            @map("room_type_id")
   checkInDate        DateTime          @map("check_in_date") @db.Date
@@ -268,12 +272,15 @@ model Reservation {
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
 
-  guest    Guest     @relation(fields: [guestId], references: [id])
-  room     Room?     @relation(fields: [roomId], references: [id])
-  roomType RoomType  @relation(fields: [roomTypeId], references: [id])
+  guest    Guest          @relation(fields: [guestId], references: [id])
+  company  Company?       @relation(fields: [companyId], references: [id])
+  room     Room?          @relation(fields: [roomId], references: [id])
+  roomType RoomType       @relation(fields: [roomTypeId], references: [id])
   checkIns CheckIn[]
+  charges  ChargeLedger[]
 
   @@index([guestId])
+  @@index([companyId])
   @@index([status])
   @@index([roomId, checkInDate, checkOutDate])
   @@map("reservations")
@@ -797,4 +804,105 @@ model Setting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("settings")
+}
+
+// ============================ Reservation types & Corporate (Domain §3) ============================
+
+enum ReservationType {
+  INDIVIDUAL
+  CORPORATE
+  CONFERENCE
+}
+
+enum CompanyTier {
+  STANDARD
+  PREFERRED
+  VIP
+  STRATEGIC
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+/** A corporate account that books stays/events and is invoiced (the company pays). */
+model Company {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  contactName  String?       @map("contact_name")
+  email        String?
+  phone        String?
+  address      String?
+  billingEmail String?       @map("billing_email")
+  tier         CompanyTier   @default(STANDARD)
+  status       CompanyStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  reservations Reservation[]
+  charges      ChargeLedger[]
+
+  @@map("companies")
+}
+
+// ============================ Charge Ledger (Domain §7) — one entry per billable action ============================
+
+enum ChargeDepartment {
+  ROOM
+  RESTAURANT
+  LOUNGE
+  BOUTIQUE
+  LAUNDRY
+  CONFERENCE
+  DAMAGE
+  SERVICE
+  DISCOUNT
+  TAX
+  OTHER
+}
+
+enum ChargeStatus {
+  PENDING
+  POSTED
+  VOIDED
+  INVOICED
+  PAID
+}
+
+/**
+ * The single billing record. Every billable action (room, F&B, laundry, boutique,
+ * damage, service…) writes one entry carrying three identities — guest, room, and
+ * (optionally) company — so Finance and invoices read from one standardized place.
+ */
+model ChargeLedger {
+  id              String           @id @default(uuid())
+  chargeNumber    String           @unique @map("charge_number")
+  reservationId   String?          @map("reservation_id")
+  guestId         String?          @map("guest_id")
+  companyId       String?          @map("company_id")
+  roomId          String?          @map("room_id")
+  department      ChargeDepartment
+  sourceModule    String           @map("source_module")
+  referenceNumber String?          @map("reference_number")
+  description     String
+  amount          Decimal          @db.Decimal(12, 2)
+  tax             Decimal          @default(0) @db.Decimal(12, 2)
+  status          ChargeStatus     @default(POSTED)
+  date            DateTime         @default(now()) @db.Date
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  guest       Guest?       @relation(fields: [guestId], references: [id])
+  company     Company?     @relation(fields: [companyId], references: [id])
+  room        Room?        @relation(fields: [roomId], references: [id])
+
+  @@index([companyId])
+  @@index([guestId])
+  @@index([reservationId])
+  @@index([status])
+  @@map("charge_ledger")
 }

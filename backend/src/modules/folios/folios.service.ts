@@ -1,45 +1,81 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { FolioLineType, Storefront } from '@prisma/client';
+import { ChargeDepartment, Storefront } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ChargesService } from '../charges/charges.service';
 
-const STOREFRONT_LINE: Record<Storefront, FolioLineType> = {
+const STOREFRONT_DEPT: Record<Storefront, ChargeDepartment> = {
   RESTAURANT: 'RESTAURANT',
   LOUNGE: 'LOUNGE',
   BOUTIQUE: 'BOUTIQUE',
 };
 
+/**
+ * A folio is the per-stay wrapper (OPEN/SETTLED). The actual charges live in the
+ * central Charge Ledger, keyed by reservation — this service is a thin view over it.
+ */
 @Injectable()
 export class FoliosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly charges: ChargesService,
+  ) {}
 
-  /** Folio for a reservation's active stay (via its CheckIn), with lines + balance. */
+  /** Folio for a reservation's active stay, with ledger charges + balance. */
   async byReservation(reservationId: string) {
     const checkIn = await this.prisma.checkIn.findFirst({
       where: { reservationId },
       orderBy: { checkedInAt: 'desc' },
-      include: { folio: { include: { lines: { orderBy: { postedAt: 'asc' } } } } },
-    });
-    if (!checkIn?.folio) return { folio: null, lines: [], balance: 0 };
-    const balance = checkIn.folio.lines.reduce((s, l) => s + Number(l.amount), 0);
-    return { folio: { id: checkIn.folio.id, status: checkIn.folio.status, openedAt: checkIn.folio.openedAt, settledAt: checkIn.folio.settledAt }, lines: checkIn.folio.lines, balance };
-  }
-
-  async addLine(folioId: string, dto: { description: string; amount: number; type: FolioLineType }) {
-    const folio = await this.prisma.folio.findUnique({ where: { id: folioId } });
-    if (!folio) throw new NotFoundException({ code: 'FOLIO_NOT_FOUND', message: 'Folio not found.' });
-    return this.prisma.folioLine.create({ data: { folioId, description: dto.description, amount: dto.amount, type: dto.type } });
-  }
-
-  /** Post a storefront order to the open folio of the room, if any (best-effort interlock). */
-  async postOrderToRoom(roomNumber: string, storefront: Storefront, amount: number, orderNumber: string) {
-    const checkIn = await this.prisma.checkIn.findFirst({
-      where: { room: { roomNumber }, checkOut: null, folio: { status: 'OPEN' } },
-      orderBy: { checkedInAt: 'desc' },
       include: { folio: true },
     });
-    if (!checkIn?.folio) return;
-    await this.prisma.folioLine.create({
-      data: { folioId: checkIn.folio.id, description: `${storefront} order ${orderNumber}`, amount, type: STOREFRONT_LINE[storefront], referenceId: orderNumber },
+    const { charges, balance } = await this.charges.byReservation(reservationId);
+    const lines = charges.map((c) => ({
+      id: c.id,
+      description: c.description,
+      amount: Number(c.amount) + Number(c.tax),
+      type: c.department,
+      postedAt: c.createdAt,
+    }));
+    const folio = checkIn?.folio ? { id: checkIn.folio.id, status: checkIn.folio.status, openedAt: checkIn.folio.openedAt, settledAt: checkIn.folio.settledAt } : null;
+    return { folio, lines, balance };
+  }
+
+  /** Add a manual charge to a stay (resolves guest/room/company from the reservation). */
+  async addLine(folioId: string, dto: { description: string; amount: number; type: ChargeDepartment }) {
+    const folio = await this.prisma.folio.findUnique({
+      where: { id: folioId },
+      include: { checkIn: { include: { reservation: true } } },
+    });
+    if (!folio) throw new NotFoundException({ code: 'FOLIO_NOT_FOUND', message: 'Folio not found.' });
+    const res = folio.checkIn.reservation;
+    return this.charges.post({
+      reservationId: res?.id,
+      guestId: folio.guestId,
+      companyId: res?.companyId ?? undefined,
+      roomId: folio.checkIn.roomId,
+      department: dto.type,
+      sourceModule: 'folio',
+      description: dto.description,
+      amount: dto.amount,
+    });
+  }
+
+  /** Post a storefront order to the in-house guest's stay (order → ledger charge). */
+  async postOrderToRoom(roomNumber: string, storefront: Storefront, amount: number, orderNumber: string) {
+    const reservation = await this.prisma.reservation.findFirst({
+      where: { status: 'CHECKED_IN', room: { roomNumber } },
+      orderBy: { checkInDate: 'desc' },
+    });
+    if (!reservation) return;
+    await this.charges.post({
+      reservationId: reservation.id,
+      guestId: reservation.guestId,
+      companyId: reservation.companyId ?? undefined,
+      roomId: reservation.roomId,
+      department: STOREFRONT_DEPT[storefront],
+      sourceModule: 'orders',
+      referenceNumber: orderNumber,
+      description: `${storefront} order ${orderNumber}`,
+      amount,
     });
   }
 }

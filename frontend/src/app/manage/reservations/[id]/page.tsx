@@ -60,6 +60,10 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
               <Detail icon={CalendarDays} label="Check-in">{r.checkInDate}</Detail>
               <Detail icon={CalendarDays} label="Check-out">{r.checkOutDate} ({nights} night{nights !== 1 ? "s" : ""})</Detail>
               <Detail icon={Home} label="Source">{r.source.replace(/_/g, " ").toLowerCase()}</Detail>
+              <Detail icon={Home} label="Type">
+                <span className="capitalize">{(r.type ?? "INDIVIDUAL").toLowerCase()}</span>
+                {r.company && <span className="text-fg-muted"> · {r.company}</span>}
+              </Detail>
               <Detail icon={Users} label="Deposit">
                 <Badge tone={r.depositPaid ? "success" : "warning"}>{r.depositPaid ? "Paid" : "Unpaid"}</Badge>
               </Detail>

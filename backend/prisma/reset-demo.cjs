@@ -27,6 +27,7 @@ async function main() {
   for (const g of guests.rows) {
     const res = await client.query('SELECT id FROM reservations WHERE guest_id=$1', [g.id]);
     for (const r of res.rows) {
+      await client.query('DELETE FROM charge_ledger WHERE reservation_id=$1', [r.id]);
       const cis = await client.query('SELECT id FROM check_ins WHERE reservation_id=$1', [r.id]);
       for (const ci of cis.rows) {
         const fol = await client.query('SELECT id FROM folios WHERE check_in_id=$1', [ci.id]);
