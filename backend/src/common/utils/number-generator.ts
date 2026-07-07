@@ -20,3 +20,6 @@ export function chargeNumber(seq: number, year = new Date().getFullYear()): stri
 export function invoiceNumber(seq: number, year = new Date().getFullYear()): string {
   return `INV-${year}-${pad(seq)}`;
 }
+export function conferenceNumber(seq: number, year = new Date().getFullYear()): string {
+  return `CONF-${year}-${pad(seq)}`;
+}
