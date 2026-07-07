@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DatePicker } from "@/components/internal/date-picker";
 import { listReservations, checkInReservation, checkOutReservation, walkInReservation } from "@/lib/data/reservations";
 import { getGuestProfile } from "@/lib/data/guests";
-import { getAvailableRooms } from "@/lib/data/availability";
+import { getAvailableRooms, getAvailabilityByType } from "@/lib/data/availability";
 import { type Reservation } from "@/lib/mock";
 import { getRoomType, roomTypes } from "@/lib/cms";
 import { useAuth } from "@/providers/auth-provider";
@@ -292,6 +292,16 @@ function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
+  const validDates = !!form.checkInDate && !!form.checkOutDate && new Date(form.checkOutDate) > new Date(form.checkInDate);
+  const { data: avail = [] } = useQuery({
+    queryKey: ["availability", form.checkInDate, form.checkOutDate],
+    queryFn: () => getAvailabilityByType(form.checkInDate, form.checkOutDate),
+    enabled: validDates,
+  });
+  const availOf = (slug: string) => avail.find((a) => a.slug === slug);
+  const selectedAvail = availOf(form.roomTypeSlug);
+  const soldOut = !!selectedAvail && selectedAvail.available <= 0;
+
   const save = useMutation({
     mutationFn: () => {
       const [firstName, ...rest] = form.guestName.trim().split(/\s+/);
@@ -328,8 +338,24 @@ function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
             <Label>Room type</Label>
             <Select value={form.roomTypeSlug} onValueChange={(v) => set("roomTypeSlug", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{roomTypes.map((rt) => <SelectItem key={rt.slug} value={rt.slug}>{rt.name} — {formatNaira(rt.basePrice)}/night</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {roomTypes.map((rt) => {
+                  const a = availOf(rt.slug);
+                  return <SelectItem key={rt.slug} value={rt.slug}>{rt.name} — {formatNaira(rt.basePrice)}/night{a ? ` · ${a.available} free` : ""}</SelectItem>;
+                })}
+              </SelectContent>
             </Select>
+            {validDates && selectedAvail && (
+              <p className="text-xs">
+                {soldOut ? (
+                  <span className="text-danger">Sold out — no {getRoomType(form.roomTypeSlug)?.name} free for these dates.</span>
+                ) : (
+                  <span className={selectedAvail.available / selectedAvail.capacity <= 0.34 ? "text-warn" : "text-ok"}>
+                    {selectedAvail.available} of {selectedAvail.capacity} free for these dates.
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5"><Label>Check-in</Label><DatePicker value={form.checkInDate} onChange={(v) => set("checkInDate", v)} placeholder="Select date" /></div>
@@ -354,7 +380,7 @@ function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {error && <p className="text-sm text-danger">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={save.isPending}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Check in guest</Button>
+            <Button type="submit" disabled={save.isPending || soldOut}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Check in guest</Button>
           </DialogFooter>
         </form>
       </DialogContent>

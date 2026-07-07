@@ -15,6 +15,7 @@ import { formatNaira, cn } from "@/lib/utils";
 import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
 import { listReservations, createReservation, createCorporateBooking, isApiEnabled } from "@/lib/data/reservations";
 import { listCompanies } from "@/lib/data/companies";
+import { getAvailabilityByType } from "@/lib/data/availability";
 import { roomTypes, getRoomType } from "@/lib/cms";
 
 const RES_TYPES = [
@@ -242,6 +243,16 @@ function NewReservationModal({
   const [error, setError] = useState<string | null>(null);
   const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
 
+  const validDates = !!form.checkInDate && !!form.checkOutDate && new Date(form.checkOutDate) > new Date(form.checkInDate);
+  const { data: avail = [] } = useQuery({
+    queryKey: ["availability", form.checkInDate, form.checkOutDate],
+    queryFn: () => getAvailabilityByType(form.checkInDate, form.checkOutDate),
+    enabled: open && isApiEnabled() && validDates,
+  });
+  const availOf = (slug: string) => avail.find((a) => a.slug === slug);
+  const selectedAvail = availOf(form.roomTypeSlug);
+  const soldOut = !!selectedAvail && selectedAvail.available <= 0;
+
   const create = useMutation({
     mutationFn: async (): Promise<Reservation> => {
       const [firstName, ...rest] = form.guestName.trim().split(/\s+/);
@@ -325,11 +336,27 @@ function NewReservationModal({
             <Select value={form.roomTypeSlug} onValueChange={(v) => setForm({ ...form, roomTypeSlug: v })}>
               <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {roomTypes.map((r) => (
-                  <SelectItem key={r.slug} value={r.slug}>{r.name} — {formatNaira(r.basePrice)}/night</SelectItem>
-                ))}
+                {roomTypes.map((r) => {
+                  const a = availOf(r.slug);
+                  return (
+                    <SelectItem key={r.slug} value={r.slug}>
+                      {r.name} — {formatNaira(r.basePrice)}/night{a ? ` · ${a.available} free` : ""}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
+            {validDates && selectedAvail && (
+              <p className="mt-1.5 text-xs">
+                {soldOut ? (
+                  <span className="text-danger">Sold out for these dates — no {getRoomType(form.roomTypeSlug)?.name} available.</span>
+                ) : (
+                  <span className={cn(selectedAvail.available / selectedAvail.capacity <= 0.34 ? "text-warn" : "text-ok")}>
+                    {selectedAvail.available} of {selectedAvail.capacity} {getRoomType(form.roomTypeSlug)?.name} free for these dates.
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <div className="block">
             <span className="text-sm font-medium text-fg-soft">Check-in *</span>
@@ -359,7 +386,7 @@ function NewReservationModal({
 
         <div className="flex justify-end gap-3 border-t border-line pt-4">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={create.isPending}>
+          <Button type="submit" disabled={create.isPending || soldOut}>
             {create.isPending && <Loader2 size={14} className="animate-spin" />} Create Reservation
           </Button>
         </div>
