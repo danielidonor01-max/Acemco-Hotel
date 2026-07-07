@@ -276,6 +276,36 @@ async function main() {
     }
   }
 
+  // 5c) Ensure every CHECKED_IN reservation has a CheckIn + OPEN folio with the room
+  //     charge posted (backfills guests seeded before folios existed). Idempotent.
+  const superId = (await client.query("SELECT id FROM users WHERE email='super@acemco.com'")).rows[0]?.id;
+  if (superId) {
+    const needFolio = await client.query(`
+      SELECT r.id, r.guest_id, r.room_id, r.reservation_number, r.total_amount
+      FROM reservations r
+      WHERE r.status='CHECKED_IN' AND r.room_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM check_ins ci WHERE ci.reservation_id = r.id)`);
+    for (const r of needFolio.rows) {
+      const checkInId = uuid();
+      await client.query(
+        `INSERT INTO check_ins (id, reservation_id, guest_id, room_id, checked_in_by_user_id, key_issued, checked_in_at)
+         VALUES ($1,$2,$3,$4,$5,true,now())`,
+        [checkInId, r.id, r.guest_id, r.room_id, superId],
+      );
+      const folioId = uuid();
+      await client.query(
+        `INSERT INTO folios (id, guest_id, check_in_id, status, opened_at) VALUES ($1,$2,$3,'OPEN',now())`,
+        [folioId, r.guest_id, checkInId],
+      );
+      await client.query(
+        `INSERT INTO folio_lines (id, folio_id, description, amount, type, posted_at)
+         VALUES ($1,$2,$3,$4,'ROOM_CHARGE',now())`,
+        [uuid(), folioId, `Room charge · ${r.reservation_number}`, r.total_amount],
+      );
+    }
+    if (needFolio.rowCount) console.log(`Backfilled folios for ${needFolio.rowCount} in-house reservation(s).`);
+  }
+
   // 6) Menus (reset + insert)
   await client.query('DELETE FROM order_items');
   await client.query('DELETE FROM menu_items');

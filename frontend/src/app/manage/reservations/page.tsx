@@ -10,7 +10,7 @@ import { DataTable, type Column } from "@/components/internal/data-table";
 import { Modal } from "@/components/internal/modal";
 import { DatePicker } from "@/components/internal/date-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { hasPermission } from "@/lib/permissions";
+import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
 import { listReservations, createReservation, isApiEnabled } from "@/lib/data/reservations";
@@ -28,6 +28,7 @@ const FILTERS: { label: string; value: ReservationStatus | "ALL" }[] = [
 export default function ReservationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
   // Reads live from the API when configured, else the seed (offline demo).
   const { data: list = seed } = useQuery({
     queryKey: ["reservations"],

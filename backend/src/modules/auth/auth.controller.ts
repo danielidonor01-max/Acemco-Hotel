@@ -21,12 +21,15 @@ export class AuthController {
 
   private setRefreshCookie(res: Response, token: string) {
     const isProd = this.config.get('NODE_ENV') === 'production';
+    // Default 'lax' assumes the recommended same-domain setup (frontend proxies /api
+    // to the API via a Next rewrite), keeping the cookie first-party. Set
+    // COOKIE_SAMESITE=none only if the API is served on a different site than the app
+    // (requires Secure + browser third-party-cookie allowance).
+    const sameSite = ((this.config.get('COOKIE_SAMESITE') as 'lax' | 'none' | 'strict') || 'lax');
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
-      // Cross-site (frontend + API on different Vercel domains) needs SameSite=None; Secure.
-      // Prefer same-domain via a Vercel rewrite to keep the cookie first-party.
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      secure: isProd || sameSite === 'none',
+      sameSite,
       path: '/api/v1/auth',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });

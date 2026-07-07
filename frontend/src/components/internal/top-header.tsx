@@ -2,14 +2,26 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Search, Bell, LogOut, User, Sun } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Menu, Search, Bell, LogOut, User } from "lucide-react";
 import { useUIStore } from "@/stores/ui.store";
-import { currentUser } from "@/lib/permissions";
+import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
+
+const initialsOf = (name?: string) =>
+  (name ?? "?").split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
 
 export function TopHeader() {
   const openMobile = useUIStore((s) => s.openMobile);
+  const { user, logout, live } = useAuth();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  async function onLogout() {
+    setMenuOpen(false);
+    await logout();
+    if (live) router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-pub-bg/90 px-4 backdrop-blur">
@@ -28,18 +40,20 @@ export function TopHeader() {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
-        <button className="relative rounded-md p-2 text-fg-soft hover:bg-brand-surface-2" aria-label="Notifications">
+        <button type="button" className="relative rounded-md p-2 text-fg-soft hover:bg-brand-surface-2" aria-label="Notifications">
           <Bell size={19} strokeWidth={1.5} />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
         </button>
 
         <div className="relative">
           <button
+            type="button"
             onClick={() => setMenuOpen((o) => !o)}
             className="flex items-center gap-2 rounded-md p-1 pr-2 hover:bg-brand-surface-2"
+            aria-label="Account menu"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-surface-3 text-xs font-semibold text-fg">
-              {currentUser.initials}
+              {initialsOf(user?.name)}
             </span>
           </button>
           {menuOpen && (
@@ -47,12 +61,17 @@ export function TopHeader() {
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-full z-20 mt-1 w-52 rounded-lg border border-line-2 bg-brand-surface-2 py-1 shadow-xl">
                 <div className="border-b border-line px-3 py-2">
-                  <p className="text-sm font-medium text-fg">{currentUser.name}</p>
-                  <p className="text-xs text-fg-muted">{currentUser.role.replace(/_/g, " ")}</p>
+                  <p className="text-sm font-medium text-fg">{user?.name ?? "—"}</p>
+                  <p className="text-xs capitalize text-fg-muted">{(user?.roles ?? []).map((r) => r.replace(/_/g, " ").toLowerCase()).join(", ") || "No role"}</p>
                 </div>
-                <MenuLink icon={User} label="Profile" href="#" />
-                <MenuLink icon={Sun} label="Light mode" href="#" />
-                <MenuLink icon={LogOut} label="Log out" href="/" />
+                <MenuLink icon={User} label="Profile" href="/manage/administration" onClick={() => setMenuOpen(false)} />
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg-soft hover:bg-brand-surface-3 hover:text-fg"
+                >
+                  <LogOut size={16} strokeWidth={1.5} /> Log out
+                </button>
               </div>
             </>
           )}
@@ -62,9 +81,9 @@ export function TopHeader() {
   );
 }
 
-function MenuLink({ icon: Icon, label, href }: { icon: typeof User; label: string; href: string }) {
+function MenuLink({ icon: Icon, label, href, onClick }: { icon: typeof User; label: string; href: string; onClick?: () => void }) {
   return (
-    <Link href={href} className={cn("flex items-center gap-2.5 px-3 py-2 text-sm text-fg-soft hover:bg-brand-surface-3 hover:text-fg")}>
+    <Link href={href} onClick={onClick} className={cn("flex items-center gap-2.5 px-3 py-2 text-sm text-fg-soft hover:bg-brand-surface-3 hover:text-fg")}>
       <Icon size={16} strokeWidth={1.5} />
       {label}
     </Link>

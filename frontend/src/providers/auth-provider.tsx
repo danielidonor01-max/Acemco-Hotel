@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { config, hasApi } from "@/lib/config";
 import { setAccessToken, setRefreshHandler } from "@/lib/api";
-import { currentUser as mockUser } from "@/lib/permissions";
 
 export interface AuthUser {
   id?: string;
@@ -39,10 +38,17 @@ async function post(path: string, body?: unknown) {
   return json.data;
 }
 
+// Offline-demo fallback used only when no API is configured (hasApi() === false).
+// With a live API the real user comes from /auth/me. Kept broad so the demo UI is usable.
+const DEMO_MODULES = [
+  "rooms", "reservations", "reception", "guests", "pos.restaurant", "pos.lounge", "pos.boutique",
+  "inventory", "housekeeping", "maintenance", "hr", "payroll", "finance", "reports", "cms", "settings", "administration",
+];
+const DEMO_ACTIONS = ["VIEW", "CREATE", "UPDATE", "DELETE", "APPROVE", "EXPORT"];
 const mockAuthUser: AuthUser = {
-  name: mockUser.name,
-  roles: [mockUser.role],
-  permissions: mockUser.permissions,
+  name: "Demo Manager",
+  roles: ["HOTEL_MANAGER"],
+  permissions: DEMO_MODULES.flatMap((m) => DEMO_ACTIONS.map((a) => `${m}:${a}`)),
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
