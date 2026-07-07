@@ -2,10 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { workOrderNumber } from '../../common/utils/number-generator';
+import { FinanceService } from '../finance/finance.service';
 
 @Injectable()
 export class MaintenanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly finance: FinanceService,
+  ) {}
 
   listAssets() {
     return this.prisma.asset.findMany({ orderBy: { assetNumber: 'asc' } });
@@ -38,9 +42,23 @@ export class MaintenanceService {
   }
 
   async updateWorkOrder(id: string, dto: Prisma.WorkOrderUncheckedUpdateInput) {
-    if (!(await this.prisma.workOrder.findUnique({ where: { id } }))) {
-      throw new NotFoundException({ code: 'WORK_ORDER_NOT_FOUND', message: 'Work order not found.' });
+    const existing = await this.prisma.workOrder.findUnique({ where: { id }, include: { asset: { select: { name: true } } } });
+    if (!existing) throw new NotFoundException({ code: 'WORK_ORDER_NOT_FOUND', message: 'Work order not found.' });
+    const updated = await this.prisma.workOrder.update({ where: { id }, data: dto, include: { asset: { select: { name: true } } } });
+    // Post the maintenance expense to Finance when the job is completed (Domain §7).
+    if (updated.status === 'COMPLETED' && existing.status !== 'COMPLETED') {
+      await this.finance
+        .create({
+          type: 'EXPENSE',
+          amount: Number(updated.estimatedCost),
+          direction: 'DEBIT',
+          account: 'Repairs & Maintenance',
+          description: `${updated.workOrderNumber}${updated.asset ? ` · ${updated.asset.name}` : ''}`,
+          date: new Date().toISOString().slice(0, 10),
+          status: 'POSTED',
+        })
+        .catch(() => undefined);
     }
-    return this.prisma.workOrder.update({ where: { id }, data: dto, include: { asset: { select: { name: true } } } });
+    return updated;
   }
 }

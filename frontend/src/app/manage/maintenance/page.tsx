@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/internal/date-picker";
-import { listAssets, listWorkOrders, createWorkOrder, updateWorkOrderStatus, createAsset } from "@/lib/data/operations";
+import { listAssets, listWorkOrders, createWorkOrder, updateWorkOrderStatus, createAsset, type AssetArea } from "@/lib/data/operations";
 import { type Asset, type WorkOrder } from "@/lib/mock-modules";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
@@ -22,6 +22,7 @@ const WO_STATUSES: WorkOrder["status"][] = ["OPEN", "IN_PROGRESS", "ON_HOLD", "C
 const WO_TYPES: WorkOrder["type"][] = ["CORRECTIVE", "PREVENTIVE", "INSPECTION"];
 const WO_PRIORITIES: WorkOrder["priority"][] = ["LOW", "NORMAL", "HIGH", "CRITICAL"];
 const ASSET_STATUSES: Asset["status"][] = ["OPERATIONAL", "INSPECTION_DUE", "NEEDS_REPAIR", "UNDER_REPAIR", "DECOMMISSIONED"];
+const ASSET_AREAS: AssetArea[] = ["ROOM", "POOL", "BAR", "RESTAURANT", "RECEPTION", "GYM", "LOUNGE", "KITCHEN", "EXTERIOR", "BACK_OF_HOUSE", "OTHER"];
 
 export default function MaintenancePage() {
   const { hasPermission } = useAuth();
@@ -114,11 +115,12 @@ export default function MaintenancePage() {
 
 function AssetDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ assetNumber: "", name: "", category: "", location: "", status: "OPERATIONAL" as Asset["status"], nextInspection: "" });
+  const [form, setForm] = useState({ assetNumber: "", name: "", category: "", area: "OTHER" as AssetArea, roomNumber: "", location: "", status: "OPERATIONAL" as Asset["status"], nextInspection: "" });
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const save = useMutation({
     mutationFn: () => createAsset({
       assetNumber: form.assetNumber.trim(), name: form.name.trim(), category: form.category.trim(),
+      area: form.area, roomNumber: form.area === "ROOM" ? form.roomNumber.trim() || undefined : undefined,
       location: form.location.trim(), status: form.status, nextInspection: form.nextInspection || undefined,
     }),
     onSuccess: () => { toast.success("Asset added."); qc.invalidateQueries({ queryKey: ["assets"] }); onClose(); },
@@ -130,14 +132,24 @@ function AssetDialog({ onClose }: { onClose: () => void }) {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>New Asset</DialogTitle>
-          <DialogDescription>Register a piece of equipment or infrastructure.</DialogDescription>
+          <DialogDescription>Register a piece of equipment or infrastructure, and where it lives.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5"><Label htmlFor="a-num">Asset no.</Label><Input id="a-num" value={form.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} placeholder="AST-0047" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="a-num">Asset no.</Label><Input id="a-num" value={form.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} placeholder="AST-0049" /></div>
             <div className="grid gap-1.5"><Label htmlFor="a-name">Name</Label><Input id="a-name" value={form.name} onChange={(e) => set("name", e.target.value)} /></div>
             <div className="grid gap-1.5"><Label htmlFor="a-cat">Category</Label><Input id="a-cat" value={form.category} onChange={(e) => set("category", e.target.value)} /></div>
-            <div className="grid gap-1.5"><Label htmlFor="a-loc">Location</Label><Input id="a-loc" value={form.location} onChange={(e) => set("location", e.target.value)} /></div>
+            <div className="grid gap-1.5">
+              <Label>Area</Label>
+              <Select value={form.area} onValueChange={(v) => set("area", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{ASSET_AREAS.map((a) => <SelectItem key={a} value={a} className="capitalize">{a.replace(/_/g, " ").toLowerCase()}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {form.area === "ROOM" && (
+              <div className="grid gap-1.5"><Label htmlFor="a-room">Room number</Label><Input id="a-room" value={form.roomNumber} onChange={(e) => set("roomNumber", e.target.value)} placeholder="e.g. 101" /></div>
+            )}
+            <div className="grid gap-1.5"><Label htmlFor="a-loc">Location detail</Label><Input id="a-loc" value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="e.g. Rooftop, Basement" /></div>
             <div className="grid gap-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={(v) => set("status", v)}>

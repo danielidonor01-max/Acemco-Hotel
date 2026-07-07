@@ -126,7 +126,8 @@ export interface NewLeave { employeeId: string; type: LeaveRequest["type"]; star
 export async function createLeave(input: NewLeave): Promise<void> {
   await apiRequest("/leave-requests", { method: "POST", body: JSON.stringify(input) });
 }
-export interface NewAsset { assetNumber: string; name: string; category: string; location: string; status: Asset["status"]; nextInspection?: string; }
+export type AssetArea = "ROOM" | "POOL" | "BAR" | "RESTAURANT" | "RECEPTION" | "GYM" | "LOUNGE" | "KITCHEN" | "EXTERIOR" | "BACK_OF_HOUSE" | "OTHER";
+export interface NewAsset { assetNumber: string; name: string; category: string; area: AssetArea; roomNumber?: string; location: string; status: Asset["status"]; nextInspection?: string; }
 export async function createAsset(input: NewAsset): Promise<void> {
   await apiRequest("/assets", { method: "POST", body: JSON.stringify(input) });
 }

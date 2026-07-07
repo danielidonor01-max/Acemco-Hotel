@@ -17,6 +17,8 @@ import { HousekeepingModule } from './modules/housekeeping/housekeeping.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { FoliosModule } from './modules/folios/folios.module';
+import { MenuModule } from './modules/menu/menu.module';
+import { SearchModule } from './modules/search/search.module';
 import { HealthModule } from './modules/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -43,6 +45,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     DashboardModule,
     SettingsModule,
     FoliosModule,
+    MenuModule,
+    SearchModule,
     HealthModule,
   ],
   providers: [

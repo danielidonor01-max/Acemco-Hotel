@@ -45,3 +45,17 @@ export async function listRooms(): Promise<ManageRoom[]> {
 export async function updateRoomStatus(id: string, status: RoomStatus): Promise<void> {
   await apiRequest(`/rooms/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
+
+export interface RoomDetail {
+  room: { id: string; roomNumber: string; floor: number; status: RoomStatus; roomType: string | null };
+  occupant: { name: string; phone: string; isVip: boolean; reservationId: string; reservationNumber: string; checkInDate: string; checkOutDate: string } | null;
+  assignedHousekeeper: string | null;
+  housekeeping: { id: string; type: string; status: string; priority: string; assignedTo: string | null }[];
+  assets: { id: string; assetNumber: string; name: string; status: string }[];
+  maintenanceIssues: { id: string; workOrderNumber: string; asset: string; priority: string; status: string }[];
+}
+
+export async function getRoomDetail(id: string): Promise<RoomDetail> {
+  const { data } = await apiRequest<RoomDetail>(`/rooms/${id}/detail`);
+  return data;
+}

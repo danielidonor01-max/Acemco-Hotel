@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, User, CalendarDays, Sparkles, Wrench, Package, Star } from "lucide-react";
 import { toast } from "sonner";
-import { PageShell, Card, StatusBadge, Button } from "@/components/internal/ui";
+import { PageShell, Card, StatusBadge, Badge, Button } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { listRooms, updateRoomStatus, type ManageRoom, type RoomStatus } from "@/lib/data/manage-rooms";
+import { listRooms, updateRoomStatus, getRoomDetail, type ManageRoom, type RoomStatus } from "@/lib/data/manage-rooms";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -60,8 +61,8 @@ export default function RoomsAdminPage() {
                 {list.map((r) => (
                   <Card
                     key={r.id}
-                    className={cn("p-4", canEdit && "cursor-pointer transition-colors hover:border-brand-primary/50")}
-                    onClick={canEdit ? () => setSelected(r) : undefined}
+                    className="cursor-pointer p-4 transition-colors hover:border-brand-primary/50"
+                    onClick={() => setSelected(r)}
                   >
                     <div className="flex items-start justify-between">
                       <span className="text-lg font-bold text-fg">{r.roomNumber}</span>
@@ -78,42 +79,129 @@ export default function RoomsAdminPage() {
         </div>
       )}
 
-      {selected && <StatusDialog room={selected} onClose={() => setSelected(null)} />}
+      {selected && <RoomDetailModal room={selected} canEdit={canEdit} onClose={() => setSelected(null)} />}
     </PageShell>
   );
 }
 
-function StatusDialog({ room, onClose }: { room: ManageRoom; onClose: () => void }) {
+function RoomDetailModal({ room, canEdit, onClose }: { room: ManageRoom; canEdit: boolean; onClose: () => void }) {
   const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["room-detail", room.id], queryFn: () => getRoomDetail(room.id) });
+
   const change = useMutation({
     mutationFn: (status: RoomStatus) => updateRoomStatus(room.id, status),
-    onSuccess: () => { toast.success(`Room ${room.roomNumber} updated.`); qc.invalidateQueries({ queryKey: ["rooms"] }); onClose(); },
+    onSuccess: () => {
+      toast.success(`Room ${room.roomNumber} updated.`);
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["room-detail", room.id] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const occ = data?.occupant;
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Room {room.roomNumber}</DialogTitle>
-          <DialogDescription>{room.roomTypeName} · Floor {room.floor}. Set a new status.</DialogDescription>
+          <DialogDescription>{room.roomTypeName} · Floor {room.floor} · <span className="capitalize">{room.status.replace(/_/g, " ").toLowerCase()}</span></DialogDescription>
         </DialogHeader>
-        <div className="flex flex-wrap gap-2">
-          {STATUSES.map((s) => (
-            <Button
-              key={s}
-              variant={s === room.status ? "default" : "outline"}
-              size="sm"
-              disabled={change.isPending}
-              onClick={() => (s === room.status ? onClose() : change.mutate(s))}
-            >
-              {change.isPending && change.variables === s && <Loader2 size={13} className="animate-spin" />}
-              <span className="capitalize">{s.replace(/_/g, " ").toLowerCase()}</span>
-            </Button>
-          ))}
-        </div>
+
+        {isLoading ? (
+          <p className="py-6 text-center text-sm text-fg-muted">Loading room…</p>
+        ) : (
+          <div className="grid gap-5 text-sm">
+            {/* Occupancy */}
+            <Section icon={User} title="Occupancy">
+              {occ ? (
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5 font-medium text-fg">{occ.name} {occ.isVip && <Star size={13} className="text-brand-primary-dark" fill="currentColor" />}</p>
+                  <p className="text-fg-muted">{occ.phone}</p>
+                  <p className="flex items-center gap-1.5 text-fg-soft"><CalendarDays size={13} /> {occ.checkInDate.slice(0, 10)} → {occ.checkOutDate.slice(0, 10)}</p>
+                  <Link href={`/manage/reservations/${occ.reservationId}`} onClick={onClose} className="inline-block text-brand-primary-dark hover:underline">{occ.reservationNumber} →</Link>
+                </div>
+              ) : (
+                <p className="text-fg-muted">No current occupant.</p>
+              )}
+            </Section>
+
+            {/* Housekeeping */}
+            <Section icon={Sparkles} title="Housekeeping">
+              <p className="text-fg-soft">Assigned: <span className="text-fg">{data?.assignedHousekeeper ?? "Unassigned"}</span></p>
+              {data && data.housekeeping.length > 0 ? (
+                <ul className="mt-1.5 space-y-1">
+                  {data.housekeeping.map((t) => (
+                    <li key={t.id} className="flex items-center justify-between gap-2">
+                      <span className="capitalize text-fg-soft">{t.type.replace(/_/g, " ").toLowerCase()}</span>
+                      <Badge tone={t.status === "COMPLETED" ? "success" : t.status === "IN_PROGRESS" ? "info" : "neutral"}>{t.status.replace(/_/g, " ").toLowerCase()}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="mt-1 text-fg-muted">No tasks.</p>}
+            </Section>
+
+            {/* Maintenance */}
+            <Section icon={Wrench} title="Maintenance">
+              {data && data.maintenanceIssues.length > 0 ? (
+                <ul className="space-y-1">
+                  {data.maintenanceIssues.map((w) => (
+                    <li key={w.id} className="flex items-center justify-between gap-2">
+                      <span className="text-fg-soft">{w.workOrderNumber} · {w.asset}</span>
+                      <Badge tone={w.priority === "CRITICAL" || w.priority === "HIGH" ? "danger" : "warning"}>{w.status.replace(/_/g, " ").toLowerCase()}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-fg-muted">No open issues.</p>}
+            </Section>
+
+            {/* Assets */}
+            <Section icon={Package} title="Assets in this room">
+              {data && data.assets.length > 0 ? (
+                <ul className="space-y-1">
+                  {data.assets.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between gap-2">
+                      <span className="text-fg-soft">{a.name} <span className="text-fg-muted">· {a.assetNumber}</span></span>
+                      <StatusBadge status={a.status} />
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-fg-muted">No assets registered here.</p>}
+            </Section>
+
+            {/* Status control */}
+            {canEdit && (
+              <div>
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">Set status</p>
+                <div className="flex flex-wrap gap-2">
+                  {STATUSES.map((s) => (
+                    <Button
+                      key={s}
+                      variant={s === room.status ? "default" : "outline"}
+                      size="sm"
+                      disabled={change.isPending}
+                      onClick={() => change.mutate(s)}
+                    >
+                      {change.isPending && change.variables === s && <Loader2 size={13} className="animate-spin" />}
+                      <span className="capitalize">{s.replace(/_/g, " ").toLowerCase()}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Section({ icon: Icon, title, children }: { icon: typeof User; title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-line pt-4 first:border-0 first:pt-0">
+      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg-muted"><Icon size={13} /> {title}</p>
+      {children}
+    </div>
   );
 }
 

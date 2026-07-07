@@ -26,6 +26,13 @@ export class RoomsController {
     return this.rooms.getRoom(id);
   }
 
+  @Get('rooms/:id/detail')
+  @RequirePermissions('rooms:VIEW')
+  @ApiOperation({ summary: 'Room detail: occupant, housekeeping, assets + open maintenance' })
+  getRoomDetail(@Param('id') id: string) {
+    return this.rooms.getRoomDetail(id);
+  }
+
   @Patch('rooms/:id/status')
   @RequirePermissions('rooms:UPDATE')
   @ApiOperation({ summary: 'Change a room status' })

@@ -552,11 +552,27 @@ enum AssetStatus {
   DECOMMISSIONED
 }
 
+enum AssetArea {
+  ROOM
+  POOL
+  BAR
+  RESTAURANT
+  RECEPTION
+  GYM
+  LOUNGE
+  KITCHEN
+  EXTERIOR
+  BACK_OF_HOUSE
+  OTHER
+}
+
 model Asset {
   id             String      @id @default(uuid())
   assetNumber    String      @unique @map("asset_number")
   name           String
   category       String
+  area           AssetArea   @default(OTHER)
+  roomNumber     String?     @map("room_number")
   location       String
   status         AssetStatus @default(OPERATIONAL)
   nextInspection DateTime?   @map("next_inspection") @db.Date
@@ -564,6 +580,7 @@ model Asset {
   updatedAt      DateTime    @updatedAt @map("updated_at")
   workOrders     WorkOrder[]
 
+  @@index([area])
   @@map("assets")
 }
 

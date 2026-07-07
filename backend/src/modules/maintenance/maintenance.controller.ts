@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AssetStatus, WorkOrderType, WorkOrderPriority, WorkOrderStatus } from '@prisma/client';
+import { AssetStatus, AssetArea, WorkOrderType, WorkOrderPriority, WorkOrderStatus } from '@prisma/client';
 import { z } from 'zod';
 import { MaintenanceService } from './maintenance.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -10,12 +10,16 @@ const createAssetSchema = z.object({
   assetNumber: z.string().min(1),
   name: z.string().min(1),
   category: z.string().min(1),
+  area: z.nativeEnum(AssetArea).default('OTHER'),
+  roomNumber: z.string().optional(),
   location: z.string().min(1),
   status: z.nativeEnum(AssetStatus).default('OPERATIONAL'),
   nextInspection: z.string().optional(),
 });
 const updateAssetSchema = z.object({
   status: z.nativeEnum(AssetStatus).optional(),
+  area: z.nativeEnum(AssetArea).optional(),
+  roomNumber: z.string().optional(),
   nextInspection: z.string().optional(),
   location: z.string().optional(),
 });

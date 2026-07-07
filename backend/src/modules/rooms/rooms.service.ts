@@ -20,6 +20,47 @@ export class RoomsService {
     return room;
   }
 
+  /** Full picture of a room: occupant, housekeeping, assets + open maintenance. */
+  async getRoomDetail(id: string) {
+    const room = await this.getRoom(id);
+    const [reservation, housekeeping, assets] = await Promise.all([
+      this.prisma.reservation.findFirst({
+        where: { roomId: id, status: 'CHECKED_IN' },
+        orderBy: { checkInDate: 'desc' },
+        include: { guest: { select: { firstName: true, lastName: true, phone: true, isVip: true } } },
+      }),
+      this.prisma.housekeepingTask.findMany({ where: { roomNumber: room.roomNumber }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.asset.findMany({
+        where: { area: 'ROOM', roomNumber: room.roomNumber },
+        include: { workOrders: { where: { status: { in: ['OPEN', 'IN_PROGRESS', 'ON_HOLD'] } } } },
+      }),
+    ]);
+
+    const maintenanceIssues = assets.flatMap((a) =>
+      a.workOrders.map((w) => ({ id: w.id, workOrderNumber: w.workOrderNumber, asset: a.name, priority: w.priority, status: w.status })),
+    );
+    const activeTask = housekeeping.find((t) => t.status !== 'COMPLETED');
+
+    return {
+      room: { id: room.id, roomNumber: room.roomNumber, floor: room.floor, status: room.status, roomType: room.roomType?.name ?? null },
+      occupant: reservation
+        ? {
+            name: `${reservation.guest.firstName} ${reservation.guest.lastName}`,
+            phone: reservation.guest.phone,
+            isVip: reservation.guest.isVip,
+            reservationId: reservation.id,
+            reservationNumber: reservation.reservationNumber,
+            checkInDate: reservation.checkInDate,
+            checkOutDate: reservation.checkOutDate,
+          }
+        : null,
+      assignedHousekeeper: activeTask?.assignedTo ?? null,
+      housekeeping: housekeeping.map((t) => ({ id: t.id, type: t.type, status: t.status, priority: t.priority, assignedTo: t.assignedTo })),
+      assets: assets.map((a) => ({ id: a.id, assetNumber: a.assetNumber, name: a.name, status: a.status })),
+      maintenanceIssues,
+    };
+  }
+
   async updateStatus(id: string, status: RoomStatus) {
     await this.getRoom(id);
     return this.prisma.room.update({ where: { id }, data: { status } });

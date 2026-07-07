@@ -104,6 +104,7 @@ async function main() {
   const ENUMS = {
     InventoryDepartment: ['RESTAURANT', 'LOUNGE', 'BOUTIQUE', 'HOUSEKEEPING', 'MAINTENANCE', 'OFFICE', 'GENERAL'],
     AssetStatus: ['OPERATIONAL', 'INSPECTION_DUE', 'NEEDS_REPAIR', 'UNDER_REPAIR', 'DECOMMISSIONED'],
+    AssetArea: ['ROOM', 'POOL', 'BAR', 'RESTAURANT', 'RECEPTION', 'GYM', 'LOUNGE', 'KITCHEN', 'EXTERIOR', 'BACK_OF_HOUSE', 'OTHER'],
     WorkOrderType: ['CORRECTIVE', 'PREVENTIVE', 'INSPECTION'],
     WorkOrderPriority: ['LOW', 'NORMAL', 'HIGH', 'CRITICAL'],
     WorkOrderStatus: ['OPEN', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED'],
@@ -171,6 +172,9 @@ async function main() {
       id text PRIMARY KEY, hotel_name text NOT NULL, tagline text NOT NULL DEFAULT '', phone text NOT NULL DEFAULT '',
       whatsapp text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', address text NOT NULL DEFAULT '', city text NOT NULL DEFAULT '',
       updated_at timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE assets ADD COLUMN IF NOT EXISTS area "AssetArea" NOT NULL DEFAULT 'OTHER';
+    ALTER TABLE assets ADD COLUMN IF NOT EXISTS room_number text;
+    CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);
     CREATE INDEX IF NOT EXISTS leave_requests_employee_id_idx ON leave_requests(employee_id);
     CREATE INDEX IF NOT EXISTS finance_transactions_type_idx ON finance_transactions(type);
@@ -346,20 +350,23 @@ async function main() {
     );
   }
 
+  // [assetNumber, name, category, area, roomNumber, location, status, nextInspection]
   const ASSETS = [
-    ['AST-0042', 'Generator — Main', 'Power', 'Basement', 'OPERATIONAL', '2026-08-01'],
-    ['AST-0043', 'Chiller Unit 1', 'HVAC', 'Roof', 'INSPECTION_DUE', '2026-07-10'],
-    ['AST-0044', 'Elevator A', 'Vertical Transport', 'Core', 'NEEDS_REPAIR', '2026-07-06'],
-    ['AST-0045', 'Pool Pump', 'Leisure', 'Rooftop', 'UNDER_REPAIR', '2026-07-15'],
-    ['AST-0046', 'Kitchen Extractor', 'Kitchen', 'Restaurant', 'OPERATIONAL', '2026-09-01'],
+    ['AST-0042', 'Generator — Main', 'Power', 'BACK_OF_HOUSE', null, 'Basement', 'OPERATIONAL', '2026-08-01'],
+    ['AST-0043', 'Chiller Unit 1', 'HVAC', 'BACK_OF_HOUSE', null, 'Roof', 'INSPECTION_DUE', '2026-07-10'],
+    ['AST-0044', 'Elevator A', 'Vertical Transport', 'RECEPTION', null, 'Core', 'NEEDS_REPAIR', '2026-07-06'],
+    ['AST-0045', 'Pool Pump', 'Leisure', 'POOL', null, 'Rooftop', 'UNDER_REPAIR', '2026-07-15'],
+    ['AST-0046', 'Kitchen Extractor', 'Kitchen', 'KITCHEN', null, 'Restaurant', 'OPERATIONAL', '2026-09-01'],
+    ['AST-0047', 'Split AC Unit', 'HVAC', 'ROOM', '101', 'Room 101', 'OPERATIONAL', '2026-09-15'],
+    ['AST-0048', 'Smart TV 55"', 'Electronics', 'ROOM', '101', 'Room 101', 'OPERATIONAL', '2026-10-01'],
   ];
   const assetIdByName = {};
-  for (const [num, name, cat, loc, status, next] of ASSETS) {
+  for (const [num, name, cat, area, roomNumber, loc, status, next] of ASSETS) {
     const r = await client.query(
-      `INSERT INTO assets (id, asset_number, name, category, location, status, next_inspection, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6::"AssetStatus",$7,now())
-       ON CONFLICT (asset_number) DO UPDATE SET status = EXCLUDED.status, next_inspection = EXCLUDED.next_inspection RETURNING id`,
-      [uuid(), num, name, cat, loc, status, next],
+      `INSERT INTO assets (id, asset_number, name, category, area, room_number, location, status, next_inspection, updated_at)
+       VALUES ($1,$2,$3,$4,$5::"AssetArea",$6,$7,$8::"AssetStatus",$9,now())
+       ON CONFLICT (asset_number) DO UPDATE SET status = EXCLUDED.status, area = EXCLUDED.area, room_number = EXCLUDED.room_number, next_inspection = EXCLUDED.next_inspection RETURNING id`,
+      [uuid(), num, name, cat, area, roomNumber, loc, status, next],
     );
     assetIdByName[name] = r.rows[0].id;
   }
