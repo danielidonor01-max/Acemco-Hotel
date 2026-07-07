@@ -120,6 +120,7 @@ async function main() {
     HousekeepingStatus: ['PENDING', 'IN_PROGRESS', 'COMPLETED'],
     HousekeepingPriority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'],
     ReservationType: ['INDIVIDUAL', 'CORPORATE', 'CONFERENCE'],
+    GuestTier: ['STANDARD', 'PREFERRED', 'VIP'],
     CompanyTier: ['STANDARD', 'PREFERRED', 'VIP', 'STRATEGIC'],
     CompanyStatus: ['ACTIVE', 'SUSPENDED', 'INACTIVE'],
     ChargeDepartment: ['ROOM', 'RESTAURANT', 'LOUNGE', 'BOUTIQUE', 'LAUNDRY', 'CONFERENCE', 'DAMAGE', 'SERVICE', 'DISCOUNT', 'TAX', 'OTHER'],
@@ -183,6 +184,8 @@ async function main() {
       id text PRIMARY KEY, name text NOT NULL UNIQUE, contact_name text, email text, phone text, address text,
       billing_email text, tier "CompanyTier" NOT NULL DEFAULT 'STANDARD', status "CompanyStatus" NOT NULL DEFAULT 'ACTIVE',
       notes text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS tier "GuestTier" NOT NULL DEFAULT 'STANDARD';
+    UPDATE guests SET tier='VIP' WHERE is_vip = true AND tier='STANDARD';
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS type "ReservationType" NOT NULL DEFAULT 'INDIVIDUAL';
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS company_id text REFERENCES companies(id);
     CREATE TABLE IF NOT EXISTS charge_ledger (
@@ -325,13 +328,24 @@ async function main() {
         `INSERT INTO folios (id, guest_id, check_in_id, status, opened_at) VALUES ($1,$2,$3,'OPEN',now())`,
         [folioId, r.guest_id, checkInId],
       );
-      await client.query(
-        `INSERT INTO folio_lines (id, folio_id, description, amount, type, posted_at)
-         VALUES ($1,$2,$3,$4,'ROOM_CHARGE',now())`,
-        [uuid(), folioId, `Room charge · ${r.reservation_number}`, r.total_amount],
-      );
     }
     if (needFolio.rowCount) console.log(`Backfilled folios for ${needFolio.rowCount} in-house reservation(s).`);
+
+    // Ensure a ROOM charge exists in the Charge Ledger for each checked-in stay.
+    const needRoomCharge = await client.query(`
+      SELECT r.id, r.guest_id, r.room_id, r.company_id, r.reservation_number, r.total_amount
+      FROM reservations r
+      WHERE r.status='CHECKED_IN'
+        AND NOT EXISTS (SELECT 1 FROM charge_ledger cl WHERE cl.reservation_id = r.id AND cl.department='ROOM')`);
+    for (const r of needRoomCharge.rows) {
+      const n = (await client.query('SELECT count(*)::int n FROM charge_ledger')).rows[0].n;
+      await client.query(
+        `INSERT INTO charge_ledger (id, charge_number, reservation_id, guest_id, company_id, room_id, department, source_module, reference_number, description, amount, tax, status, date, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,'ROOM','reservations',$7,$8,$9,0,'POSTED',current_date,now())`,
+        [uuid(), `CHG-2026-${String(n + 1).padStart(5, '0')}`, r.id, r.guest_id, r.company_id, r.room_id, r.reservation_number, `Room charge · ${r.reservation_number}`, r.total_amount],
+      );
+    }
+    if (needRoomCharge.rowCount) console.log(`Backfilled ${needRoomCharge.rowCount} room charge(s) into the ledger.`);
   }
 
   // 6) Menus (reset + insert)

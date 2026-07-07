@@ -204,6 +204,7 @@ model Guest {
   addressCountry String?  @map("address_country")
   notes         String?
   isVip         Boolean   @default(false) @map("is_vip")
+  tier          GuestTier @default(STANDARD)
   isBlacklisted Boolean   @default(false) @map("is_blacklisted")
   deletedAt     DateTime? @map("deleted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -812,6 +813,13 @@ enum ReservationType {
   INDIVIDUAL
   CORPORATE
   CONFERENCE
+}
+
+// Guest relationship tier (set manually by management — distinct from operational status).
+enum GuestTier {
+  STANDARD
+  PREFERRED
+  VIP
 }
 
 enum CompanyTier {

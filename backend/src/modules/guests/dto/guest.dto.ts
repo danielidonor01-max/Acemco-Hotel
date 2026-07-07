@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Title, IdType } from '@prisma/client';
+import { Title, IdType, GuestTier } from '@prisma/client';
 
 export const createGuestSchema = z.object({
   title: z.nativeEnum(Title).optional(),
@@ -16,5 +16,6 @@ export type CreateGuestDto = z.infer<typeof createGuestSchema>;
 
 export const updateGuestSchema = createGuestSchema.partial().extend({
   isBlacklisted: z.boolean().optional(),
+  tier: z.nativeEnum(GuestTier).optional(),
 });
 export type UpdateGuestDto = z.infer<typeof updateGuestSchema>;

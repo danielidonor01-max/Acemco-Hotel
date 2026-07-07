@@ -25,6 +25,13 @@ export class GuestsController {
     return this.guests.get(id);
   }
 
+  @Get(':id/profile')
+  @RequirePermissions('guests:VIEW')
+  @ApiOperation({ summary: 'Guest profile — history, lifetime spend, favourites, loyalty score' })
+  profile(@Param('id') id: string) {
+    return this.guests.profile(id);
+  }
+
   @Post()
   @RequirePermissions('guests:CREATE')
   create(@Body(new ZodValidationPipe(createGuestSchema)) dto: CreateGuestDto) {
