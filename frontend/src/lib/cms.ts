@@ -135,6 +135,7 @@ export interface Amenity {
 export const amenities: Amenity[] = [
   { title: "Swimming Pool", overline: "Leisure", description: "An infinity edge above the city — open from sunrise to the last light.", slot: "/images/amenities/pool.png" },
   { title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio with a view, open 24 hours.", slot: "/images/amenities/gym.png" },
+  { title: "Hall", overline: "Events", description: "A versatile event hall for weddings, conferences, and celebrations — styled to your occasion.", slot: "/images/lobby.png" },
 ];
 
 export type Storefront = "RESTAURANT" | "LOUNGE";

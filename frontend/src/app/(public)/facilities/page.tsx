@@ -22,7 +22,7 @@ export default function FacilitiesPage() {
       />
 
       <Section band="cream">
-        <RevealGroup className="grid gap-6 md:grid-cols-2">
+        <RevealGroup className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {amenities.map((a) => (
             <RevealItem key={a.title}>
               <ExperienceCard amenity={a} />
@@ -46,6 +46,15 @@ export default function FacilitiesPage() {
         overline="The Gym"
         heading={<>Move, on <em>your schedule</em></>}
         body={<p>A fully equipped fitness studio with cardio, free weights, and a view — open 24 hours, so your routine fits around your day, not the other way round.</p>}
+      />
+
+      <EditorialSplit
+        slot="facilities.hall"
+        band="sand"
+        direction="image-right"
+        overline="The Hall"
+        heading={<>A room for <em>every occasion</em></>}
+        body={<p>A versatile event hall for weddings, conferences, and celebrations — flexible seating, full AV, and a dedicated team to style the space around your day. Talk to us about your event.</p>}
       />
     </>
   );

@@ -117,6 +117,7 @@ async function seed() {
   const amenitiesList = [
     { _type: "amenity", _id: "amenity-pool", title: "Swimming Pool", overline: "Leisure", description: "An infinity edge above the city — open from sunrise to the last light.", image: toImageDoc(imageRefs.pool), order: 1 },
     { _type: "amenity", _id: "amenity-gym", title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio with a view, open 24 hours.", image: toImageDoc(imageRefs.gym), order: 2 },
+    { _type: "amenity", _id: "amenity-hall", title: "Hall", overline: "Events", description: "A versatile event hall for weddings, conferences, and celebrations — styled to your occasion.", image: toImageDoc(imageRefs.lobby), order: 3 },
   ];
   for (const a of amenitiesList) {
     await client.createOrReplace(a);
@@ -166,6 +167,7 @@ async function seed() {
     { slot: "facilities.hero", title: "Facilities — Hero", ref: imageRefs.facade },
     { slot: "facilities.pool", title: "Facilities — Pool Editorial", ref: imageRefs.pool },
     { slot: "facilities.gym", title: "Facilities — Gym Editorial", ref: imageRefs.gym },
+    { slot: "facilities.hall", title: "Facilities — Hall Editorial", ref: imageRefs.lobby },
     { slot: "gallery.hero", title: "Gallery — Hero", ref: imageRefs.lobby },
     { slot: "events.hero", title: "Events — Hero", ref: imageRefs.lounge },
     { slot: "about.hero", title: "About — Hero", ref: imageRefs.facade },
