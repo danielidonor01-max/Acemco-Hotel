@@ -115,6 +115,34 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   return data;
 }
 
+/* ---------------- Dashboard daily brief (reception cockpit) ---------------- */
+export interface BriefArrival {
+  id: string; reservationNumber: string; guestName: string; roomType: string;
+  guests: number; vip: boolean; blacklisted: boolean; checkedIn: boolean;
+  roomNumber: string | null; roomAssigned: boolean;
+}
+export interface BriefDeparture {
+  id: string; reservationNumber: string; guestName: string; roomNumber: string | null;
+  vip: boolean; overdue: boolean; balance: number;
+}
+export interface DashboardBrief {
+  date: string;
+  inHouse: number;
+  arrivals: BriefArrival[];
+  departures: BriefDeparture[];
+  availabilityTonight: { name: string; slug: string; available: number; capacity: number }[];
+  occupancy: { currentOccupancy: number; occupancyRate: number; adr: number; revpar: number; occupied: number; totalRooms: number };
+  alerts: {
+    pendingReservations: number; unassignedArrivals: number; blacklistedArrivals: number;
+    overdueCheckouts: number; lowStock: number; openWorkOrders: number; activeHousekeeping: number;
+  };
+}
+export async function getDashboardBrief(): Promise<DashboardBrief | null> {
+  if (!hasApi()) return null;
+  const { data } = await apiRequest<DashboardBrief>("/dashboard/brief");
+  return data;
+}
+
 /* ---------------- Inventory / HR / Maintenance updates ---------------- */
 export async function updateInventoryItem(id: string, input: Partial<NewInventoryItem>): Promise<void> {
   await apiRequest(`/inventory/${id}`, { method: "PATCH", body: JSON.stringify(input) });

@@ -14,6 +14,11 @@ export class DashboardController {
     return this.dashboard.stats();
   }
 
+  @Get('dashboard/brief')
+  brief() {
+    return this.dashboard.brief();
+  }
+
   @Get('reports/overview')
   @RequirePermissions('reports:VIEW')
   reportsOverview() {
