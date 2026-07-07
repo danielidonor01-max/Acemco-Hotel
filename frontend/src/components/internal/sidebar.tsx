@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Calendar, Users, BedDouble, ConciergeBell, UtensilsCrossed,
   Wine, ShoppingBag, Package, Sparkles, Wrench, BarChart3, UserCog, Banknote,
-  FileBarChart, Settings, Globe, Shield, ClipboardList, ChevronDown, ChevronLeft, X, type LucideIcon,
+  FileBarChart, Settings, Shield, ClipboardList, ChevronDown, ChevronLeft, X, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui.store";
@@ -61,7 +61,6 @@ const SECTIONS: { items: NavItem[] }[] = [
   {
     items: [
       { label: "Settings", href: "/manage/settings", icon: Settings, perm: ["settings", "VIEW"] },
-      { label: "CMS", href: "/manage/cms", icon: Globe, perm: ["cms", "VIEW"] },
       { label: "Administration", href: "/manage/administration", icon: Shield, perm: ["administration", "VIEW"] },
     ],
   },

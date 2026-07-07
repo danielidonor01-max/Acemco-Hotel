@@ -107,8 +107,9 @@ export default async function HomePage() {
           heading={<>Everything you need, <em>nothing you don&apos;t</em></>}
           align="center"
         />
-        <RevealGroup className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {amenities.slice(0, 3).map((a) => (
+        {/* Two facilities → two columns so the row fills the width (wraps cleanly if more are added). */}
+        <RevealGroup className="mt-12 grid gap-6 sm:grid-cols-2">
+          {amenities.slice(0, 4).map((a) => (
             <RevealItem key={a.title}>
               <ExperienceCard amenity={a} href="/facilities" />
             </RevealItem>

@@ -49,7 +49,7 @@ const event = defineType({
     defineField({ name: "ribbon", type: "string", description: "Cadence tag, e.g. 'Every Friday'" }),
     defineField({ name: "validity", type: "string", description: "When/where, e.g. 'Sundays · 11am'" }),
     defineField({ name: "terms", type: "text" }),
-    defineField({ name: "image", type: "image", options: { hotspot: true } }),
+    defineField({ name: "image", type: "image", options: { hotspot: true }, description: "Recommended: Landscape image, e.g., 1200 x 800 px (3:2 aspect ratio) or 1200 x 675 px (16:9)." }),
     defineField({ name: "order", type: "number" }),
   ],
 });
@@ -75,7 +75,7 @@ const amenity = defineType({
     defineField({ name: "title", type: "string" }),
     defineField({ name: "overline", type: "string" }),
     defineField({ name: "description", type: "text" }),
-    defineField({ name: "image", type: "image", options: { hotspot: true } }),
+    defineField({ name: "image", type: "image", options: { hotspot: true }, description: "Recommended: Landscape image, e.g., 1200 x 800 px (3:2 aspect ratio)." }),
     defineField({ name: "order", type: "number" }),
   ],
 });
@@ -87,7 +87,7 @@ const galleryImage = defineType({
   fields: [
     defineField({ name: "title", type: "string" }),
     defineField({ name: "ratio", type: "string", options: { list: ["1/1", "3/4"] }, initialValue: "1/1" }),
-    defineField({ name: "image", type: "image", options: { hotspot: true } }),
+    defineField({ name: "image", type: "image", options: { hotspot: true }, description: "Recommended: Match the selected aspect ratio. 1000 x 1000 px for Square (1:1) or 900 x 1200 px for Portrait (3:4)." }),
     defineField({ name: "order", type: "number" }),
   ],
 });
@@ -108,7 +108,7 @@ const pageMedia = defineType({
   fields: [
     defineField({ name: "title", type: "string", description: "Human label, e.g. 'Home hero'" }),
     defineField({ name: "slot", type: "string", description: "e.g. home.hero (see list in schema comments)" }),
-    defineField({ name: "image", type: "image", options: { hotspot: true } }),
+    defineField({ name: "image", type: "image", options: { hotspot: true }, description: "Recommended: 1920 x 1080 px (16:9) for Heros; 1200 x 1200 px (1:1) for story splits; 600 x 1000 px (3:5) for Footer." }),
   ],
   preview: { select: { title: "title", subtitle: "slot", media: "image" } },
 });
