@@ -25,6 +25,9 @@ export interface Reservation {
   isVip?: boolean;
   type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
   company?: string;
+  guestId?: string;
+  tier?: "STANDARD" | "PREFERRED" | "VIP";
+  isBlacklisted?: boolean;
 }
 
 const rt = (i: number) => roomTypes[i % roomTypes.length];

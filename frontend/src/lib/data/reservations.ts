@@ -16,7 +16,7 @@ interface ApiReservation {
   checkOutDate: string;
   roomId?: string | null;
   type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
-  guest?: { firstName: string; lastName: string; isVip: boolean; phone?: string };
+  guest?: { id?: string; firstName: string; lastName: string; isVip: boolean; phone?: string; tier?: "STANDARD" | "PREFERRED" | "VIP"; isBlacklisted?: boolean };
   roomType?: { name: string };
   room?: { roomNumber: string } | null;
   company?: { name: string } | null;
@@ -43,6 +43,9 @@ function mapApi(r: ApiReservation): Reservation {
     isVip: r.guest?.isVip,
     type: r.type,
     company: r.company?.name ?? undefined,
+    guestId: r.guest?.id,
+    tier: r.guest?.tier,
+    isBlacklisted: r.guest?.isBlacklisted,
   };
 }
 
