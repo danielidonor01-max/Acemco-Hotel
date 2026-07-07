@@ -83,14 +83,26 @@ export class GuestsService {
    */
   async profile(id: string) {
     const guest = await this.get(id);
-    const [reservations, charges] = await Promise.all([
+    const [reservations, charges, orders] = await Promise.all([
       this.prisma.reservation.findMany({
         where: { guestId: id },
         orderBy: { checkInDate: 'desc' },
         include: { roomType: { select: { name: true } }, company: { select: { name: true } }, room: { select: { roomNumber: true } } },
       }),
       this.prisma.chargeLedger.findMany({ where: { guestId: id, status: { not: 'VOIDED' } } }),
+      this.prisma.order.findMany({ where: { guestId: id }, include: { items: { include: { menuItem: { select: { name: true } } } } } }),
     ]);
+
+    // Favourite meals & drinks — from the guest's own orders (item quantities).
+    const itemCount = new Map<string, number>();
+    for (const o of orders) for (const it of o.items) {
+      const name = it.menuItem?.name ?? 'Item';
+      itemCount.set(name, (itemCount.get(name) ?? 0) + it.quantity);
+    }
+    const favouriteItems = [...itemCount.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
 
     const totalStays = reservations.length;
     const totalNights = reservations.reduce((s, r) => s + nights(r.checkInDate, r.checkOutDate), 0);
@@ -121,6 +133,7 @@ export class GuestsService {
     return {
       guest: { id: guest.id, name: `${guest.firstName} ${guest.lastName}`, tier: guest.tier, isVip: guest.isVip, isBlacklisted: guest.isBlacklisted, phone: guest.phone, email: guest.email, nationality: guest.nationality },
       stats: { totalStays, totalNights, lifetimeSpend, lastVisit, favouriteRoomType, avgLeadTime },
+      favouriteItems,
       companies,
       spendByDepartment: [...deptSpend.entries()].map(([department, amount]) => ({ department, amount })).sort((a, b) => b.amount - a.amount),
       loyaltyScore,

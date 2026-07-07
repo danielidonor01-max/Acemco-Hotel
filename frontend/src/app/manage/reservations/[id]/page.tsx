@@ -17,7 +17,13 @@ import { useAuth } from "@/providers/auth-provider";
 import { getRoomType } from "@/lib/cms";
 import { formatNaira } from "@/lib/utils";
 
-const FOLIO_LINE_TYPES = ["SERVICE", "RESTAURANT", "LOUNGE", "BOUTIQUE", "DAMAGE", "DISCOUNT", "TAX"];
+const FOLIO_LINE_TYPES = ["SERVICE", "LAUNDRY", "RESTAURANT", "LOUNGE", "BOUTIQUE", "DAMAGE", "DISCOUNT", "TAX"];
+const QUICK_CHARGES: { label: string; type: string; description: string }[] = [
+  { label: "Laundry", type: "LAUNDRY", description: "Laundry service" },
+  { label: "Minibar", type: "SERVICE", description: "Minibar" },
+  { label: "Spa", type: "SERVICE", description: "Spa & wellness" },
+  { label: "Damage", type: "DAMAGE", description: "Damage charge" },
+];
 
 export default function ReservationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -107,7 +113,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 function FolioPanel({ reservationId, nights, baseTotal }: { reservationId: string; nights: number; baseTotal: number }) {
   const { hasPermission } = useAuth();
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<{ description: string; type: string } | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ["folio", reservationId], queryFn: () => getFolio(reservationId) });
   const canEdit = hasPermission("reservations", "UPDATE");
 
@@ -130,9 +136,18 @@ function FolioPanel({ reservationId, nights, baseTotal }: { reservationId: strin
               <span>{formatNaira(data.balance)}</span>
             </div>
             {canEdit && data.folio.status === "OPEN" && (
-              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setAdding(true)}>
-                <Plus size={14} /> Add charge
-              </Button>
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_CHARGES.map((q) => (
+                    <Button key={q.label} size="sm" variant="ghost" className="border border-line" onClick={() => setAdding({ description: q.description, type: q.type })}>
+                      + {q.label}
+                    </Button>
+                  ))}
+                </div>
+                <Button size="sm" variant="outline" className="w-full" onClick={() => setAdding({ description: "", type: "SERVICE" })}>
+                  <Plus size={14} /> Add charge
+                </Button>
+              </div>
             )}
           </>
         ) : (
@@ -148,14 +163,14 @@ function FolioPanel({ reservationId, nights, baseTotal }: { reservationId: strin
           </>
         )}
       </CardContent>
-      {adding && data?.folio && <AddChargeDialog folioId={data.folio.id} reservationId={reservationId} onClose={() => setAdding(false)} />}
+      {adding && data?.folio && <AddChargeDialog folioId={data.folio.id} reservationId={reservationId} preset={adding} onClose={() => setAdding(null)} />}
     </Card>
   );
 }
 
-function AddChargeDialog({ folioId, reservationId, onClose }: { folioId: string; reservationId: string; onClose: () => void }) {
+function AddChargeDialog({ folioId, reservationId, preset, onClose }: { folioId: string; reservationId: string; preset: { description: string; type: string }; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ description: "", amount: "", type: "SERVICE" });
+  const [form, setForm] = useState({ description: preset.description, amount: "", type: preset.type });
   const save = useMutation({
     mutationFn: () => addFolioLine(folioId, { description: form.description.trim(), amount: Number(form.amount) || 0, type: form.type }),
     onSuccess: () => { toast.success("Charge posted."); qc.invalidateQueries({ queryKey: ["folio", reservationId] }); onClose(); },

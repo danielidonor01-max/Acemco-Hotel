@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Loader2, Download, ChevronRight, ChevronDown, CheckCircle } from "lucide-react";
+import { Building2, Plus, Loader2, Download, ChevronRight, ChevronDown, CheckCircle, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Button, Badge, EmptyState } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 import { exportCsv } from "@/lib/export";
+import { printCompanyInvoice } from "@/lib/print-invoice";
 
 const TIERS: CompanyTier[] = ["STANDARD", "PREFERRED", "VIP", "STRATEGIC"];
 const tierTone = (t: CompanyTier): "brand" | "info" | "neutral" =>
@@ -175,7 +176,10 @@ function InvoiceModal({ company, onClose }: { company: Company; onClose: () => v
         )}
 
         <DialogFooter className="items-center sm:justify-between">
-          <Button variant="outline" size="sm" disabled={!data || data.chargeCount === 0} onClick={onExport}><Download size={14} /> Export CSV</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={!data || data.chargeCount === 0} onClick={onExport}><Download size={14} /> CSV</Button>
+            <Button variant="outline" size="sm" disabled={!data || data.chargeCount === 0} onClick={() => data && printCompanyInvoice(data)}><Printer size={14} /> Print / PDF</Button>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>Close</Button>
             {hasPermission("finance", "APPROVE") && data && data.outstanding > 0 && (

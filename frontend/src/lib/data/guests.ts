@@ -98,6 +98,7 @@ export async function setGuestBlacklist(id: string, isBlacklisted: boolean): Pro
 export interface GuestProfile {
   guest: { id: string; name: string; tier: GuestTier; isVip: boolean; isBlacklisted: boolean; phone: string; email?: string | null; nationality?: string | null };
   stats: { totalStays: number; totalNights: number; lifetimeSpend: number; lastVisit: string | null; favouriteRoomType: string | null; avgLeadTime: number };
+  favouriteItems: { name: string; count: number }[];
   companies: string[];
   spendByDepartment: { department: string; amount: number }[];
   loyaltyScore: number;

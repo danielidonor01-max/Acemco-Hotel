@@ -167,6 +167,17 @@ function ProfileModal({ guest, onClose }: { guest: Guest; onClose: () => void })
               </div>
             )}
 
+            {data.favouriteItems.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">Favourite meals &amp; drinks</p>
+                <div className="flex flex-wrap gap-2">
+                  {data.favouriteItems.map((it) => (
+                    <span key={it.name} className="rounded-full border border-line px-3 py-1 text-xs text-fg-soft">{it.name} <span className="text-fg-muted">×{it.count}</span></span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* History */}
             <div>
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">Stay history</p>
