@@ -40,7 +40,7 @@ export default function CMSPage() {
               <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                 <ImageIcon size={13} /> {b.slots} media {b.slots === 1 ? "slot" : "slots"} · placeholders
               </p>
-              <Button size="sm" variant="outline" className="mt-4"><Pencil size={14} /> Edit</Button>
+              <Button size="sm" variant="outline" href="/studio" className="mt-4"><Pencil size={14} /> Edit</Button>
             </CardContent>
           </Card>
         ))}

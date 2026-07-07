@@ -4,14 +4,16 @@ import { Section, SectionHeading } from "@/components/public/section";
 import { ExperienceCard } from "@/components/public/cards";
 import { GallerySection } from "@/components/public/gallery";
 import { Reveal, RevealGroup, RevealItem } from "@/components/public/reveal";
-import { venues, gallerySlots, site } from "@/lib/cms";
+import { getSiteSettings } from "@/lib/data/content";
+import { venues, gallerySlots } from "@/lib/cms";
 
 export const metadata: Metadata = {
   title: "Dining & Lounge",
   description: "All-day dining and a lounge that comes alive after dark.",
 };
 
-export default function DiningPage() {
+export default async function DiningPage() {
+  const site = await getSiteSettings();
   return (
     <>
       <Hero

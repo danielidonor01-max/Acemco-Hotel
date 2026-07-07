@@ -9,18 +9,19 @@ import { GallerySection } from "@/components/public/gallery";
 import { NewsletterForm } from "@/components/public/newsletter-form";
 import { PubButton, GhostLink, Overline } from "@/components/public/ui";
 import { Reveal, RevealGroup, RevealItem } from "@/components/public/reveal";
-import { site } from "@/lib/cms";
 import { getRoomTypes } from "@/lib/data/rooms";
-import { getOffers, getTestimonials, getGalleryTiles, getAmenities } from "@/lib/data/content";
+import { getOffers, getTestimonials, getGalleryTiles, getAmenities, getSiteSettings } from "@/lib/data/content";
 
 export default async function HomePage() {
-  const [rooms, amenities, offers, testimonials, gallerySlots] = await Promise.all([
+  const [rooms, amenities, offers, testimonials, gallerySlots, siteSettings] = await Promise.all([
     getRoomTypes(),
     getAmenities(),
     getOffers(),
     getTestimonials(),
     getGalleryTiles(),
+    getSiteSettings(),
   ]);
+  const site = siteSettings;
   return (
     <>
       <Hero

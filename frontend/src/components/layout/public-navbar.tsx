@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { site } from "@/lib/cms";
+import { site as staticSite, type SiteSettings } from "@/lib/cms";
 import { MediaFrame } from "@/components/public/media-frame";
 import { useCart, useCartUI } from "@/stores/cart.store";
 
@@ -19,7 +19,14 @@ const NAV = [
   { label: "Contact", href: "/contact" },
 ];
 
-export function PublicNavbar({ featuredSrc }: { featuredSrc?: string }) {
+export function PublicNavbar({
+  featuredSrc,
+  siteSettings,
+}: {
+  featuredSrc?: string;
+  siteSettings?: SiteSettings;
+}) {
+  const site = siteSettings || staticSite;
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -106,7 +113,7 @@ export function PublicNavbar({ featuredSrc }: { featuredSrc?: string }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "font-sans text-[14px] font-medium uppercase tracking-[0.18em] transition-colors hover:text-pub-gold-deep",
+                      "font-sans text-[12px] font-medium uppercase tracking-[0.18em] transition-colors hover:text-pub-gold-deep",
                       active ? "text-pub-gold-deep" : "text-pub-ink",
                     )}
                   >

@@ -37,7 +37,9 @@ export function urlForImage(source?: SanityImageSource, width = 1600): string | 
 export async function sanityFetch<T>(query: string, params: Record<string, unknown> = {}): Promise<T | null> {
   if (!sanityClient) return null;
   try {
-    return await sanityClient.fetch<T>(query, params);
+    return await sanityClient.fetch<T>(query, params, {
+      next: { tags: ["cms"] },
+    });
   } catch {
     return null;
   }

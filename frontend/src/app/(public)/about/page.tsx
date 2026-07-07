@@ -4,14 +4,18 @@ import { Section } from "@/components/public/section";
 import { EditorialSplit } from "@/components/public/editorial-split";
 import { Overline } from "@/components/public/ui";
 import { Reveal } from "@/components/public/reveal";
-import { site } from "@/lib/cms";
+import { getSiteSettings } from "@/lib/data/content";
 
-export const metadata: Metadata = {
-  title: "About",
-  description: `The story and philosophy behind ${site.hotelName}.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const siteSettings = await getSiteSettings();
+  return {
+    title: "About",
+    description: `The story and philosophy behind ${siteSettings.hotelName}.`,
+  };
+}
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const site = await getSiteSettings();
   return (
     <>
       <Hero

@@ -1,19 +1,23 @@
 import { PublicNavbar } from "@/components/layout/public-navbar";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { CartDrawer } from "@/components/public/cart-drawer";
-import { getHeroImage } from "@/lib/data/content";
+import { getHeroImage, getSiteSettings } from "@/lib/data/content";
 
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const navFeaturedSrc = await getHeroImage("nav.featured");
+  const [navFeaturedSrc, siteSettings] = await Promise.all([
+    getHeroImage("nav.featured"),
+    getSiteSettings(),
+  ]);
+
   return (
     <div className="public-theme min-h-screen">
-      <PublicNavbar featuredSrc={navFeaturedSrc} />
+      <PublicNavbar featuredSrc={navFeaturedSrc} siteSettings={siteSettings} />
       <main>{children}</main>
-      <PublicFooter />
+      <PublicFooter siteSettings={siteSettings} />
       <CartDrawer />
     </div>
   );

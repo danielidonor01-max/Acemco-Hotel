@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/public/legal";
-import { site } from "@/lib/cms";
+import { getSiteSettings } from "@/lib/data/content";
 
-export const metadata: Metadata = {
-  title: "Privacy Notice",
-  description: `How ${site.hotelName} collects, uses, and protects your personal information.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const siteSettings = await getSiteSettings();
+  return {
+    title: "Privacy Notice",
+    description: `How ${siteSettings.hotelName} collects, uses, and protects your personal information.`,
+  };
+}
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const site = await getSiteSettings();
   return (
     <LegalPage
       title="Privacy Notice"

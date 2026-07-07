@@ -5,16 +5,22 @@ import { Section } from "@/components/public/section";
 import { MediaFrame } from "@/components/public/media-frame";
 import { Reveal } from "@/components/public/reveal";
 import { ContactForm } from "@/components/public/contact-form";
-import { getHeroImage } from "@/lib/data/content";
-import { site } from "@/lib/cms";
+import { getHeroImage, getSiteSettings } from "@/lib/data/content";
 
-export const metadata: Metadata = {
-  title: "Contact",
-  description: `Get in touch with ${site.hotelName} — reservations, events, and enquiries.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const siteSettings = await getSiteSettings();
+  return {
+    title: "Contact",
+    description: `Get in touch with ${siteSettings.hotelName} — reservations, events, and enquiries.`,
+  };
+}
 
 export default async function ContactPage() {
-  const mapSrc = await getHeroImage("contact.map");
+  const [mapSrc, siteSettings] = await Promise.all([
+    getHeroImage("contact.map"),
+    getSiteSettings(),
+  ]);
+  const site = siteSettings;
   return (
     <>
       <Hero

@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/public/legal";
-import { site } from "@/lib/cms";
+import { getSiteSettings } from "@/lib/data/content";
 
-export const metadata: Metadata = {
-  title: "Terms",
-  description: `The terms that apply when you book a stay or place an order with ${site.hotelName}.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const siteSettings = await getSiteSettings();
+  return {
+    title: "Terms",
+    description: `The terms that apply when you book a stay or place an order with ${siteSettings.hotelName}.`,
+  };
+}
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const site = await getSiteSettings();
   return (
     <LegalPage
       title="Terms"
