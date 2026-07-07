@@ -61,4 +61,27 @@ export const cancelSchema = z.object({ reason: z.string().optional() });
 
 export const checkInSchema = z.object({ roomId: z.string().uuid().optional() });
 
+// Corporate booking: several rooms/guests created under one company account.
+export const corporateBookingSchema = z
+  .object({
+    companyId: z.string().uuid(),
+    checkInDate: dateStr,
+    checkOutDate: dateStr,
+    guests: z
+      .array(
+        z.object({
+          firstName: z.string().min(1),
+          lastName: z.string().min(1),
+          phone: z.string().min(3),
+          roomTypeSlug: z.string().min(1),
+        }),
+      )
+      .min(1),
+  })
+  .refine((d) => new Date(d.checkOutDate) > new Date(d.checkInDate), {
+    message: 'Check-out must be after check-in',
+    path: ['checkOutDate'],
+  });
+export type CorporateBookingDto = z.infer<typeof corporateBookingSchema>;
+
 export const checkOutSchema = z.object({ paymentMethod: z.nativeEnum(PaymentMethod).optional() });

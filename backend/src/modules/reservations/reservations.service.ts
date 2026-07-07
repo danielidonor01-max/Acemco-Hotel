@@ -3,7 +3,7 @@ import { Prisma, ReservationStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
 import { reservationNumber, chargeNumber } from '../../common/utils/number-generator';
-import { CreateReservationDto, PublicReservationDto } from './dto/reservation.dto';
+import { CreateReservationDto, PublicReservationDto, CorporateBookingDto } from './dto/reservation.dto';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
@@ -134,6 +134,31 @@ export class ReservationsService {
     // Re-verify availability at confirmation time (Invariant 6).
     await this.assertAvailability(r.roomTypeId);
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
+  }
+
+  /** Corporate booking: create several reservations (one per guest/room) under one company. */
+  async corporateBooking(dto: CorporateBookingDto, userId: string) {
+    const reservations: Awaited<ReturnType<ReservationsService['create']>>[] = [];
+    for (const g of dto.guests) {
+      const r = await this.create(
+        {
+          type: 'CORPORATE',
+          companyId: dto.companyId,
+          firstName: g.firstName,
+          lastName: g.lastName,
+          phone: g.phone,
+          roomTypeSlug: g.roomTypeSlug,
+          checkInDate: dto.checkInDate,
+          checkOutDate: dto.checkOutDate,
+          adults: 1,
+          children: 0,
+          source: 'INTERNAL',
+        },
+        userId,
+      );
+      reservations.push(r);
+    }
+    return { count: reservations.length, reservations };
   }
 
   /** Walk-in: create + confirm + check-in in one step (guest arrives without a booking). */

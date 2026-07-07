@@ -90,6 +90,17 @@ export async function createReservation(input: NewReservation): Promise<Reservat
   return mapApi(data);
 }
 
+export interface CorporateBookingInput {
+  companyId: string;
+  checkInDate: string;
+  checkOutDate: string;
+  guests: { firstName: string; lastName: string; phone: string; roomTypeSlug: string }[];
+}
+export async function createCorporateBooking(input: CorporateBookingInput): Promise<{ count: number }> {
+  const { data } = await apiRequest<{ count: number }>("/reservations/corporate", { method: "POST", body: JSON.stringify(input) });
+  return data;
+}
+
 export async function confirmReservation(id: string): Promise<void> {
   await apiRequest(`/reservations/${id}/confirm`, { method: "POST" });
 }

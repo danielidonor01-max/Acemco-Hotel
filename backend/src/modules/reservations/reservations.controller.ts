@@ -7,7 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { paginationSchema } from '../../common/utils/pagination';
-import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, CreateReservationDto } from './dto/reservation.dto';
+import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, corporateBookingSchema, CreateReservationDto, CorporateBookingDto } from './dto/reservation.dto';
 
 @ApiTags('reservations')
 @Controller('v1/reservations')
@@ -49,6 +49,16 @@ export class ReservationsController {
   @ApiOperation({ summary: 'Cancel a reservation' })
   cancel(@Param('id') id: string, @Body(new ZodValidationPipe(cancelSchema)) dto: { reason?: string }) {
     return this.reservations.cancel(id, dto.reason);
+  }
+
+  @Post('corporate')
+  @RequirePermissions('reservations:CREATE')
+  @ApiOperation({ summary: 'Corporate booking: several rooms/guests under one company' })
+  corporate(
+    @Body(new ZodValidationPipe(corporateBookingSchema)) dto: CorporateBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reservations.corporateBooking(dto, user.id);
   }
 
   @Post('walk-in')

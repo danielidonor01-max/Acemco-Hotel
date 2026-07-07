@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Plus, Calendar, Loader2 } from "lucide-react";
+import { Plus, Calendar, Loader2, Building2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Button, Badge, StatusBadge, EmptyState } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
-import { listReservations, createReservation, isApiEnabled } from "@/lib/data/reservations";
+import { listReservations, createReservation, createCorporateBooking, isApiEnabled } from "@/lib/data/reservations";
 import { listCompanies } from "@/lib/data/companies";
 import { roomTypes, getRoomType } from "@/lib/cms";
 
@@ -44,6 +44,7 @@ export default function ReservationsPage() {
   });
   const [filter, setFilter] = useState<ReservationStatus | "ALL">("ALL");
   const [open, setOpen] = useState(false);
+  const [corpOpen, setCorpOpen] = useState(false);
 
   const filtered = useMemo(
     () => (filter === "ALL" ? list : list.filter((r) => r.status === filter)),
@@ -95,9 +96,10 @@ export default function ReservationsPage() {
       breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Reservations" }]}
       actions={
         hasPermission("reservations", "CREATE") && (
-          <Button onClick={() => setOpen(true)}>
-            <Plus size={16} /> New Reservation
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setCorpOpen(true)}><Building2 size={16} /> Corporate Booking</Button>
+            <Button onClick={() => setOpen(true)}><Plus size={16} /> New Reservation</Button>
+          </div>
         )
       }
     >
@@ -137,7 +139,93 @@ export default function ReservationsPage() {
         }}
         nextNumber={`RES-2026-${String(54 + list.length).padStart(5, "0")}`}
       />
+
+      {corpOpen && <CorporateBookingModal onClose={() => setCorpOpen(false)} onDone={() => { queryClient.invalidateQueries({ queryKey: ["reservations"] }); setCorpOpen(false); }} />}
     </PageShell>
+  );
+}
+
+function CorporateBookingModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
+  const [companyId, setCompanyId] = useState("");
+  const [checkInDate, setCheckInDate] = useState("");
+  const [checkOutDate, setCheckOutDate] = useState("");
+  const [rows, setRows] = useState([{ firstName: "", lastName: "", phone: "", roomTypeSlug: roomTypes[0].slug }]);
+  const [error, setError] = useState<string | null>(null);
+
+  const setRow = (i: number, k: string, v: string) => setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  const addRow = () => setRows((rs) => [...rs, { firstName: "", lastName: "", phone: "", roomTypeSlug: roomTypes[0].slug }]);
+  const removeRow = (i: number) => setRows((rs) => rs.filter((_, idx) => idx !== i));
+
+  const save = useMutation({
+    mutationFn: () => createCorporateBooking({
+      companyId, checkInDate, checkOutDate,
+      guests: rows.map((r) => ({ firstName: r.firstName.trim(), lastName: r.lastName.trim(), phone: r.phone.trim(), roomTypeSlug: r.roomTypeSlug })),
+    }),
+    onSuccess: (r) => { toast.success(`${r.count} corporate reservation(s) created.`); onDone(); },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!companyId) return setError("Select a company.");
+    if (!checkInDate || !checkOutDate || new Date(checkOutDate) <= new Date(checkInDate)) return setError("Check-out must be after check-in.");
+    if (rows.some((r) => !r.firstName.trim() || !r.lastName.trim() || !r.phone.trim())) return setError("Complete every guest row.");
+    setError(null);
+    save.mutate();
+  }
+
+  const inputCls = "w-full rounded-md border border-line bg-brand-surface px-2.5 py-1.5 text-sm text-fg focus:border-brand-primary focus:outline-none";
+
+  return (
+    <Modal open onClose={onClose} title="Corporate Booking" description="Book several rooms under one company account. Charges bill to the company.">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="sm:col-span-3">
+            <span className="text-sm font-medium text-fg-soft">Company *</span>
+            <Select value={companyId} onValueChange={setCompanyId}>
+              <SelectTrigger className="mt-1 w-full"><SelectValue placeholder="Select a corporate account" /></SelectTrigger>
+              <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} · {c.tier.toLowerCase()}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <span className="text-sm font-medium text-fg-soft">Check-in *</span>
+            <div className="mt-1"><DatePicker value={checkInDate} onChange={setCheckInDate} placeholder="Select date" /></div>
+          </div>
+          <div>
+            <span className="text-sm font-medium text-fg-soft">Check-out *</span>
+            <div className="mt-1"><DatePicker value={checkOutDate} min={checkInDate} onChange={setCheckOutDate} placeholder="Select date" /></div>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-fg-soft">Guests &amp; rooms ({rows.length})</span>
+            <Button type="button" size="sm" variant="outline" onClick={addRow}><Plus size={14} /> Add room</Button>
+          </div>
+          <div className="space-y-2">
+            {rows.map((r, i) => (
+              <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border border-line p-2 sm:grid-cols-[1fr_1fr_1fr_1.2fr_auto]">
+                <input placeholder="First name" value={r.firstName} onChange={(e) => setRow(i, "firstName", e.target.value)} className={inputCls} />
+                <input placeholder="Last name" value={r.lastName} onChange={(e) => setRow(i, "lastName", e.target.value)} className={inputCls} />
+                <input placeholder="Phone" value={r.phone} onChange={(e) => setRow(i, "phone", e.target.value)} className={inputCls} />
+                <Select value={r.roomTypeSlug} onValueChange={(v) => setRow(i, "roomTypeSlug", v)}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>{roomTypes.map((rt) => <SelectItem key={rt.slug} value={rt.slug}>{rt.name}</SelectItem>)}</SelectContent>
+                </Select>
+                <button type="button" onClick={() => removeRow(i)} disabled={rows.length === 1} className="flex items-center justify-center px-2 text-fg-muted hover:text-danger disabled:opacity-30" aria-label="Remove row"><Trash2 size={15} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <div className="flex justify-end gap-3 border-t border-line pt-4">
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={save.isPending}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Create {rows.length} reservation{rows.length !== 1 ? "s" : ""}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
