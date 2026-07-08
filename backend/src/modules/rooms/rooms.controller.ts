@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RoomStatus } from '@prisma/client';
 import { z } from 'zod';
@@ -7,6 +7,20 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 
 const updateStatusSchema = z.object({ status: z.nativeEnum(RoomStatus) });
+
+const createRoomTypeSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  bedConfiguration: z.string().optional(),
+  maxOccupancy: z.number().int().min(1).optional(),
+  basePrice: z.number().min(0).optional(),
+  features: z.array(z.string()).optional(),
+  images: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+const updateRoomTypeSchema = createRoomTypeSchema.partial();
+type RoomTypeDto = z.infer<typeof createRoomTypeSchema>;
 
 @ApiTags('rooms')
 @Controller('v1')
@@ -45,8 +59,29 @@ export class RoomsController {
 
   @Get('room-types')
   @RequirePermissions('rooms:VIEW')
-  @ApiOperation({ summary: 'List room types' })
+  @ApiOperation({ summary: 'List room types (with room/reservation counts)' })
   listRoomTypes() {
     return this.rooms.listRoomTypes();
+  }
+
+  @Post('room-types')
+  @RequirePermissions('rooms:CREATE')
+  @ApiOperation({ summary: 'Create a room type/category (slug generated from name)' })
+  createRoomType(@Body(new ZodValidationPipe(createRoomTypeSchema)) dto: RoomTypeDto) {
+    return this.rooms.createRoomType(dto);
+  }
+
+  @Patch('room-types/:id')
+  @RequirePermissions('rooms:UPDATE')
+  @ApiOperation({ summary: 'Update a room type (slug is immutable)' })
+  updateRoomType(@Param('id') id: string, @Body(new ZodValidationPipe(updateRoomTypeSchema)) dto: Partial<RoomTypeDto>) {
+    return this.rooms.updateRoomType(id, dto);
+  }
+
+  @Delete('room-types/:id')
+  @RequirePermissions('rooms:DELETE')
+  @ApiOperation({ summary: 'Delete a room type (blocked if rooms/reservations use it)' })
+  deleteRoomType(@Param('id') id: string) {
+    return this.rooms.deleteRoomType(id);
   }
 }

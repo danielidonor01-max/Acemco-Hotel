@@ -1,6 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+
+export interface RoomTypeInput {
+  name: string;
+  description?: string;
+  bedConfiguration?: string;
+  maxOccupancy?: number;
+  basePrice?: number;
+  features?: string[];
+  images?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+}
 
 /** A guest summary attached to a room from the reservation ledger. */
 export interface ReservationSummary {
@@ -163,11 +175,12 @@ export class RoomsService {
     return this.prisma.room.count({ where: { roomTypeId, status: 'AVAILABLE', isActive: true } });
   }
 
-  // Room types
+  // ---------------- Room types (category) CRUD ----------------
   listRoomTypes(activeOnly = false) {
     return this.prisma.roomType.findMany({
       where: activeOnly ? { isActive: true } : {},
       orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { rooms: true, reservations: true } } },
     });
   }
 
@@ -175,5 +188,79 @@ export class RoomsService {
     const rt = await this.prisma.roomType.findUnique({ where: { slug } });
     if (!rt) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
     return rt;
+  }
+
+  private async getRoomTypeById(id: string) {
+    const rt = await this.prisma.roomType.findUnique({ where: { id } });
+    if (!rt) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
+    return rt;
+  }
+
+  private slugify(s: string) {
+    return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  /** A unique slug derived from the name (the public site keys rooms by slug). */
+  private async uniqueSlug(name: string) {
+    const base = this.slugify(name) || 'room-type';
+    let slug = base;
+    let i = 1;
+    while (await this.prisma.roomType.findUnique({ where: { slug } })) slug = `${base}-${++i}`;
+    return slug;
+  }
+
+  async createRoomType(dto: RoomTypeInput) {
+    const slug = await this.uniqueSlug(dto.name);
+    const maxSort = (await this.prisma.roomType.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0;
+    return this.prisma.roomType.create({
+      data: {
+        slug,
+        name: dto.name,
+        description: dto.description ?? '',
+        bedConfiguration: dto.bedConfiguration ?? '',
+        maxOccupancy: dto.maxOccupancy ?? 2,
+        basePrice: dto.basePrice ?? 0,
+        features: dto.features ?? [],
+        images: dto.images ?? [],
+        isActive: dto.isActive ?? true,
+        sortOrder: dto.sortOrder ?? maxSort + 1,
+      },
+    });
+  }
+
+  /** Update a room type. The slug is immutable (public-site URLs depend on it). */
+  async updateRoomType(id: string, dto: Partial<RoomTypeInput>) {
+    await this.getRoomTypeById(id);
+    return this.prisma.roomType.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.bedConfiguration !== undefined ? { bedConfiguration: dto.bedConfiguration } : {}),
+        ...(dto.maxOccupancy !== undefined ? { maxOccupancy: dto.maxOccupancy } : {}),
+        ...(dto.basePrice !== undefined ? { basePrice: dto.basePrice } : {}),
+        ...(dto.features !== undefined ? { features: dto.features } : {}),
+        ...(dto.images !== undefined ? { images: dto.images } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
+      },
+    });
+  }
+
+  /** Delete a room type only when no rooms or reservations reference it; otherwise deactivate. */
+  async deleteRoomType(id: string) {
+    await this.getRoomTypeById(id);
+    const [rooms, reservations] = await Promise.all([
+      this.prisma.room.count({ where: { roomTypeId: id } }),
+      this.prisma.reservation.count({ where: { roomTypeId: id } }),
+    ]);
+    if (rooms > 0 || reservations > 0) {
+      throw new ConflictException({
+        code: 'ROOM_TYPE_IN_USE',
+        message: `Cannot delete — ${rooms} room(s) and ${reservations} reservation(s) use this type. Deactivate it instead.`,
+      });
+    }
+    await this.prisma.roomType.delete({ where: { id } });
+    return { deleted: true };
   }
 }
