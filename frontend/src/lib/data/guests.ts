@@ -1,6 +1,4 @@
 import { apiRequest } from "@/lib/api";
-import { hasApi } from "@/lib/config";
-import { guests as sampleGuests } from "@/lib/mock-modules";
 
 export type GuestTier = "STANDARD" | "PREFERRED" | "VIP";
 
@@ -58,20 +56,9 @@ const toGuest = (g: ApiGuest): Guest => ({
   frequent: g.frequent ?? false,
 });
 
-const sampleAsGuests: Guest[] = sampleGuests.map((g) => ({
-  id: g.id, firstName: g.name.split(" ")[0], lastName: g.name.split(" ").slice(1).join(" "), name: g.name,
-  phone: g.phone, email: g.email, nationality: g.nationality, stays: g.stays, isVip: g.isVip, isBlacklisted: g.isBlacklisted,
-  tier: g.isVip ? "VIP" : "STANDARD", inHouse: false, past: false, isCorporate: false, frequent: g.stays >= 3,
-}));
-
 export async function listGuests(): Promise<Guest[]> {
-  if (!hasApi()) return sampleAsGuests;
-  try {
-    const { data } = await apiRequest<ApiGuest[]>("/guests?pageSize=100");
-    return data.map(toGuest);
-  } catch {
-    return sampleAsGuests;
-  }
+  const { data } = await apiRequest<ApiGuest[]>("/guests?pageSize=100");
+  return data.map(toGuest);
 }
 
 export interface NewGuest {

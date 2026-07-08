@@ -1,5 +1,4 @@
 import { apiRequest } from "@/lib/api";
-import { hasApi } from "@/lib/config";
 
 export interface Conference {
   id: string;
@@ -13,13 +12,8 @@ export interface Conference {
 }
 
 export async function listConferences(): Promise<Conference[]> {
-  if (!hasApi()) return [];
-  try {
-    const { data } = await apiRequest<Omit<Conference, "id">[]>("/conferences");
-    return data.map((c) => ({ ...c, id: c.reference, total: Number(c.total) }));
-  } catch {
-    return [];
-  }
+  const { data } = await apiRequest<Omit<Conference, "id">[]>("/conferences");
+  return data.map((c) => ({ ...c, id: c.reference, total: Number(c.total) }));
 }
 
 export interface NewConference {

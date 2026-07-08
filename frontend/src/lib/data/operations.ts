@@ -1,18 +1,15 @@
 import { apiRequest } from "@/lib/api";
-import { hasApi } from "@/lib/config";
 import {
-  inventoryItems, assets, workOrders, employees, leaveRequests, payrollPeriods, transactions,
   type InventoryItem, type Department, type Asset, type WorkOrder, type Employee, type LeaveRequest,
   type PayrollPeriod, type Transaction,
 } from "@/lib/mock-modules";
-import { housekeepingTasks, type HousekeepingTask } from "@/lib/mock";
+import { type HousekeepingTask } from "@/lib/mock";
 
 const num = (v: unknown) => Number(v ?? 0);
 const day = (v?: string | null) => (v ? v.slice(0, 10) : "");
 
 /* ---------------- Inventory ---------------- */
 export async function listInventory(): Promise<InventoryItem[]> {
-  if (!hasApi()) return inventoryItems;
   const { data } = await apiRequest<any[]>("/inventory");
   return data.map((i) => ({ ...i, unitCost: num(i.unitCost), location: i.location ?? "" }));
 }
@@ -26,12 +23,10 @@ export async function createInventoryItem(input: NewInventoryItem): Promise<void
 
 /* ---------------- Maintenance ---------------- */
 export async function listAssets(): Promise<Asset[]> {
-  if (!hasApi()) return assets;
   const { data } = await apiRequest<any[]>("/assets");
   return data.map((a) => ({ ...a, nextInspection: day(a.nextInspection) }));
 }
 export async function listWorkOrders(): Promise<WorkOrder[]> {
-  if (!hasApi()) return workOrders;
   const { data } = await apiRequest<any[]>("/work-orders");
   return data.map((w) => ({ ...w, asset: w.asset?.name ?? "—", estimatedCost: num(w.estimatedCost) }));
 }
@@ -48,7 +43,6 @@ export async function updateWorkOrderStatus(id: string, status: WorkOrder["statu
 
 /* ---------------- HR ---------------- */
 export async function listEmployees(): Promise<Employee[]> {
-  if (!hasApi()) return employees;
   const { data } = await apiRequest<any[]>("/employees");
   return data.map((e) => ({ ...e, startDate: day(e.startDate) }));
 }
@@ -60,7 +54,6 @@ export async function createEmployee(input: NewEmployee): Promise<void> {
   await apiRequest("/employees", { method: "POST", body: JSON.stringify(input) });
 }
 export async function listLeave(): Promise<LeaveRequest[]> {
-  if (!hasApi()) return leaveRequests;
   const { data } = await apiRequest<any[]>("/leave-requests");
   return data.map((l) => ({ ...l, employee: l.employee?.name ?? "—", startDate: day(l.startDate), endDate: day(l.endDate) }));
 }
@@ -70,7 +63,6 @@ export async function setLeaveStatus(id: string, status: LeaveRequest["status"])
 
 /* ---------------- Payroll ---------------- */
 export async function listPayrollPeriods(): Promise<PayrollPeriod[]> {
-  if (!hasApi()) return payrollPeriods;
   const { data } = await apiRequest<any[]>("/payroll-periods");
   return data.map((p) => ({ ...p, totalGross: num(p.totalGross), totalNet: num(p.totalNet), startDate: day(p.startDate), endDate: day(p.endDate) }));
 }
@@ -80,7 +72,6 @@ export async function setPayrollStatus(id: string, status: PayrollPeriod["status
 
 /* ---------------- Finance ---------------- */
 export async function listTransactions(): Promise<Transaction[]> {
-  if (!hasApi()) return transactions;
   const { data } = await apiRequest<any[]>("/finance/transactions");
   return data.map((t) => ({ ...t, amount: num(t.amount), date: day(t.date) }));
 }
@@ -89,14 +80,12 @@ export interface FinanceSummary {
   byAccount: Record<string, number>; pending: number;
 }
 export async function getFinanceSummary(): Promise<FinanceSummary | null> {
-  if (!hasApi()) return null;
   const { data } = await apiRequest<FinanceSummary>("/finance/summary");
   return data;
 }
 
 /* ---------------- Housekeeping ---------------- */
 export async function listHousekeeping(): Promise<HousekeepingTask[]> {
-  if (!hasApi()) return housekeepingTasks;
   const { data } = await apiRequest<any[]>("/housekeeping");
   return data.map((t) => ({ ...t, assignedTo: t.assignedTo ?? undefined }));
 }
@@ -110,7 +99,6 @@ export interface DashboardStats {
   pendingReservations: number; lowStockAlerts: number; openWorkOrders: number; activeHousekeeping: number;
 }
 export async function getDashboardStats(): Promise<DashboardStats | null> {
-  if (!hasApi()) return null;
   const { data } = await apiRequest<DashboardStats>("/dashboard/stats");
   return data;
 }
@@ -138,7 +126,6 @@ export interface DashboardBrief {
   };
 }
 export async function getDashboardBrief(): Promise<DashboardBrief | null> {
-  if (!hasApi()) return null;
   const { data } = await apiRequest<DashboardBrief>("/dashboard/brief");
   return data;
 }
@@ -169,7 +156,6 @@ export async function createTransaction(input: NewTransaction): Promise<void> {
   await apiRequest("/finance/transactions", { method: "POST", body: JSON.stringify(input) });
 }
 export async function getRevenueDaily(days = 7): Promise<{ date: string; amount: number }[]> {
-  if (!hasApi()) return [];
   const { data } = await apiRequest<{ date: string; amount: number }[]>(`/finance/revenue-daily?days=${days}`);
   return data;
 }
@@ -192,7 +178,6 @@ export async function addFolioLine(folioId: string, input: { description: string
 /* ---------------- Audit log ---------------- */
 export interface AuditEntry { id: string; action: string; module: string; targetId?: string; occurredAt: string; user: string; }
 export async function listAuditLogs(): Promise<AuditEntry[]> {
-  if (!hasApi()) return [];
   const { data } = await apiRequest<AuditEntry[]>("/audit-logs?limit=100");
   return data;
 }
@@ -206,7 +191,6 @@ export interface ReportsOverview {
   workOrderSpend: number;
 }
 export async function getReportsOverview(): Promise<ReportsOverview | null> {
-  if (!hasApi()) return null;
   const { data } = await apiRequest<ReportsOverview>("/reports/overview");
   return data;
 }
@@ -224,7 +208,6 @@ export interface OccupancyReport {
   statusBreakdown: { status: string; count: number }[];
 }
 export async function getOccupancyReport(days = 30): Promise<OccupancyReport | null> {
-  if (!hasApi()) return null;
   const { data } = await apiRequest<OccupancyReport>(`/reports/occupancy?days=${days}`);
   return data;
 }

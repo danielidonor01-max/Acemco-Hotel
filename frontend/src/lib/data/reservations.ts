@@ -1,6 +1,5 @@
 import { apiRequest } from "../api";
-import { hasApi } from "../config";
-import { reservations as seed, getReservation as getSeedReservation, type Reservation } from "../mock";
+import { type Reservation } from "../mock";
 import { roomTypes } from "../cms";
 
 interface ApiReservation {
@@ -52,27 +51,14 @@ function mapApi(r: ApiReservation): Reservation {
 }
 
 export async function getReservationById(id: string): Promise<Reservation | undefined> {
-  if (!hasApi()) return getSeedReservation(id);
-  try {
-    const { data } = await apiRequest<ApiReservation>(`/reservations/${id}`);
-    return mapApi(data);
-  } catch {
-    return getSeedReservation(id);
-  }
+  const { data } = await apiRequest<ApiReservation>(`/reservations/${id}`);
+  return mapApi(data);
 }
 
-/** Live list when the API is configured, else the seed (keeps the UI working offline). */
 export async function listReservations(): Promise<Reservation[]> {
-  if (!hasApi()) return seed;
-  try {
-    const { data } = await apiRequest<ApiReservation[]>("/reservations?pageSize=100");
-    return data.map(mapApi);
-  } catch {
-    return seed;
-  }
+  const { data } = await apiRequest<ApiReservation[]>("/reservations?pageSize=100");
+  return data.map(mapApi);
 }
-
-export const isApiEnabled = hasApi;
 
 export interface NewReservation {
   firstName: string;

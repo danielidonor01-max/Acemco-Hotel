@@ -16,6 +16,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:provision": "node prisma/provision.cjs",
     "db:reset-demo": "node prisma/reset-demo.cjs",
+    "db:clear-demo": "node prisma/clear-demo.cjs",
     "test": "jest --passWithNoTests",
     "test:unit": "jest"
   },

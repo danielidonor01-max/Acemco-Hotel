@@ -54,7 +54,6 @@ const toOrder = (o: ApiOrder): Order => ({
 });
 
 export async function listOrders(): Promise<Order[]> {
-  if (!hasApi()) return [];
   const { data } = await apiRequest<ApiOrder[]>("/orders");
   return data.map(toOrder);
 }

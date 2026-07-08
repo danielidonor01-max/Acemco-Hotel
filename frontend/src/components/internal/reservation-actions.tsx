@@ -6,7 +6,7 @@ import { CheckCircle, LogIn, XCircle, UserX, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui";
 import { Modal } from "./modal";
-import { confirmReservation, cancelReservation, markNoShow, isApiEnabled } from "@/lib/data/reservations";
+import { confirmReservation, cancelReservation, markNoShow } from "@/lib/data/reservations";
 import type { Reservation } from "@/lib/mock";
 
 /**
@@ -18,7 +18,6 @@ export function ReservationActions({ reservation }: { reservation: Reservation }
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [status, setStatus] = useState(reservation.status);
-  const live = isApiEnabled();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["reservation", reservation.id] });
@@ -26,19 +25,19 @@ export function ReservationActions({ reservation }: { reservation: Reservation }
   };
 
   const confirm = useMutation({
-    mutationFn: () => (live ? confirmReservation(reservation.id) : Promise.resolve()),
+    mutationFn: () => confirmReservation(reservation.id),
     onSuccess: () => { setStatus("CONFIRMED"); toast.success("Reservation confirmed."); invalidate(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const cancel = useMutation({
-    mutationFn: () => (live ? cancelReservation(reservation.id) : Promise.resolve()),
+    mutationFn: () => cancelReservation(reservation.id),
     onSuccess: () => { setStatus("CANCELLED"); setConfirmCancel(false); toast.success("Reservation cancelled."); invalidate(); },
     onError: (e: Error) => { toast.error(e.message); setConfirmCancel(false); },
   });
 
   const noShow = useMutation({
-    mutationFn: async () => { if (live) await markNoShow(reservation.id); },
+    mutationFn: () => markNoShow(reservation.id),
     onSuccess: () => { setStatus("NO_SHOW"); setConfirmNoShow(false); toast.success("Marked as no-show."); invalidate(); },
     onError: (e: Error) => { toast.error(e.message); setConfirmNoShow(false); },
   });

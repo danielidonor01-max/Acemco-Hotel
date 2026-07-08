@@ -73,11 +73,17 @@ const MENU = [
   { sf: 'BOUTIQUE', cat: 'Boutique', items: [['Signature Candle', 'Hand-poured soy candle, house scent.', 6000, ['Retail'], true], ['Acemco Tote', 'Heavy canvas tote, gold print.', 9000, ['Retail'], true], ['Travel Amenity Kit', 'Curated toiletries in a zip pouch.', 7500, ['Retail'], true]] },
 ];
 
+// Demo/sample business data (guests, inventory, HR, finance, companies, …) is
+// seeded ONLY when SEED_DEMO=true. By default provisioning sets up schema +
+// config (permissions, roles, super admin, room types, rooms, menu, settings)
+// and leaves the operational tables empty so the system runs on real data.
+const SEED_DEMO = process.env.SEED_DEMO === 'true';
+
 async function main() {
   const connectionString = envVar('DIRECT_URL');
   const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
   await client.connect();
-  console.log('Connected to Supabase via pg.');
+  console.log(`Connected to Supabase via pg.${SEED_DEMO ? ' (SEED_DEMO on)' : ''}`);
 
   // 1) Apply migration if not already provisioned.
   const exists = await client.query("SELECT to_regclass('public.users') AS t");
@@ -294,9 +300,9 @@ async function main() {
     );
   }
 
-  // 5b) One checked-in in-house guest (so website room-service ordering can be verified).
+  // 5b) One checked-in in-house guest (demo only — so website room-service ordering can be verified).
   const chk = await client.query("SELECT count(*)::int n FROM reservations WHERE status='CHECKED_IN'");
-  if (chk.rows[0].n === 0) {
+  if (SEED_DEMO && chk.rows[0].n === 0) {
     const room = (await client.query("SELECT id, room_type_id FROM rooms WHERE room_number='101'")).rows[0];
     if (room) {
       const guestId = uuid();
@@ -390,7 +396,15 @@ async function main() {
     }
   }
 
-  // 7) Operational module seeds (idempotent).
+  // 7) Settings (config — always seeded so the hotel identity/contact exists).
+  await client.query(
+    `INSERT INTO settings (id, hotel_name, tagline, phone, whatsapp, email, address, city, updated_at)
+     VALUES ('hotel','Acemco Express','Holiday Inn','+234 800 000 0000','2348000000000','reservations@acemcohotel.com','12 Marina Crescent','Warri, Delta State, Nigeria',now())
+     ON CONFLICT (id) DO NOTHING`,
+  );
+
+  // 7b) Demo/sample operational data — seeded only when SEED_DEMO=true (default off).
+  if (SEED_DEMO) {
   const INVENTORY = [
     ['Basmati Rice', 'RST-RICE-01', 'RESTAURANT', 'kg', 8, 20, 2200, 'Dry Store A'],
     ['Chicken (whole)', 'RST-CHKN-02', 'RESTAURANT', 'kg', 45, 30, 3500, 'Cold Room 1'],
@@ -528,11 +542,6 @@ async function main() {
       );
     }
   }
-  await client.query(
-    `INSERT INTO settings (id, hotel_name, tagline, phone, whatsapp, email, address, city, updated_at)
-     VALUES ('hotel','Acemco Express','Holiday Inn','+234 800 000 0000','2348000000000','reservations@acemcohotel.com','12 Marina Crescent','Warri, Delta State, Nigeria',now())
-     ON CONFLICT (id) DO NOTHING`,
-  );
 
   // Corporate accounts (companies that book and are invoiced).
   const COMPANIES = [
@@ -549,7 +558,9 @@ async function main() {
       [uuid(), name, tier, billingEmail, phone],
     );
   }
-  console.log('Seeded operational modules (inventory, assets, work orders, employees, leave, payroll, finance, housekeeping, settings).');
+    console.log('Seeded demo operational data (inventory, assets, work orders, employees, leave, payroll, finance, housekeeping, companies).');
+  }
+  if (!SEED_DEMO) console.log('Config seeded; demo/sample data skipped (set SEED_DEMO=true to include it).');
 
   // Verify
   const counts = {};

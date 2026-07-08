@@ -12,8 +12,8 @@ import { DatePicker } from "@/components/internal/date-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
-import { reservations as seed, type Reservation, type ReservationStatus } from "@/lib/mock";
-import { listReservations, createReservation, createCorporateBooking, isApiEnabled } from "@/lib/data/reservations";
+import { type Reservation, type ReservationStatus } from "@/lib/mock";
+import { listReservations, createReservation, createCorporateBooking } from "@/lib/data/reservations";
 import { listCompanies } from "@/lib/data/companies";
 import { getAvailabilityByType } from "@/lib/data/availability";
 import { roomTypes, getRoomType } from "@/lib/cms";
@@ -37,11 +37,9 @@ export default function ReservationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
-  // Reads live from the API when configured, else the seed (offline demo).
-  const { data: list = seed } = useQuery({
+  const { data: list = [] } = useQuery({
     queryKey: ["reservations"],
     queryFn: listReservations,
-    initialData: seed,
   });
   const [filter, setFilter] = useState<ReservationStatus | "ALL">("ALL");
   const [open, setOpen] = useState(false);
@@ -133,9 +131,8 @@ export default function ReservationsPage() {
       <NewReservationModal
         open={open}
         onClose={() => setOpen(false)}
-        onCreated={(r) => {
-          if (isApiEnabled()) queryClient.invalidateQueries({ queryKey: ["reservations"] });
-          else queryClient.setQueryData<Reservation[]>(["reservations"], (prev = []) => [r, ...prev]);
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["reservations"] });
           setOpen(false);
         }}
         nextNumber={`RES-2026-${String(54 + list.length).padStart(5, "0")}`}
@@ -247,7 +244,7 @@ function NewReservationModal({
   const { data: avail = [] } = useQuery({
     queryKey: ["availability", form.checkInDate, form.checkOutDate],
     queryFn: () => getAvailabilityByType(form.checkInDate, form.checkOutDate),
-    enabled: open && isApiEnabled() && validDates,
+    enabled: open && validDates,
   });
   const availOf = (slug: string) => avail.find((a) => a.slug === slug);
   const selectedAvail = availOf(form.roomTypeSlug);
@@ -257,30 +254,15 @@ function NewReservationModal({
     mutationFn: async (): Promise<Reservation> => {
       const [firstName, ...rest] = form.guestName.trim().split(/\s+/);
       const lastName = rest.join(" ") || firstName;
-      if (isApiEnabled()) {
-        return createReservation({
-          firstName, lastName, phone: form.guestPhone.trim(),
-          roomTypeSlug: form.roomTypeSlug,
-          checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
-          adults: form.adults, children: form.children,
-          type: form.type,
-          companyId: form.type !== "INDIVIDUAL" && form.companyId ? form.companyId : undefined,
-          depositAmount: form.deposit ? Number(form.deposit) : undefined,
-        });
-      }
-      const rt = getRoomType(form.roomTypeSlug)!;
-      const nights = Math.round((+new Date(form.checkOutDate) - +new Date(form.checkInDate)) / 86_400_000);
-      return {
-        id: `res-${Date.now()}`,
-        reservationNumber: nextNumber,
-        guestName: form.guestName, guestPhone: form.guestPhone,
+      return createReservation({
+        firstName, lastName, phone: form.guestPhone.trim(),
         roomTypeSlug: form.roomTypeSlug,
         checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
         adults: form.adults, children: form.children,
-        status: "PENDING", source: "INTERNAL",
-        totalAmount: rt.basePrice * nights, depositPaid: !!form.deposit && Number(form.deposit) > 0,
+        type: form.type,
+        companyId: form.type !== "INDIVIDUAL" && form.companyId ? form.companyId : undefined,
         depositAmount: form.deposit ? Number(form.deposit) : undefined,
-      };
+      });
     },
     onSuccess: (r) => {
       toast.success(`Reservation ${r.reservationNumber} created.`);

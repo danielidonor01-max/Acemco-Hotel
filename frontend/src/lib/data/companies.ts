@@ -1,5 +1,4 @@
 import { apiRequest } from "@/lib/api";
-import { hasApi } from "@/lib/config";
 
 export type CompanyTier = "STANDARD" | "PREFERRED" | "VIP" | "STRATEGIC";
 export type CompanyStatus = "ACTIVE" | "SUSPENDED" | "INACTIVE";
@@ -23,13 +22,8 @@ interface ApiCompany extends Omit<Company, "reservationCount"> {
 const toCompany = (c: ApiCompany): Company => ({ ...c, reservationCount: c._count?.reservations ?? 0 });
 
 export async function listCompanies(): Promise<Company[]> {
-  if (!hasApi()) return [];
-  try {
-    const { data } = await apiRequest<ApiCompany[]>("/companies");
-    return data.map(toCompany);
-  } catch {
-    return [];
-  }
+  const { data } = await apiRequest<ApiCompany[]>("/companies");
+  return data.map(toCompany);
 }
 
 export interface NewCompany {
@@ -96,7 +90,6 @@ export interface CompaniesAging {
   totals: Aging;
 }
 export async function getCompaniesAging(): Promise<CompaniesAging> {
-  if (!hasApi()) return { companies: [], totals: { current: 0, days31_60: 0, days61_90: 0, days90plus: 0, outstanding: 0 } };
   const { data } = await apiRequest<CompaniesAging>("/companies/aging");
   return data;
 }
