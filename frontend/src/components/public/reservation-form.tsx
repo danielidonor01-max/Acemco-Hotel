@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { site, roomTypes } from "@/lib/cms";
-import { useRooms } from "@/stores/rooms.store";
-import { publicRequest } from "@/lib/api";
-import { hasPublicApi } from "@/lib/config";
+import { getPublicAvailability, submitPublicReservation } from "@/lib/data/public-booking";
 import { Overline } from "./ui";
 import { PubDatePicker, PubSelect } from "./fields";
 
 /**
- * Reservation request form (public side of the reservation↔ordering interlock).
- * For now it assembles a WhatsApp request; the interlock phase replaces the
- * submit with POST /public/reservations (status PENDING) + availability checks.
+ * Reservation request form — public booking engine.
+ * Availability is fetched live from GET /public/availability when dates are set.
+ * On submit, POST /public/reservations creates a PENDING reservation.
+ * WhatsApp is kept as a guaranteed fallback if the API is unreachable.
  */
 export function ReservationForm({
   initial,
@@ -31,14 +32,29 @@ export function ReservationForm({
     requests: "",
   });
 
+  const [confirmed, setConfirmed] = useState<{ reservationNumber: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
   const room = roomTypes.find((r) => r.slug === form.roomType);
-  const available = useRooms((s) => s.availableCountByType(form.roomType));
   const nights =
     form.checkIn && form.checkOut
       ? Math.max(0, Math.round((+new Date(form.checkOut) - +new Date(form.checkIn)) / 86_400_000))
       : 0;
-  const estimate = room && nights > 0 ? room.basePrice * nights : 0;
   const datesValid = nights > 0;
+
+  // ── Live availability ──────────────────────────────────────────────────────
+  const { data: availData, isFetching: checkingAvail } = useQuery({
+    queryKey: ["public-availability", form.checkIn, form.checkOut],
+    queryFn: () => getPublicAvailability(form.checkIn, form.checkOut),
+    enabled: datesValid,
+    staleTime: 60_000,
+  });
+
+  const availRow = availData?.find((a) => a.slug === form.roomType);
+  const available = availRow?.available ?? 0;
+  const livePrice = availRow?.totalPrice;
+  const estimate = livePrice ?? (room && nights > 0 ? room.basePrice * nights : 0);
+
   const fmtDate = (iso: string) =>
     iso ? new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
 
@@ -48,38 +64,68 @@ export function ReservationForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    // Persist the reservation request first (Domain rule / Blueprint §17) when the API is live.
-    if (hasPublicApi()) {
-      const [firstName, ...rest] = form.name.trim().split(" ");
-      try {
-        await publicRequest("/reservations", {
-          method: "POST",
-          body: JSON.stringify({
-            firstName: firstName || form.name,
-            lastName: rest.join(" ") || firstName || "Guest",
-            phone: form.phone,
-            email: form.email || undefined,
-            roomTypeSlug: form.roomType,
-            checkInDate: form.checkIn,
-            checkOutDate: form.checkOut,
-            adults: Number(form.adults),
-            children: Number(form.children),
-            specialRequests: form.requests || undefined,
-          }),
-        });
-      } catch {
-        /* fall through to WhatsApp handoff regardless */
-      }
+    setSubmitting(true);
+
+    const [firstName, ...rest] = form.name.trim().split(" ");
+    const payload = {
+      firstName: firstName || form.name,
+      lastName: rest.join(" ") || firstName || "Guest",
+      phone: form.phone,
+      email: form.email || undefined,
+      roomTypeSlug: form.roomType,
+      checkInDate: form.checkIn,
+      checkOutDate: form.checkOut,
+      adults: Number(form.adults),
+      children: Number(form.children),
+      specialRequests: form.requests || undefined,
+    };
+
+    try {
+      const result = await submitPublicReservation(payload);
+      setConfirmed({ reservationNumber: result.reservationNumber });
+    } catch {
+      // API unavailable — fall through to WhatsApp so no guest hits a dead end.
+      const msg =
+        `*Reservation request — ${site.hotelName}*%0A%0A` +
+        `Room: ${room?.name}%0ACheck-in: ${form.checkIn}%0ACheck-out: ${form.checkOut} (${nights} night${nights !== 1 ? "s" : ""})%0A` +
+        `Guests: ${form.adults} adult(s), ${form.children} child(ren)%0A` +
+        (estimate ? `Estimate: ${formatNaira(estimate)}%0A` : "") +
+        `%0AName: ${form.name}%0APhone: ${form.phone}` +
+        (form.email ? `%0AEmail: ${form.email}` : "") +
+        (form.requests ? `%0ARequests: ${form.requests}` : "");
+      window.open(`https://wa.me/${site.whatsapp}?text=${msg}`, "_blank");
+    } finally {
+      setSubmitting(false);
     }
-    const msg =
-      `*Reservation request — ${site.hotelName}*%0A%0A` +
-      `Room: ${room?.name}%0ACheck-in: ${form.checkIn}%0ACheck-out: ${form.checkOut} (${nights} night${nights !== 1 ? "s" : ""})%0A` +
-      `Guests: ${form.adults} adult(s), ${form.children} child(ren)%0A` +
-      (estimate ? `Estimate: ${formatNaira(estimate)}%0A` : "") +
-      `%0AName: ${form.name}%0APhone: ${form.phone}` +
-      (form.email ? `%0AEmail: ${form.email}` : "") +
-      (form.requests ? `%0ARequests: ${form.requests}` : "");
-    window.open(`https://wa.me/${site.whatsapp}?text=${msg}`, "_blank");
+  }
+
+  // ── Confirmation state ─────────────────────────────────────────────────────
+  if (confirmed) {
+    return (
+      <div className="mx-auto max-w-lg rounded-2xl border border-pub-line bg-pub-surface px-8 py-12 text-center">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-pub-gold/20">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-8 w-8 text-pub-gold-deep">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <Overline className="mb-2">Booking Received</Overline>
+        <h2 className="pub-display-3 mb-3 text-pub-ink">You&apos;re on the list</h2>
+        <p className="pub-body text-pub-ink-muted mb-6">
+          Your reservation request <strong className="text-pub-ink">{confirmed.reservationNumber}</strong> has been received.
+          Our team will contact you shortly to confirm your stay.
+        </p>
+        <p className="pub-body-sm text-pub-ink-soft">No payment has been taken.</p>
+        <button
+          onClick={() => {
+            setConfirmed(null);
+            setForm({ checkIn: "", checkOut: "", adults: "2", children: "0", roomType: roomTypes[0].slug, name: "", phone: "", email: "", requests: "" });
+          }}
+          className="mt-8 rounded-full border border-pub-line px-6 py-2.5 pub-body-sm text-pub-ink-muted transition-colors hover:border-pub-gold hover:text-pub-ink"
+        >
+          Make another reservation
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -106,7 +152,14 @@ export function ReservationForm({
                   value={form.roomType}
                   onChange={(v) => set("roomType", v)}
                   options={roomTypes.map((r) => r.slug)}
-                  labels={Object.fromEntries(roomTypes.map((r) => [r.slug, r.name]))}
+                  labels={Object.fromEntries(
+                    (availData ?? roomTypes.map((r) => ({ slug: r.slug, available: null }))).map((a) => {
+                      const rt = roomTypes.find((r) => r.slug === ("slug" in a ? a.slug : ""));
+                      const avail = "available" in a ? a.available : null;
+                      const tag = !datesValid || avail === null ? "" : avail === 0 ? " · Sold out" : ` · ${avail} avail.`;
+                      return [rt?.slug ?? "", (rt?.name ?? "") + tag];
+                    }),
+                  )}
                   ariaLabel="Room type"
                 />
               </FieldShell>
@@ -129,7 +182,7 @@ export function ReservationForm({
         </div>
       </div>
 
-      {/* Summary */}
+      {/* ── Summary panel ── */}
       <div className="lg:col-span-5">
         <div className="sticky top-24 rounded-2xl border border-pub-line bg-pub-surface p-6">
           <Overline className="mb-4">Summary</Overline>
@@ -138,23 +191,40 @@ export function ReservationForm({
             <Row label="Dates" value={datesValid ? `${fmtDate(form.checkIn)} → ${fmtDate(form.checkOut)}` : "Select dates"} />
             <Row label="Nights" value={datesValid ? String(nights) : "—"} />
             <Row label="Guests" value={`${form.adults} adult(s), ${form.children} child(ren)`} />
-            <Row label="Availability" value={available > 0 ? `${available} room${available > 1 ? "s" : ""} available` : "None for this type"} />
+            <div className="flex justify-between gap-4">
+              <dt className="text-pub-ink-muted">Availability</dt>
+              <dd className="text-right font-medium text-pub-ink">
+                {!datesValid ? "Select dates" : checkingAvail ? (
+                  <span className="inline-flex items-center gap-1.5 text-pub-ink-muted">
+                    <Loader2 size={13} className="animate-spin" /> Checking…
+                  </span>
+                ) : available > 0 ? (
+                  <span className="text-ok font-semibold">{available} room{available > 1 ? "s" : ""} available</span>
+                ) : (
+                  <span className="text-pub-danger">None for this type</span>
+                )}
+              </dd>
+            </div>
           </dl>
-          {available === 0 && (
+
+          {datesValid && !checkingAvail && available === 0 && (
             <p className="mt-3 rounded-md bg-pub-stone px-3 py-2 pub-body-sm text-pub-ink-soft">
-              This room type is fully booked. Try another room or contact us for options.
+              This room type is fully booked for those dates. Try another room type or contact us for options.
             </p>
           )}
+
           <div className="mt-5 flex items-end justify-between border-t border-pub-line pt-5">
             <span className="pub-body-sm text-pub-ink-muted">Estimated total</span>
             <span className="pub-display-3">{estimate ? formatNaira(estimate) : "—"}</span>
           </div>
+
           <button
             type="submit"
-            disabled={!datesValid || !form.name || !form.phone || available === 0}
-            className="mt-6 w-full rounded-full bg-pub-gold py-3.5 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!datesValid || !form.name || !form.phone || (datesValid && !checkingAvail && available === 0) || submitting}
+            className="mt-6 w-full rounded-full bg-pub-gold py-3.5 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark disabled:cursor-not-allowed disabled:opacity-40 flex items-center justify-center gap-2"
           >
-            Request to Book
+            {submitting && <Loader2 size={16} className="animate-spin" />}
+            {submitting ? "Sending request…" : "Request to Book"}
           </button>
           <p className="mt-3 pub-body-sm text-pub-ink-muted">
             We&apos;ll confirm availability and hold your room. No payment is taken now.
@@ -195,7 +265,6 @@ function Field({
   );
 }
 
-/** Label wrapper for the non-native controls (date picker / select). */
 function FieldShell({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="block">

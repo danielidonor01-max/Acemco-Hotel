@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Users, BedDouble, Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { CalendarDays, Users, BedDouble, Search, Loader2 } from "lucide-react";
 import { roomTypes } from "@/lib/cms";
+import { getPublicAvailability } from "@/lib/data/public-booking";
 import { cn } from "@/lib/utils";
 import { PubDatePicker, PubSelect } from "./fields";
 
 /**
- * BookingWidget (§15.7) — the signature conversion element and the first link
- * in the reservation↔ordering interlock. Carries the query to /reservations.
+ * BookingWidget — the signature conversion element on the homepage and rooms page.
+ * Carries the query to /reservations. When both dates are filled, also fetches
+ * live availability counts and annotates the room type dropdown accordingly.
  */
 export function BookingWidget({
   className,
@@ -24,6 +27,29 @@ export function BookingWidget({
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [roomType, setRoomType] = useState(defaultRoomType ?? "any");
+
+  const datesValid =
+    checkIn && checkOut && new Date(checkOut) > new Date(checkIn);
+
+  // Fetch live availability once both dates are set — soft, non-blocking.
+  const { data: availData, isFetching } = useQuery({
+    queryKey: ["widget-availability", checkIn, checkOut],
+    queryFn: () => getPublicAvailability(checkIn, checkOut),
+    enabled: Boolean(datesValid),
+    staleTime: 60_000,
+  });
+
+  /** Build room type option labels — annotate with live availability when known. */
+  const roomTypeLabels = Object.fromEntries(
+    roomTypes.map((rt) => {
+      const avail = availData?.find((a) => a.slug === rt.slug);
+      let tag = "";
+      if (datesValid && avail !== undefined) {
+        tag = avail.available === 0 ? " · Sold out" : ` · ${avail.available} left`;
+      }
+      return [rt.slug, rt.name + tag];
+    }),
+  );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,14 +96,22 @@ export function BookingWidget({
           />
         </div>
       </WField>
-      <WField icon={BedDouble} label="Room type">
+      <WField
+        icon={BedDouble}
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            Room type
+            {isFetching && <Loader2 size={11} className="animate-spin text-pub-gold-deep" />}
+          </span>
+        }
+      >
         <PubSelect
           bare
           ariaLabel="Room type"
           value={roomType}
           onChange={setRoomType}
           options={["any", ...roomTypes.map((r) => r.slug)]}
-          labels={{ any: "Any room", ...Object.fromEntries(roomTypes.map((r) => [r.slug, r.name])) }}
+          labels={{ any: "Any room", ...roomTypeLabels }}
         />
       </WField>
 
@@ -98,7 +132,7 @@ function WField({
   children,
 }: {
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
