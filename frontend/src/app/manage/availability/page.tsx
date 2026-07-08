@@ -9,7 +9,7 @@ import { DatePicker } from "@/components/internal/date-picker";
 import { getAvailabilityByType, getAvailabilityCalendar } from "@/lib/data/availability";
 import { listReservations } from "@/lib/data/reservations";
 import { formatNaira, cn } from "@/lib/utils";
-import { roomTypes, getRoomType } from "@/lib/cms";
+import { useRoomTypes } from "@/lib/data/room-types";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -205,6 +205,7 @@ interface TimelineViewProps {
 }
 
 function TimelineView({ days, timeSpan, onChangeSpan, cal, reservations, today }: TimelineViewProps) {
+  const { roomTypes } = useRoomTypes();
   const COL_W = 48; // px per day column
   const ROW_H = 44; // px per reservation bar row
   const LABEL_W = 150; // px for room-type label column
@@ -216,7 +217,7 @@ function TimelineView({ days, timeSpan, onChangeSpan, cal, reservations, today }
     return d.toISOString().slice(0, 10);
   });
 
-  // Identify the room types we'll use (from CMS – same source as everything else)
+  // Room types from the live catalogue (same source as the booking selects).
   const allTypes = roomTypes;
 
   // For each room type, collect active reservations in the window

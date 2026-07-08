@@ -91,3 +91,22 @@ export async function getRoomDetail(id: string): Promise<RoomDetail> {
   const { data } = await apiRequest<RoomDetail>(`/rooms/${id}/detail`);
   return data;
 }
+
+export async function createRoomsBulk(payload: { roomNumbers: string[]; floor: number; roomTypeId: string; notes?: string }): Promise<{ created: number }> {
+  const { data } = await apiRequest<{ created: number }>("/rooms/bulk", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data;
+}
+
+export async function updateRoomInfo(id: string, payload: { roomNumber?: string; floor?: number; roomTypeId?: string; isActive?: boolean; notes?: string }): Promise<void> {
+  await apiRequest(`/rooms/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deactivateRoom(id: string): Promise<void> {
+  await apiRequest(`/rooms/${id}`, { method: "DELETE" });
+}

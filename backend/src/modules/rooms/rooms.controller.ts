@@ -22,6 +22,21 @@ const createRoomTypeSchema = z.object({
 const updateRoomTypeSchema = createRoomTypeSchema.partial();
 type RoomTypeDto = z.infer<typeof createRoomTypeSchema>;
 
+const createRoomsBulkSchema = z.object({
+  roomNumbers: z.array(z.string().min(1)).min(1),
+  floor: z.number().int(),
+  roomTypeId: z.string().uuid(),
+  notes: z.string().optional(),
+});
+
+const updateRoomSchema = z.object({
+  roomNumber: z.string().min(1).optional(),
+  floor: z.number().int().optional(),
+  roomTypeId: z.string().uuid().optional(),
+  isActive: z.boolean().optional(),
+  notes: z.string().nullable().optional(),
+});
+
 @ApiTags('rooms')
 @Controller('v1')
 export class RoomsController {
@@ -55,6 +70,30 @@ export class RoomsController {
     @Body(new ZodValidationPipe(updateStatusSchema)) dto: { status: RoomStatus },
   ) {
     return this.rooms.updateStatus(id, dto.status);
+  }
+
+  @Post('rooms/bulk')
+  @RequirePermissions('rooms:CREATE')
+  @ApiOperation({ summary: 'Create physical rooms in bulk' })
+  createRoomsBulk(@Body(new ZodValidationPipe(createRoomsBulkSchema)) dto: z.infer<typeof createRoomsBulkSchema>) {
+    return this.rooms.createRoomsBulk(dto);
+  }
+
+  @Patch('rooms/:id')
+  @RequirePermissions('rooms:UPDATE')
+  @ApiOperation({ summary: 'Update physical room details' })
+  updateRoom(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateRoomSchema)) dto: z.infer<typeof updateRoomSchema>,
+  ) {
+    return this.rooms.updateRoom(id, dto);
+  }
+
+  @Delete('rooms/:id')
+  @RequirePermissions('rooms:DELETE')
+  @ApiOperation({ summary: 'Deactivate a physical room' })
+  deactivateRoom(@Param('id') id: string) {
+    return this.rooms.deactivateRoom(id);
   }
 
   @Get('room-types')

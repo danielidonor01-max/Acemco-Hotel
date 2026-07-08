@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,19 +16,30 @@ import {
   UserCheck,
   UserMinus,
   BedDouble,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, StatusBadge, Badge, Button } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   listRooms,
   updateRoomStatus,
   getRoomDetail,
+  createRoomsBulk,
+  updateRoomInfo,
+  deactivateRoom,
   type ManageRoom,
   type RoomStatus,
   type ArrivalSummary,
 } from "@/lib/data/manage-rooms";
 import { assignRoom } from "@/lib/data/availability";
+import { useRoomTypes } from "@/lib/data/room-types";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +56,7 @@ export default function RoomsAdminPage() {
   const canEdit = hasPermission("rooms", "UPDATE");
   const [filter, setFilter] = useState<RoomStatus | "ALL">("ALL");
   const [selected, setSelected] = useState<ManageRoom | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
   const { data: rooms = [], isLoading } = useQuery({ queryKey: ["rooms"], queryFn: listRooms });
 
   const counts = useMemo(() => {
@@ -69,11 +81,16 @@ export default function RoomsAdminPage() {
       breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Rooms" }]}
     >
       {/* Filter chips */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         <FilterChip label="All" count={rooms.length} active={filter === "ALL"} onClick={() => setFilter("ALL")} />
         {STATUSES.map((s) => (
           <FilterChip key={s} label={s.replace(/_/g, " ").toLowerCase()} count={counts[s] ?? 0} active={filter === s} onClick={() => setFilter(s)} />
         ))}
+        {canEdit && (
+          <Button size="sm" onClick={() => setShowAdd(true)} className="ml-auto">
+            <Plus size={14} className="mr-1.5" /> Add Room(s)
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -95,6 +112,7 @@ export default function RoomsAdminPage() {
       )}
 
       {selected && <RoomDetailModal room={selected} canEdit={canEdit} onClose={() => setSelected(null)} />}
+      {showAdd && <AddRoomModal onClose={() => setShowAdd(false)} />}
     </PageShell>
   );
 }
@@ -177,7 +195,13 @@ function RoomDetailModal({ room, canEdit, onClose }: { room: ManageRoom; canEdit
         {isLoading ? (
           <p className="py-6 text-center text-sm text-fg-muted">Loading room…</p>
         ) : (
-          <div className="grid gap-5 text-sm">
+          <Tabs defaultValue="overview">
+            <TabsList className="mb-4 w-full">
+              <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
+              {canEdit && <TabsTrigger value="settings" className="flex-1">Settings</TabsTrigger>}
+            </TabsList>
+
+            <TabsContent value="overview" className="grid gap-5 text-sm outline-none">
 
             {/* ── Occupancy ── */}
             <Section icon={User} title="Occupancy">
@@ -337,7 +361,14 @@ function RoomDetailModal({ room, canEdit, onClose }: { room: ManageRoom; canEdit
                 </div>
               </div>
             )}
-          </div>
+            </TabsContent>
+
+            {canEdit && (
+              <TabsContent value="settings" className="outline-none">
+                <EditRoomSettings room={room} onClose={onClose} />
+              </TabsContent>
+            )}
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>
@@ -426,4 +457,188 @@ const DOT: Record<string, string> = {
 };
 function StatusDot({ status }: { status: RoomStatus }) {
   return <span className={cn("mt-1.5 h-2.5 w-2.5 rounded-full", DOT[status] ?? "bg-fg-muted")} />;
+}
+
+/* ─────────────── Add & Edit Components ─────────────── */
+function AddRoomModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { all: roomTypes } = useRoomTypes();
+  const [loading, setLoading] = useState(false);
+  const [roomTypeId, setRoomTypeId] = useState("");
+  const [floor, setFloor] = useState("1");
+  const [roomNumbers, setRoomNumbers] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const numbers = roomNumbers.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!roomTypeId) return toast.error("Please select a room type.");
+    if (numbers.length === 0) return toast.error("Please enter at least one room number.");
+    setLoading(true);
+    try {
+      await createRoomsBulk({ roomNumbers: numbers, floor: Number(floor), roomTypeId, notes: notes.trim() || undefined });
+      toast.success(`${numbers.length} room(s) created.`);
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create rooms.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Physical Rooms</DialogTitle>
+          <DialogDescription>Create one or more rooms assigned to a floor and type.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Room Type</Label>
+            <Select value={roomTypeId} onValueChange={setRoomTypeId}>
+              <SelectTrigger><SelectValue placeholder="Select a type…" /></SelectTrigger>
+              <SelectContent>{roomTypes.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="floor">Floor</Label>
+            <Input id="floor" type="number" required value={floor} onChange={(e) => setFloor(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="roomNumbers">Room Number(s)</Label>
+            <Input id="roomNumbers" required value={roomNumbers} onChange={(e) => setRoomNumbers(e.target.value)} placeholder="e.g. 101, 102, 103" />
+            <p className="text-[11px] text-fg-muted">Comma-separated for bulk creation.</p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any internal notes" className="resize-none" />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 size={14} className="mr-2 animate-spin" />}
+              Create
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditRoomSettings({ room, onClose }: { room: ManageRoom; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { all: roomTypes } = useRoomTypes();
+  const [loading, setLoading] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [roomTypeId, setRoomTypeId] = useState(roomTypes.find((t) => t.slug === room.roomTypeSlug)?.id ?? "");
+  const [roomNumber, setRoomNumber] = useState(room.roomNumber);
+  const [floor, setFloor] = useState(String(room.floor));
+  const [active, setActive] = useState(true);
+
+  // The room-type catalogue loads async — resolve the current type once it's available.
+  useEffect(() => {
+    if (!roomTypeId) {
+      const id = roomTypes.find((t) => t.slug === room.roomTypeSlug)?.id;
+      if (id) setRoomTypeId(id);
+    }
+  }, [roomTypes, roomTypeId, room.roomTypeSlug]);
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await updateRoomInfo(room.id, { roomNumber: roomNumber.trim(), floor: Number(floor), roomTypeId, isActive: active });
+      toast.success("Room updated successfully.");
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update room.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    setDeactivating(true);
+    try {
+      await deactivateRoom(room.id);
+      toast.success("Room deactivated.");
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to deactivate room.");
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleUpdate} className="space-y-4">
+        <div className="grid gap-2">
+          <Label>Room Type</Label>
+          <Select value={roomTypeId} onValueChange={setRoomTypeId}>
+            <SelectTrigger><SelectValue placeholder="Select a type…" /></SelectTrigger>
+            <SelectContent>{roomTypes.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="edit-roomNumber">Room Number</Label>
+            <Input id="edit-roomNumber" required value={roomNumber} onChange={(e) => setRoomNumber(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-floor">Floor</Label>
+            <Input id="edit-floor" type="number" required value={floor} onChange={(e) => setFloor(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label>Status</Label>
+          <Select value={active ? "active" : "inactive"} onValueChange={(v) => setActive(v === "active")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active — in circulation</SelectItem>
+              <SelectItem value="inactive">Inactive — out of circulation</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="submit" disabled={loading}>
+            {loading && <Loader2 size={14} className="mr-2 animate-spin" />}
+            Save Changes
+          </Button>
+        </div>
+      </form>
+
+      <div className="border-t border-line pt-5">
+        <div className="rounded-md border border-danger/20 bg-danger/5 p-3">
+          {!confirmDeactivate ? (
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold text-danger">Danger Zone</h4>
+                <p className="text-xs text-danger/80">Deactivating this room removes it from available inventory.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setConfirmDeactivate(true)} className="shrink-0 border-danger/30 text-danger hover:bg-danger/10">
+                <Trash2 size={13} className="mr-1.5" /> Deactivate
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-danger">Deactivate room {room.roomNumber}? It leaves circulation.</p>
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setConfirmDeactivate(false)} disabled={deactivating}>Cancel</Button>
+                <Button type="button" variant="destructive" size="sm" onClick={handleDeactivate} disabled={deactivating}>
+                  {deactivating ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Trash2 size={13} className="mr-1.5" />} Confirm
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -170,6 +170,74 @@ export class RoomsService {
     return this.prisma.room.update({ where: { id }, data: { status } });
   }
 
+  async createRoomsBulk(dto: { roomNumbers: string[]; floor: number; roomTypeId: string; notes?: string }) {
+    await this.getRoomTypeById(dto.roomTypeId); // Validate room type exists
+
+    // Ensure none of the room numbers already exist
+    const existing = await this.prisma.room.findMany({
+      where: { roomNumber: { in: dto.roomNumbers } },
+      select: { roomNumber: true },
+    });
+    if (existing.length > 0) {
+      const numbers = existing.map((r) => r.roomNumber).join(', ');
+      throw new ConflictException({ code: 'ROOM_NUMBER_TAKEN', message: `Room numbers already exist: ${numbers}` });
+    }
+
+    const created = await this.prisma.$transaction(
+      dto.roomNumbers.map((num) =>
+        this.prisma.room.create({
+          data: {
+            roomNumber: num,
+            floor: dto.floor,
+            roomTypeId: dto.roomTypeId,
+            notes: dto.notes,
+            status: 'AVAILABLE',
+            isActive: true,
+          },
+        }),
+      ),
+    );
+
+    return { created: created.length };
+  }
+
+  async updateRoom(id: string, dto: { roomNumber?: string; floor?: number; roomTypeId?: string; isActive?: boolean; notes?: string | null }) {
+    const room = await this.getRoom(id);
+
+    if (dto.roomTypeId) {
+      await this.getRoomTypeById(dto.roomTypeId); // Validate room type exists
+    }
+
+    if (dto.roomNumber && dto.roomNumber !== room.roomNumber) {
+      const exists = await this.prisma.room.findUnique({ where: { roomNumber: dto.roomNumber } });
+      if (exists) {
+        throw new ConflictException({ code: 'ROOM_NUMBER_TAKEN', message: `Room number ${dto.roomNumber} is already in use.` });
+      }
+    }
+
+    return this.prisma.room.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deactivateRoom(id: string) {
+    await this.getRoom(id);
+
+    // A room with a guest in it can't be pulled from circulation — check them out first.
+    const occupied = await this.prisma.reservation.count({ where: { roomId: id, status: 'CHECKED_IN' } });
+    if (occupied > 0) {
+      throw new ConflictException({
+        code: 'ROOM_OCCUPIED',
+        message: 'Cannot deactivate a room with a checked-in guest. Check the guest out first.',
+      });
+    }
+    return this.prisma.room.update({
+      where: { id },
+      data: { isActive: false, status: 'OUT_OF_ORDER' },
+    });
+  }
+
   /** Count of AVAILABLE rooms of a type (availability for public reservation flow). */
   availabilityByType(roomTypeId: string) {
     return this.prisma.room.count({ where: { roomTypeId, status: 'AVAILABLE', isActive: true } });

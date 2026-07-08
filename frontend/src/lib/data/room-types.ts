@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 
@@ -64,7 +65,8 @@ export async function deleteRoomType(id: string): Promise<void> {
  */
 export function useRoomTypes() {
   const { data = [], isLoading } = useQuery({ queryKey: ["room-types"], queryFn: listRoomTypes });
-  const roomTypes = data.filter((t) => t.isActive);
-  const getRoomType = (slug: string) => data.find((t) => t.slug === slug);
+  // Stable references so consumers can safely use these in useMemo/effect deps.
+  const roomTypes = useMemo(() => data.filter((t) => t.isActive), [data]);
+  const getRoomType = useMemo(() => (slug: string) => data.find((t) => t.slug === slug), [data]);
   return { roomTypes, all: data, getRoomType, isLoading };
 }
