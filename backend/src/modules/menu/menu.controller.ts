@@ -17,6 +17,7 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0),
   tags: z.array(z.string()).optional(),
+  imageKey: z.string().optional(),
   isAvailable: z.boolean().optional(),
   isHidden: z.boolean().optional(),
 });

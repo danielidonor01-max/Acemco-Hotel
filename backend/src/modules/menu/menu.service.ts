@@ -29,7 +29,7 @@ export class MenuService {
     return { id, deleted: true };
   }
 
-  async createItem(dto: { categoryId: string; name: string; description?: string; price: number; tags?: string[]; isAvailable?: boolean; isHidden?: boolean }) {
+  async createItem(dto: { categoryId: string; name: string; description?: string; price: number; imageKey?: string; tags?: string[]; isAvailable?: boolean; isHidden?: boolean }) {
     const category = await this.categoryOr404(dto.categoryId);
     const count = await this.prisma.menuItem.count({ where: { categoryId: dto.categoryId } });
     return this.prisma.menuItem.create({
@@ -39,6 +39,7 @@ export class MenuService {
         name: dto.name,
         description: dto.description,
         price: dto.price,
+        imageKey: dto.imageKey,
         tags: dto.tags ?? [],
         isAvailable: dto.isAvailable ?? true,
         isHidden: dto.isHidden ?? false,
@@ -47,7 +48,7 @@ export class MenuService {
     });
   }
 
-  async updateItem(id: string, dto: { name?: string; description?: string; price?: number; tags?: string[]; isAvailable?: boolean; isHidden?: boolean }) {
+  async updateItem(id: string, dto: { name?: string; description?: string; price?: number; imageKey?: string; tags?: string[]; isAvailable?: boolean; isHidden?: boolean }) {
     if (!(await this.prisma.menuItem.findUnique({ where: { id } }))) {
       throw new NotFoundException({ code: 'ITEM_NOT_FOUND', message: 'Menu item not found.' });
     }

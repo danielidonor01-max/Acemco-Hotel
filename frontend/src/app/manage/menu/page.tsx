@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { UtensilsCrossed, Plus, Pencil, Trash2, Loader2, Check } from "lucide-react";
+import { UtensilsCrossed, Plus, Pencil, Trash2, Loader2, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, Button, Badge, EmptyState } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -107,6 +107,7 @@ function CategoryCard({ cat, canEdit, onAddItem, onEditItem }: {
                     {i.name}
                     {i.isHidden && <Badge tone="neutral">hidden</Badge>}
                     {!i.isAvailable && !i.isHidden && <Badge tone="warning">unavailable</Badge>}
+                    {i.imageKey && <span title={i.imageKey}><ImageIcon size={14} className="text-fg-muted" /></span>}
                   </p>
                   {i.description && <p className="truncate text-xs text-fg-muted">{i.description}</p>}
                 </div>
@@ -159,6 +160,7 @@ function ItemDialog({ categoryId, item, onClose }: { categoryId: string; item?: 
   const isEdit = !!item;
   const [form, setForm] = useState({
     name: item?.name ?? "", description: item?.description ?? "", price: String(item?.price ?? ""),
+    imageKey: item?.imageKey ?? "",
     tags: (item?.tags ?? []).join(", "), isAvailable: item?.isAvailable ?? true,
   });
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
@@ -166,7 +168,7 @@ function ItemDialog({ categoryId, item, onClose }: { categoryId: string; item?: 
   const save = useMutation({
     mutationFn: () => {
       const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
-      const base = { name: form.name.trim(), description: form.description.trim() || undefined, price: Number(form.price) || 0, tags, isAvailable: form.isAvailable };
+      const base = { name: form.name.trim(), description: form.description.trim() || undefined, price: Number(form.price) || 0, imageKey: form.imageKey.trim() || undefined, tags, isAvailable: form.isAvailable };
       return isEdit ? updateMenuItem(item!.id, base) : createMenuItem({ categoryId, ...base });
     },
     onSuccess: () => { toast.success(isEdit ? "Item updated." : "Item added."); qc.invalidateQueries({ queryKey: ["menu"] }); onClose(); },
@@ -187,7 +189,10 @@ function ItemDialog({ categoryId, item, onClose }: { categoryId: string; item?: 
             <div className="grid gap-1.5"><Label htmlFor="i-price">Price (₦)</Label><Input id="i-price" type="number" value={form.price} onChange={(e) => set("price", e.target.value)} /></div>
           </div>
           <div className="grid gap-1.5"><Label htmlFor="i-desc">Description</Label><Textarea id="i-desc" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} /></div>
-          <div className="grid gap-1.5"><Label htmlFor="i-tags">Tags (comma-separated)</Label><Input id="i-tags" value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="Spicy, Vegetarian" /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5"><Label htmlFor="i-tags">Tags (comma-separated)</Label><Input id="i-tags" value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="Spicy, Vegetarian" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="i-img">Image URL / Key</Label><Input id="i-img" value={form.imageKey} onChange={(e) => set("imageKey", e.target.value)} placeholder="https://... or dining.hero" /></div>
+          </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-fg"><Checkbox checked={form.isAvailable} onCheckedChange={(v) => set("isAvailable", !!v)} /> Available to order</label>
         </div>
         <DialogFooter>

@@ -7,6 +7,7 @@ export interface MenuItemRow {
   name: string;
   description: string | null;
   price: number;
+  imageKey: string | null;
   tags: string[];
   isAvailable: boolean;
   isHidden: boolean;
@@ -23,7 +24,7 @@ export async function listMenu(): Promise<MenuCategoryRow[]> {
   const { data } = await apiRequest<any[]>("/menu");
   return data.map((c) => ({
     id: c.id, storefront: c.storefront, name: c.name, isActive: c.isActive,
-    items: (c.items ?? []).map((i: any) => ({ ...i, price: Number(i.price), tags: i.tags ?? [] })),
+    items: (c.items ?? []).map((i: any) => ({ ...i, price: Number(i.price), tags: i.tags ?? [], imageKey: i.imageKey ?? null })),
   }));
 }
 
@@ -32,7 +33,7 @@ export async function createMenuCategory(input: { storefront: MenuStorefront; na
 }
 
 export interface NewMenuItem {
-  categoryId: string; name: string; description?: string; price: number; tags?: string[]; isAvailable?: boolean;
+  categoryId: string; name: string; description?: string; price: number; imageKey?: string; tags?: string[]; isAvailable?: boolean;
 }
 export async function createMenuItem(input: NewMenuItem): Promise<void> {
   await apiRequest("/menu/items", { method: "POST", body: JSON.stringify(input) });
