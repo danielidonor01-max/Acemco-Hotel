@@ -3,19 +3,21 @@
 import { use, useState } from "react";
 import { notFound } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Phone, Users, CalendarDays, Home, Plus, Loader2, Printer } from "lucide-react";
+import { Phone, Users, CalendarDays, Home, Plus, Loader2, Printer, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, StatusBadge, Badge, Button } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/internal/date-picker";
 import { ReservationActions } from "@/components/internal/reservation-actions";
-import { getReservationById } from "@/lib/data/reservations";
+import { getReservationById, editReservation } from "@/lib/data/reservations";
 import { getFolio, addFolioLine } from "@/lib/data/operations";
 import { printGuestFolio, type FolioHeader } from "@/lib/print-folio";
 import { useAuth } from "@/providers/auth-provider";
-import { getRoomType } from "@/lib/cms";
+import { getRoomType, roomTypes } from "@/lib/cms";
+import { type Reservation } from "@/lib/mock";
 import { formatNaira } from "@/lib/utils";
 
 const FOLIO_LINE_TYPES = ["SERVICE", "LAUNDRY", "RESTAURANT", "LOUNGE", "BOUTIQUE", "DAMAGE", "DISCOUNT", "TAX"];
@@ -28,6 +30,8 @@ const QUICK_CHARGES: { label: string; type: string; description: string }[] = [
 
 export default function ReservationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { hasPermission } = useAuth();
+  const [editing, setEditing] = useState(false);
   const { data: r, isLoading } = useQuery({ queryKey: ["reservation", id], queryFn: () => getReservationById(id) });
 
   if (isLoading) {
@@ -56,7 +60,12 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
         {/* Main */}
         <div className="space-y-6 lg:col-span-2">
           <Card>
-            <CardHeader><CardTitle>Reservation Details</CardTitle></CardHeader>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle>Reservation Details</CardTitle>
+              {(r.status === "PENDING" || r.status === "CONFIRMED") && hasPermission("reservations", "UPDATE") && (
+                <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil size={14} /> Edit</Button>
+              )}
+            </CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Detail icon={Users} label="Guest">
                 {r.guestName} {r.isVip && <span className="text-brand-primary-dark" title="VIP">★</span>}
@@ -93,7 +102,94 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
           />
         </div>
       </div>
+      {editing && <EditReservationDialog reservation={r} onClose={() => setEditing(false)} />}
     </PageShell>
+  );
+}
+
+function EditReservationDialog({ reservation, onClose }: { reservation: Reservation; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    roomTypeSlug: reservation.roomTypeSlug,
+    checkInDate: reservation.checkInDate,
+    checkOutDate: reservation.checkOutDate,
+    adults: reservation.adults,
+    children: reservation.children,
+  });
+  const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
+
+  const save = useMutation({
+    mutationFn: () => editReservation(reservation.id, {
+      roomTypeSlug: form.roomTypeSlug,
+      checkInDate: form.checkInDate,
+      checkOutDate: form.checkOutDate,
+      adults: form.adults,
+      children: form.children,
+    }),
+    onSuccess: () => {
+      toast.success("Reservation updated.");
+      qc.invalidateQueries({ queryKey: ["reservation", reservation.id] });
+      qc.invalidateQueries({ queryKey: ["reservations"] });
+      qc.invalidateQueries({ queryKey: ["folio", reservation.id] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const invalid = !form.checkInDate || !form.checkOutDate || new Date(form.checkOutDate) <= new Date(form.checkInDate);
+  const rt = getRoomType(form.roomTypeSlug);
+  const nights = invalid ? 0 : Math.round((+new Date(form.checkOutDate) - +new Date(form.checkInDate)) / 86_400_000);
+  const estimate = rt ? rt.basePrice * nights : 0;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit reservation</DialogTitle>
+          <DialogDescription>Change dates, room type or occupancy. Availability is re-checked and the total recalculated. If the room no longer fits, its assignment is cleared.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label>Room type</Label>
+            <Select value={form.roomTypeSlug} onValueChange={(v) => set("roomTypeSlug", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{roomTypes.map((t) => <SelectItem key={t.slug} value={t.slug}>{t.name} — {formatNaira(t.basePrice)}/night</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5"><Label>Check-in</Label><DatePicker value={form.checkInDate} onChange={(v) => set("checkInDate", v)} placeholder="Select date" /></div>
+            <div className="grid gap-1.5"><Label>Check-out</Label><DatePicker value={form.checkOutDate} min={form.checkInDate} onChange={(v) => set("checkOutDate", v)} placeholder="Select date" /></div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label>Adults</Label>
+              <Select value={String(form.adults)} onValueChange={(v) => set("adults", Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{[1, 2, 3, 4].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Children</Label>
+              <Select value={String(form.children)} onValueChange={(v) => set("children", Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{[0, 1, 2, 3].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          {invalid ? (
+            <p className="text-sm text-danger">Check-out must be after check-in.</p>
+          ) : (
+            <p className="text-sm text-fg-soft">New total · {nights} night{nights !== 1 ? "s" : ""} — <span className="font-medium text-fg">{formatNaira(estimate)}</span></p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={invalid || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending && <Loader2 size={14} className="animate-spin" />} Save changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -3,11 +3,12 @@ import { Prisma, ReservationStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
 import { reservationNumber, chargeNumber } from '../../common/utils/number-generator';
-import { CreateReservationDto, PublicReservationDto, CorporateBookingDto } from './dto/reservation.dto';
+import { CreateReservationDto, PublicReservationDto, CorporateBookingDto, EditReservationDto } from './dto/reservation.dto';
 import { AvailabilityService } from '../availability/availability.service';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
+const iso = (d: Date | string) => (typeof d === 'string' ? d.slice(0, 10) : d.toISOString().slice(0, 10));
 
 @Injectable()
 export class ReservationsService {
@@ -282,6 +283,65 @@ export class ReservationsService {
     if (r.status === 'CHECKED_IN') throw new UnprocessableEntityException({ code: 'CANNOT_CANCEL_CHECKED_IN', message: 'Process checkout instead of cancelling.' });
     if (r.status === 'CANCELLED' || r.status === 'CHECKED_OUT') throw new ConflictException({ code: 'INVALID_STATE', message: `Reservation is already ${r.status}.` });
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason } });
+  }
+
+  /** Edit a pending/confirmed reservation: change dates, room type or occupancy, re-checking availability. */
+  async edit(id: string, dto: EditReservationDto) {
+    const r = await this.get(id);
+    if (r.status !== 'PENDING' && r.status !== 'CONFIRMED') {
+      throw new ConflictException({ code: 'INVALID_STATE', message: `Only a pending or confirmed reservation can be edited (currently ${r.status}).` });
+    }
+
+    // Resolve the (possibly new) room type.
+    let roomType = r.roomType;
+    if (dto.roomTypeId || dto.roomTypeSlug) {
+      const rt = dto.roomTypeId
+        ? await this.prisma.roomType.findUnique({ where: { id: dto.roomTypeId } })
+        : await this.prisma.roomType.findUnique({ where: { slug: dto.roomTypeSlug! } });
+      if (!rt) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
+      roomType = rt;
+    }
+    const roomTypeChanged = roomType.id !== r.roomTypeId;
+
+    const checkInDate = dto.checkInDate ?? iso(r.checkInDate);
+    const checkOutDate = dto.checkOutDate ?? iso(r.checkOutDate);
+    const nights = nightsBetween(checkInDate, checkOutDate);
+    if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
+    const datesChanged = checkInDate !== iso(r.checkInDate) || checkOutDate !== iso(r.checkOutDate);
+
+    // Re-verify availability for the new type/dates, excluding this reservation's own hold.
+    if (roomTypeChanged || datesChanged) {
+      await this.assertAvailability(roomType.id, checkInDate, checkOutDate, r.id);
+    }
+
+    // Keep a pre-assigned room only if it still fits the new type and dates.
+    let roomId = r.roomId;
+    if (roomId && roomTypeChanged) {
+      roomId = null;
+    } else if (roomId && datesChanged) {
+      const clash = await this.prisma.reservation.count({
+        where: { roomId, id: { not: id }, ...this.availability.overlapWhere(new Date(checkInDate), new Date(checkOutDate)) },
+      });
+      if (clash) roomId = null;
+    }
+
+    const total = Number(roomType.basePrice) * nights;
+    return this.prisma.reservation.update({
+      where: { id },
+      data: {
+        roomTypeId: roomType.id,
+        checkInDate: new Date(checkInDate),
+        checkOutDate: new Date(checkOutDate),
+        adults: dto.adults ?? r.adults,
+        children: dto.children ?? r.children,
+        specialRequests: dto.specialRequests ?? r.specialRequests,
+        type: dto.type ?? r.type,
+        companyId: dto.companyId === undefined ? r.companyId : dto.companyId,
+        roomId,
+        totalAmount: total,
+      },
+      include: this.detailInclude,
+    });
   }
 
   /** Rooms of the booked type, flagged assignable/not for this reservation's dates. */

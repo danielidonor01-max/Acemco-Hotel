@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReservationStatus, PaymentMethod } from '@prisma/client';
 import { ReservationsService } from './reservations.service';
@@ -7,7 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { paginationSchema } from '../../common/utils/pagination';
-import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, corporateBookingSchema, assignRoomSchema, CreateReservationDto, CorporateBookingDto, AssignRoomDto } from './dto/reservation.dto';
+import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, corporateBookingSchema, assignRoomSchema, editReservationSchema, CreateReservationDto, CorporateBookingDto, AssignRoomDto, EditReservationDto } from './dto/reservation.dto';
 
 @ApiTags('reservations')
 @Controller('v1/reservations')
@@ -49,6 +49,13 @@ export class ReservationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reservations.create(dto, user.id);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('reservations:UPDATE')
+  @ApiOperation({ summary: 'Edit a pending/confirmed reservation (dates, room type, occupancy)' })
+  edit(@Param('id') id: string, @Body(new ZodValidationPipe(editReservationSchema)) dto: EditReservationDto) {
+    return this.reservations.edit(id, dto);
   }
 
   @Post(':id/confirm')

@@ -89,3 +89,18 @@ export const checkOutSchema = z.object({ paymentMethod: z.nativeEnum(PaymentMeth
 // Assign (or clear, with null) a specific room to a reservation ahead of check-in.
 export const assignRoomSchema = z.object({ roomId: z.string().uuid().nullable() });
 export type AssignRoomDto = z.infer<typeof assignRoomSchema>;
+
+// Edit a pending/confirmed reservation — every field optional; the service merges
+// with the current values, re-checks availability and recalculates the total.
+export const editReservationSchema = z.object({
+  roomTypeId: z.string().uuid().optional(),
+  roomTypeSlug: z.string().min(1).optional(),
+  checkInDate: dateStr.optional(),
+  checkOutDate: dateStr.optional(),
+  adults: z.number().int().min(1).optional(),
+  children: z.number().int().min(0).optional(),
+  specialRequests: z.string().optional(),
+  type: z.nativeEnum(ReservationType).optional(),
+  companyId: z.string().uuid().nullable().optional(),
+});
+export type EditReservationDto = z.infer<typeof editReservationSchema>;

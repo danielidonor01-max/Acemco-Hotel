@@ -104,6 +104,20 @@ export async function createCorporateBooking(input: CorporateBookingInput): Prom
   return data;
 }
 
+export interface EditReservation {
+  roomTypeSlug?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  adults?: number;
+  children?: number;
+  type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
+  companyId?: string | null;
+}
+export async function editReservation(id: string, input: EditReservation): Promise<Reservation> {
+  const { data } = await apiRequest<ApiReservation>(`/reservations/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+  return mapApi(data);
+}
+
 export async function confirmReservation(id: string): Promise<void> {
   await apiRequest(`/reservations/${id}/confirm`, { method: "POST" });
 }
