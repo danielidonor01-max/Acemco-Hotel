@@ -16,7 +16,7 @@ import { getAvailableRooms, getAvailabilityByType } from "@/lib/data/availabilit
 import { getFolio } from "@/lib/data/operations";
 import { printGuestReceipt, type FolioHeader } from "@/lib/print-folio";
 import { type Reservation } from "@/lib/mock";
-import { getRoomType, roomTypes } from "@/lib/cms";
+import { useRoomTypes } from "@/lib/data/room-types";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
 
@@ -115,6 +115,7 @@ export default function ReceptionPage() {
 }
 
 function CheckInDialog({ reservation, onClose, onDone }: { reservation: Reservation; onClose: () => void; onDone: () => void }) {
+  const { getRoomType } = useRoomTypes();
   const { data: profile, isLoading } = useQuery({
     queryKey: ["guest-profile", reservation.guestId],
     queryFn: () => getGuestProfile(reservation.guestId!),
@@ -250,6 +251,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function GuestRow({ r, action }: { r: Reservation; action: React.ReactNode }) {
+  const { getRoomType } = useRoomTypes();
   // Overdue: still in-house past the scheduled check-out date.
   const todayIso = new Date().toISOString().slice(0, 10);
   const overdue = r.status === "CHECKED_IN" && r.checkOutDate < todayIso;
@@ -273,6 +275,7 @@ function GuestRow({ r, action }: { r: Reservation; action: React.ReactNode }) {
 }
 
 function CheckoutDialog({ reservation, onClose, onDone }: { reservation: Reservation; onClose: () => void; onDone: () => void }) {
+  const { getRoomType } = useRoomTypes();
   const [method, setMethod] = useState("CASH");
   const [settled, setSettled] = useState<{ total: number } | null>(null);
   const { data: folio } = useQuery({ queryKey: ["folio", reservation.id], queryFn: () => getFolio(reservation.id) });
@@ -334,11 +337,15 @@ function CheckoutDialog({ reservation, onClose, onDone }: { reservation: Reserva
 }
 
 function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { roomTypes, getRoomType } = useRoomTypes();
   const [form, setForm] = useState({
-    guestName: "", phone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 1, children: 0,
+    guestName: "", phone: "", roomTypeSlug: "", checkInDate: "", checkOutDate: "", adults: 1, children: 0,
   });
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
+  useEffect(() => {
+    if (!form.roomTypeSlug && roomTypes[0]) set("roomTypeSlug", roomTypes[0].slug);
+  }, [roomTypes, form.roomTypeSlug]);
 
   const validDates = !!form.checkInDate && !!form.checkOutDate && new Date(form.checkOutDate) > new Date(form.checkInDate);
   const { data: avail = [] } = useQuery({

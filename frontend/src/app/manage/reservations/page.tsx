@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Plus, Calendar, Loader2, Building2, Trash2 } from "lucide-react";
@@ -16,7 +16,7 @@ import { type Reservation, type ReservationStatus } from "@/lib/mock";
 import { listReservations, createReservation, createCorporateBooking } from "@/lib/data/reservations";
 import { listCompanies } from "@/lib/data/companies";
 import { getAvailabilityByType } from "@/lib/data/availability";
-import { roomTypes, getRoomType } from "@/lib/cms";
+import { useRoomTypes } from "@/lib/data/room-types";
 
 const RES_TYPES = [
   { value: "INDIVIDUAL", label: "Individual" },
@@ -37,6 +37,7 @@ export default function ReservationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
+  const { getRoomType } = useRoomTypes();
   const { data: list = [] } = useQuery({
     queryKey: ["reservations"],
     queryFn: listReservations,
@@ -145,14 +146,21 @@ export default function ReservationsPage() {
 
 function CorporateBookingModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
+  const { roomTypes } = useRoomTypes();
+  const defaultSlug = roomTypes[0]?.slug ?? "";
   const [companyId, setCompanyId] = useState("");
   const [checkInDate, setCheckInDate] = useState("");
   const [checkOutDate, setCheckOutDate] = useState("");
-  const [rows, setRows] = useState([{ firstName: "", lastName: "", phone: "", roomTypeSlug: roomTypes[0].slug }]);
+  const [rows, setRows] = useState([{ firstName: "", lastName: "", phone: "", roomTypeSlug: "" }]);
   const [error, setError] = useState<string | null>(null);
 
+  // Default each unset row to the first active room type once the catalogue loads.
+  useEffect(() => {
+    if (defaultSlug) setRows((rs) => rs.map((r) => (r.roomTypeSlug ? r : { ...r, roomTypeSlug: defaultSlug })));
+  }, [defaultSlug]);
+
   const setRow = (i: number, k: string, v: string) => setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
-  const addRow = () => setRows((rs) => [...rs, { firstName: "", lastName: "", phone: "", roomTypeSlug: roomTypes[0].slug }]);
+  const addRow = () => setRows((rs) => [...rs, { firstName: "", lastName: "", phone: "", roomTypeSlug: defaultSlug }]);
   const removeRow = (i: number) => setRows((rs) => rs.filter((_, idx) => idx !== i));
 
   const save = useMutation({
@@ -233,12 +241,16 @@ function NewReservationModal({
   open: boolean; onClose: () => void; onCreated: (r: Reservation) => void; nextNumber: string;
 }) {
   const [form, setForm] = useState({
-    guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug,
+    guestName: "", guestPhone: "", roomTypeSlug: "",
     checkInDate: "", checkOutDate: "", adults: 2, children: 0,
     type: "INDIVIDUAL" as "INDIVIDUAL" | "CORPORATE" | "CONFERENCE", companyId: "", deposit: "",
   });
   const [error, setError] = useState<string | null>(null);
   const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
+  const { roomTypes, getRoomType } = useRoomTypes();
+  useEffect(() => {
+    if (!form.roomTypeSlug && roomTypes[0]) setForm((f) => ({ ...f, roomTypeSlug: roomTypes[0].slug }));
+  }, [roomTypes, form.roomTypeSlug]);
 
   const validDates = !!form.checkInDate && !!form.checkOutDate && new Date(form.checkOutDate) > new Date(form.checkInDate);
   const { data: avail = [] } = useQuery({
@@ -266,7 +278,7 @@ function NewReservationModal({
     },
     onSuccess: (r) => {
       toast.success(`Reservation ${r.reservationNumber} created.`);
-      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0, type: "INDIVIDUAL", companyId: "", deposit: "" });
+      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0]?.slug ?? "", checkInDate: "", checkOutDate: "", adults: 2, children: 0, type: "INDIVIDUAL", companyId: "", deposit: "" });
       setError(null);
       onCreated(r);
     },

@@ -16,7 +16,7 @@ import { getReservationById, editReservation } from "@/lib/data/reservations";
 import { getFolio, addFolioLine } from "@/lib/data/operations";
 import { printGuestFolio, type FolioHeader } from "@/lib/print-folio";
 import { useAuth } from "@/providers/auth-provider";
-import { getRoomType, roomTypes } from "@/lib/cms";
+import { useRoomTypes } from "@/lib/data/room-types";
 import { type Reservation } from "@/lib/mock";
 import { formatNaira } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ const QUICK_CHARGES: { label: string; type: string; description: string }[] = [
 export default function ReservationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { hasPermission } = useAuth();
+  const { getRoomType } = useRoomTypes();
   const [editing, setEditing] = useState(false);
   const { data: r, isLoading } = useQuery({ queryKey: ["reservation", id], queryFn: () => getReservationById(id) });
 
@@ -114,6 +115,7 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
 
 function EditReservationDialog({ reservation, onClose }: { reservation: Reservation; onClose: () => void }) {
   const qc = useQueryClient();
+  const { roomTypes, getRoomType } = useRoomTypes();
   const [form, setForm] = useState({
     roomTypeSlug: reservation.roomTypeSlug,
     checkInDate: reservation.checkInDate,
