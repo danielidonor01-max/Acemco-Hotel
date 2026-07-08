@@ -53,16 +53,16 @@ export function DataTable<T extends { id: string }>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-brand-surface">
+    <div className="overflow-x-auto rounded-xl border border-line bg-brand-surface shadow-[0_1px_2px_#14100a0d,0_6px_20px_-8px_#14100a12]">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-line">
+          <tr className="border-b border-line bg-brand-surface-2/40">
             {columns.map((c) => (
               <th
                 key={c.key}
                 scope="col"
                 className={cn(
-                  "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted",
+                  "px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-fg-muted",
                   c.align === "right" && "text-right",
                   c.align === "center" && "text-center",
                   c.className,
@@ -72,7 +72,7 @@ export function DataTable<T extends { id: string }>({
                   <button
                     type="button"
                     onClick={() => toggleSort(c.key)}
-                    className={cn("inline-flex items-center gap-1 hover:text-fg", c.align === "right" && "flex-row-reverse")}
+                    className={cn("inline-flex items-center gap-1 transition-colors hover:text-fg", c.align === "right" && "flex-row-reverse")}
                   >
                     {c.header}
                     {sort?.key === c.key ? (
@@ -91,9 +91,9 @@ export function DataTable<T extends { id: string }>({
         <tbody>
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i} className="border-b border-line">
+              <tr key={i} className="border-b border-line/60 last:border-0">
                 {columns.map((c) => (
-                  <td key={c.key} className="px-4 py-3.5">
+                  <td key={c.key} className="px-5 py-4">
                     <div className="int-skeleton h-4 w-2/3" />
                   </td>
                 ))}
@@ -102,7 +102,7 @@ export function DataTable<T extends { id: string }>({
           ) : sorted.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="p-0">
-                {emptyState ?? <div className="px-4 py-16 text-center text-fg-soft">No results.</div>}
+                {emptyState ?? <div className="px-5 py-16 text-center text-fg-soft">No results.</div>}
               </td>
             </tr>
           ) : (
@@ -111,15 +111,15 @@ export function DataTable<T extends { id: string }>({
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={cn(
-                  "border-b border-line last:border-0 transition-colors",
-                  onRowClick && "cursor-pointer hover:bg-brand-surface-2",
+                  "border-b border-line/60 last:border-0 transition-colors",
+                  onRowClick && "cursor-pointer hover:bg-brand-surface-2/50",
                 )}
               >
                 {columns.map((c) => (
                   <td
                     key={c.key}
                     className={cn(
-                      "px-4 py-3.5 text-fg",
+                      "px-5 py-4 text-fg",
                       c.align === "right" && "text-right",
                       c.align === "center" && "text-center",
                       c.className,

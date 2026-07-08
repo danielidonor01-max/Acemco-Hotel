@@ -55,16 +55,18 @@ export function StatCard({
   deltaType?: "positive" | "negative" | "neutral"; icon: LucideIcon;
 }) {
   return (
-    <Card className="p-5">
+    <Card className="gap-0 p-5 transition-shadow hover:shadow-[0_2px_4px_#14100a0f,0_12px_28px_-10px_#14100a1f]">
       <div className="flex items-start justify-between">
-        <span className="text-sm text-muted-foreground">{title}</span>
-        <Icon size={20} className="text-primary" strokeWidth={1.5} />
+        <span className="text-[13px] font-medium text-muted-foreground">{title}</span>
+        <span className="flex size-9 items-center justify-center rounded-lg bg-brand-surface-2 text-brand-primary-dark">
+          <Icon size={18} strokeWidth={1.75} />
+        </span>
       </div>
-      <div className="mt-3 text-3xl font-bold tracking-tight text-foreground">{value}</div>
+      <div className="mt-4 text-[28px] font-semibold leading-none tracking-tight text-foreground">{value}</div>
       {delta && (
         <div
           className={cn(
-            "mt-1 text-[13px]",
+            "mt-2 text-[13px]",
             deltaType === "positive" && "text-ok",
             deltaType === "negative" && "text-danger",
             deltaType === "neutral" && "text-muted-foreground",
@@ -142,7 +144,7 @@ export function PageShell({
         </nav>
       )}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
       {children}
