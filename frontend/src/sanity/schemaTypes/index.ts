@@ -86,6 +86,18 @@ const galleryImage = defineType({
   type: "document",
   fields: [
     defineField({ name: "title", type: "string" }),
+    defineField({
+      name: "category",
+      type: "string",
+      description: "Which gallery this image belongs to. 'Dining' images show on the Dining page; leave as General for the home gallery.",
+      options: { list: [
+        { title: "General (home)", value: "general" },
+        { title: "Dining", value: "dining" },
+        { title: "Rooms", value: "rooms" },
+        { title: "Facilities", value: "facilities" },
+      ] },
+      initialValue: "general",
+    }),
     defineField({ name: "ratio", type: "string", options: { list: ["1/1", "3/4"] }, initialValue: "1/1" }),
     defineField({ name: "image", type: "image", options: { hotspot: true }, description: "Recommended: Match the selected aspect ratio. 1000 x 1000 px for Square (1:1) or 900 x 1200 px for Portrait (3:4)." }),
     defineField({ name: "order", type: "number" }),

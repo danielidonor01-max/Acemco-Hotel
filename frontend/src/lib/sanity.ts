@@ -38,7 +38,9 @@ export async function sanityFetch<T>(query: string, params: Record<string, unkno
   if (!sanityClient) return null;
   try {
     return await sanityClient.fetch<T>(query, params, {
-      next: { tags: ["cms"] },
+      // `tags` lets the Sanity webhook invalidate instantly (revalidateTag("cms","max"));
+      // `revalidate` is a safety net so edits still appear within a minute without the webhook.
+      next: { tags: ["cms"], revalidate: 60 },
     });
   } catch {
     return null;

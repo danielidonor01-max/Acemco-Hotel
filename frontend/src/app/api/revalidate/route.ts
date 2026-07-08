@@ -12,7 +12,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid secret" }, { status: 401 });
     }
 
-    // Clear the Next.js cache for the "cms" tag
+    // Invalidate the "cms" tag. Next 16 requires a cache-life profile as the
+    // second argument ("max" = stale-while-revalidate); the 1-arg form is
+    // deprecated and fails typecheck.
     revalidateTag("cms", "max");
     console.log("Next.js cache revalidated for tag: cms");
 

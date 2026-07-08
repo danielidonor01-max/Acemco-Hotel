@@ -103,12 +103,16 @@ export async function getAmenities(): Promise<Amenity[]> {
   return sampleAmenities;
 }
 
-export async function getGalleryTiles(): Promise<{ ratio: "1/1" | "3/4"; slot: string | undefined }[]> {
+export async function getGalleryTiles(category?: string): Promise<{ ratio: "1/1" | "3/4"; slot: string | undefined }[]> {
+  const filter = category ? " && category==$category" : "";
   const rows = await sanityFetch<{ ratio: "1/1" | "3/4"; image?: SanityImageSource }[]>(
-    `*[_type=="galleryImage"]|order(order asc){ ratio, image }`,
+    `*[_type=="galleryImage"${filter}]|order(order asc){ ratio, image }`,
+    category ? { category } : {},
   );
   if (rows?.length) return rows.map((t, idx) => ({ ratio: t.ratio ?? "1/1", slot: urlForImage(t.image, 1000) ?? getDefaultImageForSlot(`gallery.${idx + 1}`) }));
-  return sampleGallery;
+  // A specific (empty) category returns [] so the caller can fall back; the general
+  // gallery falls back to sample tiles.
+  return category ? [] : sampleGallery;
 }
 
 export async function getSiteSettings(): Promise<SiteSettings> {

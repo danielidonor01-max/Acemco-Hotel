@@ -4,8 +4,8 @@ import { Section, SectionHeading } from "@/components/public/section";
 import { ExperienceCard } from "@/components/public/cards";
 import { GallerySection } from "@/components/public/gallery";
 import { Reveal, RevealGroup, RevealItem } from "@/components/public/reveal";
-import { getSiteSettings } from "@/lib/data/content";
-import { venues, gallerySlots } from "@/lib/cms";
+import { getSiteSettings, getGalleryTiles } from "@/lib/data/content";
+import { venues } from "@/lib/cms";
 
 export const metadata: Metadata = {
   title: "Dining & Lounge",
@@ -14,6 +14,9 @@ export const metadata: Metadata = {
 
 export default async function DiningPage() {
   const site = await getSiteSettings();
+  // Prefer CMS gallery images tagged "dining"; fall back to the general gallery.
+  const diningTiles = await getGalleryTiles("dining");
+  const galleryTiles = diningTiles.length ? diningTiles : await getGalleryTiles();
   return (
     <>
       <Hero
@@ -45,7 +48,7 @@ export default async function DiningPage() {
       <Section band="sand">
         <SectionHeading overline="Gallery" heading={<>A taste of <em>the table</em></>} align="center" />
         <Reveal className="mt-12">
-          <GallerySection tiles={gallerySlots.slice(0, 6)} />
+          <GallerySection tiles={galleryTiles.slice(0, 6)} />
         </Reveal>
       </Section>
     </>
