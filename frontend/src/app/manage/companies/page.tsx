@@ -18,6 +18,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 import { exportCsv } from "@/lib/export";
 import { printCompanyInvoice } from "@/lib/print-invoice";
+import { printPaymentReceipt } from "@/lib/print-receipt";
 
 const TIERS: CompanyTier[] = ["STANDARD", "PREFERRED", "VIP", "STRATEGIC"];
 const tierTone = (t: CompanyTier): "brand" | "info" | "neutral" =>
@@ -200,12 +201,17 @@ function InvoiceModal({ company, onClose }: { company: Company; onClose: () => v
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">Payments</p>
                 <ul className="rounded-lg border border-line divide-y divide-line">
                   {data.payments.map((p) => (
-                    <li key={p.id} className="flex items-center justify-between px-4 py-2 text-sm">
-                      <span className="text-fg-soft">
+                    <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                      <span className="min-w-0 truncate text-fg-soft">
                         {p.paidAt?.slice(0, 10)} · <span className="capitalize">{p.method.toLowerCase()}</span>
                         {p.reference ? ` · ${p.reference}` : ""}{p.note ? ` · ${p.note}` : ""}
                       </span>
-                      <span className="font-medium text-ok">{formatNaira(p.amount)}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="font-medium text-ok">{formatNaira(p.amount)}</span>
+                        <button type="button" onClick={() => printPaymentReceipt(data, p)} className="rounded p-1 text-fg-muted hover:text-fg" title="Print receipt">
+                          <Printer size={14} />
+                        </button>
+                      </span>
                     </li>
                   ))}
                 </ul>
