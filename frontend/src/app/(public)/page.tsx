@@ -13,14 +13,16 @@ import { getRoomTypes } from "@/lib/data/rooms";
 import { getOffers, getTestimonials, getGalleryTiles, getAmenities, getSiteSettings } from "@/lib/data/content";
 
 export default async function HomePage() {
-  const [rooms, amenities, offers, testimonials, gallerySlots, siteSettings] = await Promise.all([
+  const [rooms, amenities, offers, testimonials, homeGallery, siteSettings] = await Promise.all([
     getRoomTypes(),
     getAmenities(),
     getOffers(),
     getTestimonials(),
-    getGalleryTiles(),
+    getGalleryTiles("general"),
     getSiteSettings(),
   ]);
+  // Homepage "A closer look" shows the Home-tagged set; fall back to the full gallery.
+  const gallerySlots = homeGallery.length ? homeGallery : await getGalleryTiles();
   const site = siteSettings;
   return (
     <>
@@ -142,12 +144,12 @@ export default async function HomePage() {
       <section className="relative flex min-h-[60vh] items-center overflow-hidden bg-pub-espresso text-pub-on-dark">
         <div className="pub-container relative z-20 py-20 text-center">
           <Reveal>
-            <Overline onDark className="mb-4">The Rooftop</Overline>
+            <Overline onDark className="mb-4">The Pool</Overline>
             <p className="pub-display-1 mx-auto max-w-3xl text-pub-on-dark">
-              An infinity edge above the city, <em>from sunrise to the last light</em>.
+              A quiet swim, <em>from sunrise to the last light</em>.
             </p>
             <div className="mt-8 flex justify-center">
-              <PubButton href="/facilities" variant="pub-on-dark">Discover the rooftop</PubButton>
+              <PubButton href="/facilities" variant="pub-on-dark">Explore our facilities</PubButton>
             </div>
           </Reveal>
         </div>

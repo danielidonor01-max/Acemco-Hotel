@@ -89,10 +89,10 @@ const galleryImage = defineType({
     defineField({
       name: "category",
       type: "string",
-      description: "Which gallery this image belongs to. 'Dining' images show on the Dining page; leave as General for the home gallery.",
+      description: "Which gallery this image feeds. Home shows on the homepage “A closer look” and the full Gallery page; Dining shows in “A taste of the table”.",
       options: { list: [
-        { title: "General (home)", value: "general" },
-        { title: "Dining", value: "dining" },
+        { title: "Home — “A closer look”", value: "general" },
+        { title: "Dining — “A taste of the table”", value: "dining" },
         { title: "Rooms", value: "rooms" },
         { title: "Facilities", value: "facilities" },
       ] },

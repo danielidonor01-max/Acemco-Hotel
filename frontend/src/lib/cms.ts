@@ -130,11 +130,12 @@ export interface Amenity {
   overline: string;
   description: string;
   slot: MediaKey;
+  comingSoon?: boolean;
 }
 
 export const amenities: Amenity[] = [
-  { title: "Swimming Pool", overline: "Leisure", description: "An infinity edge above the city — open from sunrise to the last light.", slot: "/images/amenities/pool.png" },
-  { title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio with a view, open 24 hours.", slot: "/images/amenities/gym.png" },
+  { title: "Swimming Pool", overline: "Leisure", description: "A serene swimming pool with loungers and a poolside menu — open from sunrise to the last light.", slot: "/images/amenities/pool.png" },
+  { title: "Gym", overline: "Wellness", description: "A fully equipped fitness studio, arriving soon.", slot: "/images/amenities/gym.png", comingSoon: true },
   { title: "Hall", overline: "Events", description: "A versatile event hall for weddings, conferences, and celebrations — styled to your occasion.", slot: "/images/lobby.png" },
 ];
 
@@ -256,7 +257,7 @@ export interface Offer {
 // Events (the public "Event" section). CMS-managed; sample content until populated.
 export const offers: Offer[] = [
   { id: "o-1", title: "Live Jazz Nights", ribbon: "Every Friday", validity: "From 8:00 PM · The Lounge", terms: "An intimate evening of live jazz, signature cocktails, and small plates.", slot: "/images/dining/lounge.png" },
-  { id: "o-2", title: "Sunday Rooftop Brunch", ribbon: "Weekly", validity: "Sundays · 11:00 AM – 3:00 PM", terms: "A leisurely poolside brunch buffet with free-flowing mimosas.", slot: "/images/amenities/pool.png" },
+  { id: "o-2", title: "Sunday Poolside Brunch", ribbon: "Weekly", validity: "Sundays · 11:00 AM – 3:00 PM", terms: "A leisurely poolside brunch buffet with free-flowing mimosas.", slot: "/images/amenities/pool.png" },
   { id: "o-3", title: "Wine & Dine Tasting", ribbon: "Monthly", validity: "Last Saturday of the month", terms: "A curated five-course dinner paired with fine wines by our sommelier.", slot: "/images/dining/restaurant.png" },
 ];
 
@@ -269,7 +270,7 @@ export interface Testimonial {
 export const testimonials: Testimonial[] = [
   { quote: "The kind of quiet luxury that lets you actually rest. We left already planning our return.", name: "Adaeze O.", origin: "Lagos" },
   { quote: "Faultless service and a suite that felt like a private apartment. The best stay in the region, full stop.", name: "James M.", origin: "London" },
-  { quote: "From the rooftop pool to the lounge at midnight, every detail was considered. Remarkable.", name: "Tunde & Bola", origin: "Abuja" },
+  { quote: "From the pool to the lounge at midnight, every detail was considered. Remarkable.", name: "Tunde & Bola", origin: "Abuja" },
 ];
 
 /** Boutique products (Domain §4.2) — retail items with SKU + stock. */

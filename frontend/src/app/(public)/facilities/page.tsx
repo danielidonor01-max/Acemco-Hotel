@@ -8,7 +8,7 @@ import { amenities } from "@/lib/cms";
 
 export const metadata: Metadata = {
   title: "Facilities",
-  description: "A rooftop swimming pool and a 24-hour gym for a considered stay.",
+  description: "A serene swimming pool and a versatile event hall for a considered stay.",
 };
 
 export default function FacilitiesPage() {
@@ -18,7 +18,7 @@ export default function FacilitiesPage() {
         slot="facilities.hero"
         overline="The Hotel"
         title={<>Room to <em>do more</em></>}
-        subtitle="A rooftop swimming pool and a fully equipped gym — a lift ride away."
+        subtitle="A serene swimming pool and a versatile event hall — with a fitness studio on the way."
       />
 
       <Section band="cream">
@@ -36,16 +36,16 @@ export default function FacilitiesPage() {
         band="sand"
         direction="image-right"
         overline="Swimming Pool"
-        heading={<>Above it all, <em>from dawn</em></>}
-        body={<p>An infinity edge that looks out over the city — a place to swim at sunrise and to gather as the light fades. Towels, loungers, and a poolside menu are all seen to.</p>}
+        heading={<>A quiet swim, <em>from dawn</em></>}
+        body={<p>A serene pool to start the morning or unwind as the light fades. Towels, loungers, and a poolside menu are all seen to.</p>}
       />
 
       <EditorialSplit
         slot="facilities.gym"
         direction="image-left"
-        overline="The Gym"
-        heading={<>Move, on <em>your schedule</em></>}
-        body={<p>A fully equipped fitness studio with cardio, free weights, and a view — open 24 hours, so your routine fits around your day, not the other way round.</p>}
+        overline="The Gym · Coming soon"
+        heading={<>A studio, <em>on the way</em></>}
+        body={<p>A fully equipped fitness studio — cardio, free weights, and more — is coming soon to Acemco. We&apos;ll share the opening date shortly.</p>}
       />
 
       <EditorialSplit

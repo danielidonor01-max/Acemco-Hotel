@@ -18,7 +18,7 @@ export default async function EventsPage() {
         slot="events.hero"
         overline="What's On"
         title={<>Moments worth <em>gathering for</em></>}
-        subtitle="From live jazz to rooftop brunches, there's always something happening at Acemco."
+        subtitle="From live jazz to poolside brunches, there's always something happening at Acemco."
       />
 
       <Section band="cream">

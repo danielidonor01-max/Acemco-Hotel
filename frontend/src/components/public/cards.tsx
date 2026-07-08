@@ -56,22 +56,30 @@ export function RoomCard({ room }: { room: RoomType }) {
 
 /** ExperienceCard / AmenityCard (§15.7). */
 export function ExperienceCard({ amenity, href }: { amenity: Amenity; href?: string }) {
+  const linkable = !!href && !amenity.comingSoon;
   const inner = (
     <>
-      <MediaFrame
-        slot={`amenity.${amenity.title}`}
-        ratio="4/5"
-        src={amenity.slot}
-        alt={amenity.title}
-        zoom
-        overlay="scrim-bottom"
-        sizes="(max-width: 768px) 100vw, 33vw"
-      />
+      <div className="relative">
+        <MediaFrame
+          slot={`amenity.${amenity.title}`}
+          ratio="4/5"
+          src={amenity.slot}
+          alt={amenity.title}
+          zoom={!amenity.comingSoon}
+          overlay="scrim-bottom"
+          sizes="(max-width: 768px) 100vw, 33vw"
+        />
+        {amenity.comingSoon && (
+          <span className="absolute left-4 top-4 z-20 rounded-full bg-pub-ink/85 px-3 py-1 pub-overline text-pub-on-dark">
+            Coming soon
+          </span>
+        )}
+      </div>
       <div className="p-6">
         <Overline className="mb-2">{amenity.overline}</Overline>
         <h3 className="pub-display-3 inline-flex items-center gap-2">
           {amenity.title}
-          {href && <ArrowUpRight size={20} className="text-pub-gold-deep transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />}
+          {linkable && <ArrowUpRight size={20} className="text-pub-gold-deep transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />}
         </h3>
         <p className="pub-body-sm mt-2 text-pub-ink-soft">{amenity.description}</p>
       </div>
@@ -79,7 +87,7 @@ export function ExperienceCard({ amenity, href }: { amenity: Amenity; href?: str
   );
 
   const cls = "group flex flex-col overflow-hidden rounded-2xl border border-pub-line bg-pub-surface";
-  return href ? (
+  return linkable ? (
     <Link href={href} className={cls}>
       {inner}
     </Link>

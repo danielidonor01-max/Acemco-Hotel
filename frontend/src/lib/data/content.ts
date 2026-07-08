@@ -104,14 +104,24 @@ export async function getAmenities(): Promise<Amenity[]> {
 }
 
 export async function getGalleryTiles(category?: string): Promise<{ ratio: "1/1" | "3/4"; slot: string | undefined }[]> {
-  const filter = category ? " && category==$category" : "";
+  // "general" is the home ("A closer look") bucket — it also picks up any images
+  // that haven't been categorised yet, so nothing disappears before classification.
+  // Other categories (dining/rooms/facilities) match strictly. No category = all.
+  const params: Record<string, unknown> = {};
+  let filter = "";
+  if (category === "general") {
+    filter = ` && (!defined(category) || category=="general")`;
+  } else if (category) {
+    filter = " && category==$category";
+    params.category = category;
+  }
   const rows = await sanityFetch<{ ratio: "1/1" | "3/4"; image?: SanityImageSource }[]>(
     `*[_type=="galleryImage"${filter}]|order(order asc){ ratio, image }`,
-    category ? { category } : {},
+    params,
   );
   if (rows?.length) return rows.map((t, idx) => ({ ratio: t.ratio ?? "1/1", slot: urlForImage(t.image, 1000) ?? getDefaultImageForSlot(`gallery.${idx + 1}`) }));
-  // A specific (empty) category returns [] so the caller can fall back; the general
-  // gallery falls back to sample tiles.
+  // A specific (empty) category returns [] so the caller can fall back; the full
+  // gallery (no category) falls back to sample tiles.
   return category ? [] : sampleGallery;
 }
 
