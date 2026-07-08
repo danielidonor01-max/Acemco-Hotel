@@ -1,6 +1,7 @@
 import { PublicNavbar } from "@/components/layout/public-navbar";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { CartDrawer } from "@/components/public/cart-drawer";
+import { QueryProvider } from "@/providers/query-provider";
 import { getHeroImage, getSiteSettings } from "@/lib/data/content";
 
 export default async function PublicLayout({
@@ -14,11 +15,13 @@ export default async function PublicLayout({
   ]);
 
   return (
-    <div className="public-theme min-h-screen">
-      <PublicNavbar featuredSrc={navFeaturedSrc} siteSettings={siteSettings} />
-      <main>{children}</main>
-      <PublicFooter siteSettings={siteSettings} />
-      <CartDrawer />
-    </div>
+    <QueryProvider>
+      <div className="public-theme min-h-screen">
+        <PublicNavbar featuredSrc={navFeaturedSrc} siteSettings={siteSettings} />
+        <main>{children}</main>
+        <PublicFooter siteSettings={siteSettings} />
+        <CartDrawer />
+      </div>
+    </QueryProvider>
   );
 }
