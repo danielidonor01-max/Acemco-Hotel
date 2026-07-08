@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { z } from 'zod';
 import { AuthService } from './auth.service';
 import { loginSchema, LoginDto } from './dto/login.dto';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -10,6 +11,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
 
 const REFRESH_COOKIE = 'refresh_token';
+
+const updateProfileSchema = z.object({ name: z.string().min(1).max(120) });
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+});
 
 @ApiTags('auth')
 @Controller('v1/auth')
@@ -72,5 +79,24 @@ export class AuthController {
   @ApiOperation({ summary: 'Current authenticated user' })
   me(@CurrentUser() user: AuthenticatedUser) {
     return user;
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update your own profile (name)' })
+  updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(updateProfileSchema)) dto: z.infer<typeof updateProfileSchema>,
+  ) {
+    return this.auth.updateProfile(user.id, dto.name);
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Change your own password' })
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(changePasswordSchema)) dto: z.infer<typeof changePasswordSchema>,
+  ) {
+    return this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword);
   }
 }

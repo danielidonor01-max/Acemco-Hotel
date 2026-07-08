@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { config, hasApi } from "@/lib/config";
-import { setAccessToken, setRefreshHandler } from "@/lib/api";
+import { setAccessToken, setRefreshHandler, api } from "@/lib/api";
 
 export interface AuthUser {
   id?: string;
@@ -19,6 +19,8 @@ interface AuthContextValue {
   live: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (name: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   hasPermission: (module: string, action: string) => boolean;
 }
 
@@ -100,13 +102,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  // Token-aware (via api.*): these endpoints require the access token.
+  const updateProfile = useCallback(async (name: string) => {
+    const updated = await api.patch<AuthUser>("/auth/me", { name });
+    setUser(updated);
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await api.post("/auth/change-password", { currentPassword, newPassword });
+  }, []);
+
   const hasPermission = useCallback(
     (module: string, action: string) => (user?.permissions ?? []).includes(`${module}:${action}`),
     [user],
   );
 
   return (
-    <AuthContext.Provider value={{ user, ready, live, login, logout, hasPermission }}>
+    <AuthContext.Provider value={{ user, ready, live, login, logout, updateProfile, changePassword, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

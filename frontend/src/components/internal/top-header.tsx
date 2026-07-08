@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Menu, Search, Bell, LogOut, User, Calendar, BedDouble, ClipboardList, Loader2 } from "lucide-react";
+import { Menu, Search, Bell, LogOut, User, Calendar, BedDouble, ClipboardList, Loader2, DoorClosed, AlertTriangle, Ban, Package, Wrench, Sparkles, CheckCircle2, type LucideIcon } from "lucide-react";
 import { useUIStore } from "@/stores/ui.store";
 import { useAuth } from "@/providers/auth-provider";
 import { globalSearch, type SearchResult } from "@/lib/data/search";
+import { getDashboardBrief } from "@/lib/data/operations";
 import { cn } from "@/lib/utils";
 
 const initialsOf = (name?: string) =>
@@ -15,11 +16,36 @@ const initialsOf = (name?: string) =>
 
 const TYPE_ICON = { reservation: Calendar, guest: User, room: BedDouble, order: ClipboardList } as const;
 
+interface Notif { key: string; label: string; count: number; icon: LucideIcon; href: string; perm: [string, string] }
+
 export function TopHeader() {
   const openMobile = useUIStore((s) => s.openMobile);
-  const { user, logout, live } = useAuth();
+  const { user, logout, live, hasPermission } = useAuth();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  // ── Notifications: the reception "action items" from the daily brief ──
+  const { data: brief } = useQuery({ queryKey: ["dashboard-brief"], queryFn: getDashboardBrief, enabled: live, staleTime: 60_000 });
+  const a = brief?.alerts;
+  const notifs: Notif[] = (a
+    ? [
+        { key: "unassigned", label: "Unassigned arrivals", count: a.unassignedArrivals, icon: DoorClosed, href: "/manage/reception", perm: ["reservations", "VIEW"] as [string, string] },
+        { key: "overdue", label: "Overdue checkouts", count: a.overdueCheckouts, icon: AlertTriangle, href: "/manage/reception", perm: ["reservations", "VIEW"] as [string, string] },
+        { key: "blacklist", label: "Blacklisted arrivals", count: a.blacklistedArrivals, icon: Ban, href: "/manage/reception", perm: ["reservations", "VIEW"] as [string, string] },
+        { key: "pending", label: "Pending reservations", count: a.pendingReservations, icon: Calendar, href: "/manage/reservations", perm: ["reservations", "VIEW"] as [string, string] },
+        { key: "lowstock", label: "Low-stock items", count: a.lowStock, icon: Package, href: "/manage/inventory", perm: ["inventory", "VIEW"] as [string, string] },
+        { key: "workorders", label: "Open work orders", count: a.openWorkOrders, icon: Wrench, href: "/manage/maintenance", perm: ["maintenance", "VIEW"] as [string, string] },
+        { key: "housekeeping", label: "Housekeeping tasks", count: a.activeHousekeeping, icon: Sparkles, href: "/manage/housekeeping", perm: ["housekeeping", "VIEW"] as [string, string] },
+      ]
+    : []
+  ).filter((n) => n.count > 0 && hasPermission(n.perm[0], n.perm[1]));
+  const notifTotal = notifs.reduce((s, n) => s + n.count, 0);
+
+  function goNotif(href: string) {
+    setNotifOpen(false);
+    router.push(href);
+  }
 
   // ── Global search ──
   const [q, setQ] = useState("");
@@ -102,10 +128,55 @@ export function TopHeader() {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
-        <button type="button" className="relative rounded-md p-2 text-fg-soft hover:bg-brand-surface-2" aria-label="Notifications">
-          <Bell size={19} strokeWidth={1.5} />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setNotifOpen((o) => !o)}
+            className="relative rounded-md p-2 text-fg-soft hover:bg-brand-surface-2"
+            aria-label="Notifications"
+          >
+            <Bell size={19} strokeWidth={1.5} />
+            {notifs.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[0.6rem] font-semibold text-white">
+                {notifTotal > 9 ? "9+" : notifTotal}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setNotifOpen(false)} />
+              <div className="absolute right-0 top-full z-20 mt-1 w-72 overflow-hidden rounded-lg border border-line-2 bg-brand-surface-2 shadow-xl">
+                <div className="border-b border-line px-3 py-2">
+                  <p className="text-sm font-medium text-fg">Notifications</p>
+                  <p className="text-xs text-fg-muted">Action items needing attention</p>
+                </div>
+                {notifs.length === 0 ? (
+                  <div className="flex items-center gap-2 px-3 py-6 text-sm text-fg-soft">
+                    <CheckCircle2 size={16} className="text-ok" /> All clear — nothing needs attention.
+                  </div>
+                ) : (
+                  <ul className="max-h-80 overflow-y-auto py-1">
+                    {notifs.map((n) => (
+                      <li key={n.key}>
+                        <button
+                          type="button"
+                          onClick={() => goNotif(n.href)}
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-brand-surface-3"
+                        >
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-surface-3 text-fg-soft">
+                            <n.icon size={15} strokeWidth={1.6} />
+                          </span>
+                          <span className="min-w-0 flex-1 text-sm text-fg">{n.label}</span>
+                          <span className="shrink-0 rounded-full bg-brand-surface-3 px-2 py-0.5 text-xs font-semibold tabular-nums text-fg">{n.count}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="relative">
           <button
@@ -126,7 +197,7 @@ export function TopHeader() {
                   <p className="text-sm font-medium text-fg">{user?.name ?? "—"}</p>
                   <p className="text-xs capitalize text-fg-muted">{(user?.roles ?? []).map((r) => r.replace(/_/g, " ").toLowerCase()).join(", ") || "No role"}</p>
                 </div>
-                <MenuLink icon={User} label="Profile" href="/manage/administration" onClick={() => setMenuOpen(false)} />
+                <MenuLink icon={User} label="Profile" href="/manage/profile" onClick={() => setMenuOpen(false)} />
                 <button
                   type="button"
                   onClick={onLogout}

@@ -120,6 +120,26 @@ export class AuthService {
     }
   }
 
+  /** Update the signed-in user's own name; returns the fresh user (same shape as /me). */
+  async updateProfile(userId: string, name: string) {
+    await this.prisma.user.update({ where: { id: userId }, data: { name } });
+    const user = await this.loadUserWithGrants(userId);
+    if (!user) throw new UnauthorizedException({ code: 'USER_NOT_FOUND', message: 'User not found.' });
+    const { roles, permissions } = this.computeGrants(user);
+    return { id: user.id, email: user.email, name: user.name, roles, permissions };
+  }
+
+  /** Change the signed-in user's own password (verifies the current one first). */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException({ code: 'USER_NOT_FOUND', message: 'User not found.' });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new UnauthorizedException({ code: 'INVALID_PASSWORD', message: 'Current password is incorrect.' });
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { changed: true };
+  }
+
   private signAccess(payload: JwtPayload): Promise<string> {
     return this.jwt.signAsync(payload, {
       secret: this.config.get<string>('JWT_SECRET'),
