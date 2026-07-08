@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LogIn, LogOut, CheckCircle, ConciergeBell, Loader2, UserPlus, Award, Star, Ban, UserX } from "lucide-react";
+import { LogIn, LogOut, CheckCircle, ConciergeBell, Loader2, UserPlus, Award, Star, Ban, UserX, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, Button, Badge, EmptyState } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -13,6 +13,8 @@ import { DatePicker } from "@/components/internal/date-picker";
 import { listReservations, checkInReservation, checkOutReservation, walkInReservation, markNoShow } from "@/lib/data/reservations";
 import { getGuestProfile } from "@/lib/data/guests";
 import { getAvailableRooms, getAvailabilityByType } from "@/lib/data/availability";
+import { getFolio } from "@/lib/data/operations";
+import { printGuestReceipt, type FolioHeader } from "@/lib/print-folio";
 import { type Reservation } from "@/lib/mock";
 import { getRoomType, roomTypes } from "@/lib/cms";
 import { useAuth } from "@/providers/auth-provider";
@@ -272,31 +274,60 @@ function GuestRow({ r, action }: { r: Reservation; action: React.ReactNode }) {
 
 function CheckoutDialog({ reservation, onClose, onDone }: { reservation: Reservation; onClose: () => void; onDone: () => void }) {
   const [method, setMethod] = useState("CASH");
+  const [settled, setSettled] = useState<{ total: number } | null>(null);
+  const { data: folio } = useQuery({ queryKey: ["folio", reservation.id], queryFn: () => getFolio(reservation.id) });
+
+  const header: FolioHeader = {
+    guestName: reservation.guestName, reservationNumber: reservation.reservationNumber,
+    roomType: getRoomType(reservation.roomTypeSlug)?.name, room: reservation.roomNumber,
+    checkIn: reservation.checkInDate, checkOut: reservation.checkOutDate, company: reservation.company,
+  };
+
   const checkOut = useMutation({
     mutationFn: () => checkOutReservation(reservation.id, method),
-    onSuccess: () => { toast.success("Checked out · folio settled · room now cleaning."); onDone(); onClose(); },
+    onSuccess: () => {
+      toast.success("Checked out · folio settled · room now cleaning.");
+      setSettled({ total: folio?.balance ?? reservation.totalAmount });
+      onDone();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Check out — {reservation.guestName}</DialogTitle>
-          <DialogDescription>Settle the folio and release the room. Choose how the balance was paid.</DialogDescription>
+          <DialogTitle>{settled ? "Checked out" : "Check out"} — {reservation.guestName}</DialogTitle>
+          <DialogDescription>
+            {settled ? "Folio settled and room released. Print the guest's receipt if needed." : "Settle the folio and release the room. Choose how the balance was paid."}
+          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-1.5">
-          <Label>Payment method</Label>
-          <Select value={method} onValueChange={setMethod}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m} className="capitalize">{m.toLowerCase()}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={checkOut.isPending} onClick={() => checkOut.mutate()}>
-            {checkOut.isPending && <Loader2 size={14} className="animate-spin" />} Settle & check out
-          </Button>
-        </DialogFooter>
+
+        {!settled ? (
+          <>
+            <div className="grid gap-1.5">
+              <Label>Payment method</Label>
+              <Select value={method} onValueChange={setMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m} className="capitalize">{m.toLowerCase()}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {folio && <p className="mt-2 text-sm text-fg-soft">Balance to settle · <span className="font-medium text-fg">{formatNaira(folio.balance)}</span></p>}
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button disabled={checkOut.isPending} onClick={() => checkOut.mutate()}>
+                {checkOut.isPending && <Loader2 size={14} className="animate-spin" />} Settle & check out
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => printGuestReceipt(header, folio?.lines ?? [], settled.total, method)}>
+              <Printer size={14} /> Print receipt
+            </Button>
+            <Button onClick={onClose}>Done</Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
