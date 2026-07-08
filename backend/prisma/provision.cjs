@@ -200,6 +200,12 @@ async function main() {
     CREATE INDEX IF NOT EXISTS charge_ledger_guest_idx ON charge_ledger(guest_id);
     CREATE INDEX IF NOT EXISTS charge_ledger_reservation_idx ON charge_ledger(reservation_id);
     CREATE INDEX IF NOT EXISTS charge_ledger_status_idx ON charge_ledger(status);
+    CREATE TABLE IF NOT EXISTS company_payments (
+      id text PRIMARY KEY, company_id text NOT NULL REFERENCES companies(id),
+      amount numeric(12,2) NOT NULL, method "PaymentMethod" NOT NULL DEFAULT 'TRANSFER',
+      reference text, note text, recorded_by_user_id text,
+      paid_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS company_payments_company_idx ON company_payments(company_id);
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);

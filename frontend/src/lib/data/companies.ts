@@ -52,13 +52,24 @@ export interface InvoiceCharge {
   id: string; chargeNumber: string; date: string; department: string; description: string;
   room: string | null; reference: string | null; amount: number; tax: number; status: string;
 }
+export type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "CREDIT";
+export interface CompanyPayment {
+  id: string; amount: number; method: string; reference: string | null; note: string | null; paidAt: string;
+}
+export interface Aging {
+  current: number; days31_60: number; days61_90: number; days90plus: number; outstanding: number;
+}
 export interface CompanyInvoice {
   company: { id: string; name: string; tier: CompanyTier; status: CompanyStatus; billingEmail?: string | null };
   byDepartment: { department: string; amount: number }[];
   byGuest: { guestId: string; guestName: string; total: number; charges: InvoiceCharge[] }[];
+  payments: CompanyPayment[];
   taxTotal: number;
   grandTotal: number;
+  billed: number;
+  paidToDate: number;
   outstanding: number;
+  aging: Aging;
   chargeCount: number;
 }
 
@@ -66,7 +77,26 @@ export async function getCompanyInvoice(id: string): Promise<CompanyInvoice> {
   const { data } = await apiRequest<CompanyInvoice>(`/companies/${id}/invoice`);
   return data;
 }
-export async function settleCompanyInvoice(id: string): Promise<{ settled: number }> {
-  const { data } = await apiRequest<{ settled: number }>(`/companies/${id}/settle`, { method: "POST" });
+
+export interface NewPayment { amount: number; method?: PaymentMethod; reference?: string; note?: string; paidAt?: string }
+export async function recordCompanyPayment(id: string, input: NewPayment): Promise<CompanyInvoice> {
+  const { data } = await apiRequest<CompanyInvoice>(`/companies/${id}/payments`, { method: "POST", body: JSON.stringify(input) });
+  return data;
+}
+export async function settleCompanyInvoice(id: string): Promise<CompanyInvoice> {
+  const { data } = await apiRequest<CompanyInvoice>(`/companies/${id}/settle`, { method: "POST" });
+  return data;
+}
+
+export interface CompanyAgingRow extends Aging {
+  id: string; name: string; tier: CompanyTier; status: CompanyStatus;
+}
+export interface CompaniesAging {
+  companies: CompanyAgingRow[];
+  totals: Aging;
+}
+export async function getCompaniesAging(): Promise<CompaniesAging> {
+  if (!hasApi()) return { companies: [], totals: { current: 0, days31_60: 0, days61_90: 0, days90plus: 0, outstanding: 0 } };
+  const { data } = await apiRequest<CompaniesAging>("/companies/aging");
   return data;
 }

@@ -63,9 +63,19 @@ export function printCompanyInvoice(inv: CompanyInvoice) {
     <h2>Detail by guest</h2>
     ${guestBlocks || '<p class="muted">No charges.</p>'}
 
+    ${inv.payments.length ? `<h2>Payments</h2>
+    <table class="lines"><thead><tr><th>Date</th><th>Method</th><th>Reference</th><th class="r">Amount</th></tr></thead><tbody>${
+      inv.payments.map((p) => `<tr><td>${esc(p.paidAt?.slice(0, 10) ?? "")}</td><td style="text-transform:capitalize">${esc(p.method.toLowerCase())}</td><td>${esc(p.reference ?? p.note ?? "")}</td><td class="r">${naira(p.amount)}</td></tr>`).join("")
+    }</tbody></table>` : ""}
+
+    ${inv.outstanding > 0 ? `<h2>Aged outstanding</h2>
+    <table><thead><tr><th>0–30d</th><th>31–60d</th><th>61–90d</th><th>90+d</th></tr></thead>
+    <tbody><tr><td>${naira(inv.aging.current)}</td><td>${naira(inv.aging.days31_60)}</td><td>${naira(inv.aging.days61_90)}</td><td>${naira(inv.aging.days90plus)}</td></tr></tbody></table>` : ""}
+
     <table class="totals">
       <tr><td>Tax included</td><td class="r">${naira(inv.taxTotal)}</td></tr>
-      <tr class="grand"><td>Total</td><td class="r">${naira(inv.grandTotal)}</td></tr>
+      <tr class="grand"><td>Total charges</td><td class="r">${naira(inv.grandTotal)}</td></tr>
+      <tr><td>Paid to date</td><td class="r">${naira(inv.paidToDate)}</td></tr>
       <tr><td>Outstanding</td><td class="r out">${naira(inv.outstanding)}</td></tr>
     </table>
   </body></html>`;
