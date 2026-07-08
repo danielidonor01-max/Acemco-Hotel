@@ -153,11 +153,15 @@ export function ReservationForm({
                   onChange={(v) => set("roomType", v)}
                   options={roomTypes.map((r) => r.slug)}
                   labels={Object.fromEntries(
-                    (availData ?? roomTypes.map((r) => ({ slug: r.slug, available: null }))).map((a) => {
-                      const rt = roomTypes.find((r) => r.slug === ("slug" in a ? a.slug : ""));
-                      const avail = "available" in a ? a.available : null;
-                      const tag = !datesValid || avail === null ? "" : avail === 0 ? " · Sold out" : ` · ${avail} avail.`;
-                      return [rt?.slug ?? "", (rt?.name ?? "") + tag];
+                    roomTypes.map((rt) => {
+                      const avail = availData?.find((a) => a.slug === rt.slug);
+                      const tag =
+                        !datesValid || avail === undefined
+                          ? ""
+                          : avail.available === 0
+                            ? " · Sold out"
+                            : ` · ${avail.available} avail.`;
+                      return [rt.slug, rt.name + tag];
                     }),
                   )}
                   ariaLabel="Room type"

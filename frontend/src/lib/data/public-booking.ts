@@ -1,4 +1,4 @@
-import { publicRequest, hasPublicApi } from "@/lib/api";
+import { publicRequest } from "@/lib/api";
 import { hasPublicApi as checkPublicApi } from "@/lib/config";
 import { roomTypes } from "@/lib/cms";
 
