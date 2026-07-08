@@ -38,6 +38,7 @@ export async function EditorialSplit({
             ratio="3/4"
             src={src}
             zoom={false}
+            parallax
             className="rounded-2xl"
             sizes="(max-width: 1024px) 100vw, 55vw"
           />

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ParallaxLayer } from "./parallax-layer";
 
 type Overlay = "scrim-bottom" | "scrim-full" | "scrim-hero" | "scrim-none";
 
@@ -30,6 +31,8 @@ export interface MediaFrameProps {
   kenburns?: boolean;
   /** Fill the (sized) parent instead of using an aspect-ratio box — for heroes. */
   background?: boolean;
+  /** Sleek scroll parallax — the image drifts as the frame passes the viewport. */
+  parallax?: boolean;
   sizes?: string;
   className?: string;
   children?: React.ReactNode;
@@ -51,10 +54,16 @@ export function MediaFrame({
   zoom,
   kenburns,
   background,
+  parallax,
   sizes = "100vw",
   className,
   children,
 }: MediaFrameProps) {
+  const imgClass = cn(
+    "object-cover",
+    zoom && "transition-transform duration-[600ms] ease-out group-hover:scale-[1.04]",
+    kenburns && "pub-kenburns",
+  );
   return (
     <div
       className={cn(
@@ -67,18 +76,11 @@ export function MediaFrame({
       style={background ? undefined : { aspectRatio: ratio }}
     >
       {src ? (
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          priority={priority}
-          sizes={sizes}
-          className={cn(
-            "object-cover",
-            zoom && "transition-transform duration-[600ms] ease-out group-hover:scale-[1.04]",
-            kenburns && "pub-kenburns",
-          )}
-        />
+        parallax ? (
+          <ParallaxLayer src={src} alt={alt} priority={priority} sizes={sizes} imgClassName={imgClass} />
+        ) : (
+          <Image src={src} alt={alt} fill priority={priority} sizes={sizes} className={imgClass} />
+        )
       ) : (
         <Placeholder slot={slot} ratio={ratio} />
       )}

@@ -36,7 +36,7 @@ export async function Hero({
         align === "center" ? "items-center justify-center text-center" : "items-end",
       )}
     >
-      <MediaFrame slot={slot} src={src} background overlay="scrim-hero" kenburns priority sizes="100vw" />
+      <MediaFrame slot={slot} src={src} background overlay="scrim-hero" kenburns parallax priority sizes="100vw" />
       <div
         className={cn(
           "pub-container relative z-20 pb-16 pt-32",

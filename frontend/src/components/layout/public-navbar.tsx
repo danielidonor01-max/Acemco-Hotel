@@ -3,8 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+
+const MENU_EASE = [0.22, 1, 0.36, 1] as const;
+
+/** Hamburger ⇄ X, morphed accurately: the outer bars slide to the centre and
+ *  rotate into an X while the middle bar fades. Honors reduced-motion. */
+function MenuIcon({ open }: { open: boolean }) {
+  const reduce = useReducedMotion();
+  const t = { duration: reduce ? 0 : 0.32, ease: MENU_EASE };
+  const bar = "absolute left-0 h-[1.5px] w-full rounded-full bg-current";
+  return (
+    <span className="relative block h-[18px] w-[18px]" aria-hidden="true">
+      <motion.span className={bar} initial={false} style={{ top: 3.5, transformOrigin: "center" }}
+        animate={{ top: open ? 8.25 : 3.5, rotate: open ? 45 : 0 }} transition={t} />
+      <motion.span className={bar} initial={false} style={{ top: 8.25 }}
+        animate={{ opacity: open ? 0 : 1 }} transition={{ duration: reduce ? 0 : 0.2, ease: MENU_EASE }} />
+      <motion.span className={bar} initial={false} style={{ top: 13, transformOrigin: "center" }}
+        animate={{ top: open ? 8.25 : 13, rotate: open ? -45 : 0 }} transition={t} />
+    </span>
+  );
+}
 import { site as staticSite, type SiteSettings } from "@/lib/cms";
 import { MediaFrame } from "@/components/public/media-frame";
 import { useCart, useCartUI } from "@/stores/cart.store";
@@ -33,6 +54,7 @@ export function PublicNavbar({
   const pathname = usePathname();
   const count = useCart((s) => s.count());
   const openCart = useCartUI((s) => s.open);
+  const reduce = useReducedMotion();
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -97,14 +119,22 @@ export function PublicNavbar({
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               className={cn("rounded-lg border p-2.5 transition-colors", light ? "border-pub-line text-pub-ink hover:bg-pub-sand" : "border-white/25 text-pub-on-dark hover:bg-white/15")}
             >
-              {menuOpen ? <X size={18} /> : <Menu size={18} />}
+              <MenuIcon open={menuOpen} />
             </button>
           </div>
         </div>
 
-        {/* Dropdown menu panel */}
-        {menuOpen && (
-          <div className="mt-2 overflow-hidden rounded-2xl border border-pub-line bg-pub-surface shadow-xl">
+        {/* Dropdown menu panel — animates open AND closed (smooth collapse). */}
+        <AnimatePresence initial={false}>
+          {menuOpen && (
+            <motion.div
+              key="menu-panel"
+              initial={reduce ? false : { opacity: 0, height: 0, y: -6 }}
+              animate={reduce ? {} : { opacity: 1, height: "auto", y: 0 }}
+              exit={reduce ? {} : { opacity: 0, height: 0, y: -6 }}
+              transition={{ duration: 0.36, ease: MENU_EASE, opacity: { duration: 0.24 } }}
+              className="mt-2 overflow-hidden rounded-2xl border border-pub-line bg-pub-surface shadow-xl"
+            >
             <nav className="flex flex-col items-center gap-3 px-6 pt-8 pb-2">
               {NAV.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -138,8 +168,9 @@ export function PublicNavbar({
                 <span className="pub-overline text-pub-on-dark">Rooms &amp; suites</span>
               </div>
             </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </header>
   );
