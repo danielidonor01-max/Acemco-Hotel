@@ -61,7 +61,10 @@ const ROOM_TYPES = [
   { slug: 'executive-suite', name: 'Executive Suite', bed: '1 King Bed + Sofa', occ: 3, price: 120000, features: ['Separate lounge', 'Private bar', 'City view'], sort: 3 },
   { slug: 'garden-family', name: 'Garden Family Room', bed: '1 King + 2 Single Beds', occ: 4, price: 95000, features: ['Courtyard access', 'Family layout', 'Fast Wi-Fi'], sort: 4 },
 ];
-const STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING', 'AVAILABLE', 'OCCUPIED', 'INSPECTION', 'AVAILABLE', 'MAINTENANCE', 'AVAILABLE', 'OCCUPIED', 'OUT_OF_ORDER', 'AVAILABLE', 'RESERVED', 'AVAILABLE', 'CLEANING', 'OCCUPIED', 'AVAILABLE', 'AVAILABLE', 'BLOCKED', 'OCCUPIED', 'AVAILABLE', 'INSPECTION', 'AVAILABLE'];
+// Physical-status variety only (cleaning/inspection/maintenance/etc.). OCCUPIED/RESERVED are
+// NOT hard-coded here — real occupancy is driven by reservations and reconciled below (§5d),
+// so the physical board never disagrees with computed availability.
+const STATUSES = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'CLEANING', 'AVAILABLE', 'AVAILABLE', 'INSPECTION', 'AVAILABLE', 'MAINTENANCE', 'AVAILABLE', 'AVAILABLE', 'OUT_OF_ORDER', 'AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'CLEANING', 'AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BLOCKED', 'AVAILABLE', 'AVAILABLE', 'INSPECTION', 'AVAILABLE'];
 const MENU = [
   { sf: 'RESTAURANT', cat: 'Starters', items: [['Pepper Soup, Catfish', 'Aromatic broth, scent leaf, fresh catfish.', 6500, ['Spicy'], true], ['Suya Beef Skewers', 'Charred, dusted with yaji, red onion.', 7000, ['Spicy'], true], ['Garden Salad', 'Leaves, avocado, citrus dressing.', 5000, ['Vegetarian'], true]] },
   { sf: 'RESTAURANT', cat: 'Mains', items: [['Jollof Rice & Grilled Chicken', 'Smoky party jollof, chicken, plantain.', 9500, [], true], ['Seared Barramundi', 'Coconut sauce, greens, jasmine rice.', 14000, [], true], ['Egusi & Pounded Yam', 'Melon seed stew, assorted, pounded yam.', 11000, [], false], ['Ribeye, Pepper Glaze', '300g grass-fed, ata rodo glaze, fries.', 21000, ['Spicy'], true]] },
@@ -353,6 +356,20 @@ async function main() {
     }
     if (needRoomCharge.rowCount) console.log(`Backfilled ${needRoomCharge.rowCount} room charge(s) into the ledger.`);
   }
+
+  // 5d) Reconcile physical room occupancy with reservations: a room is OCCUPIED only when a
+  //     checked-in reservation holds it. Clears stray OCCUPIED/RESERVED from earlier seeds so
+  //     the rooms board never disagrees with reservation-driven availability. Out-of-service
+  //     statuses (maintenance/out-of-order/blocked) are preserved.
+  await client.query(`
+    UPDATE rooms SET status='AVAILABLE'
+    WHERE status IN ('OCCUPIED','RESERVED')
+      AND id NOT IN (SELECT room_id FROM reservations WHERE room_id IS NOT NULL AND status='CHECKED_IN')`);
+  await client.query(`
+    UPDATE rooms SET status='OCCUPIED'
+    WHERE status NOT IN ('OUT_OF_ORDER','MAINTENANCE','BLOCKED')
+      AND id IN (SELECT room_id FROM reservations WHERE room_id IS NOT NULL AND status='CHECKED_IN')`);
+  console.log('Reconciled room occupancy with checked-in reservations.');
 
   // 6) Menus (reset + insert)
   await client.query('DELETE FROM order_items');
