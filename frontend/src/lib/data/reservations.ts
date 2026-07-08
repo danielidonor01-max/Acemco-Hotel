@@ -126,6 +126,11 @@ export async function cancelReservation(id: string, reason?: string): Promise<vo
   await apiRequest(`/reservations/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
 }
 
+export async function markNoShow(id: string): Promise<Reservation> {
+  const { data } = await apiRequest<ApiReservation>(`/reservations/${id}/no-show`, { method: "POST" });
+  return mapApi(data);
+}
+
 export async function checkInReservation(id: string, roomId?: string): Promise<Reservation> {
   const { data } = await apiRequest<ApiReservation>(`/reservations/${id}/check-in`, {
     method: "POST",

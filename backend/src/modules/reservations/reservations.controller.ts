@@ -72,6 +72,13 @@ export class ReservationsController {
     return this.reservations.cancel(id, dto.reason);
   }
 
+  @Post(':id/no-show')
+  @RequirePermissions('reservations:UPDATE')
+  @ApiOperation({ summary: 'Mark a pending/confirmed reservation as a no-show' })
+  noShow(@Param('id') id: string) {
+    return this.reservations.noShow(id);
+  }
+
   @Post('corporate')
   @RequirePermissions('reservations:CREATE')
   @ApiOperation({ summary: 'Corporate booking: several rooms/guests under one company' })

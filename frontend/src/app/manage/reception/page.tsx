@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LogIn, LogOut, CheckCircle, ConciergeBell, Loader2, UserPlus, Award, Star, Ban } from "lucide-react";
+import { LogIn, LogOut, CheckCircle, ConciergeBell, Loader2, UserPlus, Award, Star, Ban, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, Button, Badge, EmptyState } from "@/components/internal/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/internal/date-picker";
-import { listReservations, checkInReservation, checkOutReservation, walkInReservation } from "@/lib/data/reservations";
+import { listReservations, checkInReservation, checkOutReservation, walkInReservation, markNoShow } from "@/lib/data/reservations";
 import { getGuestProfile } from "@/lib/data/guests";
 import { getAvailableRooms, getAvailabilityByType } from "@/lib/data/availability";
 import { type Reservation } from "@/lib/mock";
@@ -37,6 +37,12 @@ export default function ReceptionPage() {
     qc.invalidateQueries({ queryKey: ["housekeeping"] });
   };
 
+  const noShow = useMutation({
+    mutationFn: (r: Reservation) => markNoShow(r.id),
+    onSuccess: () => { toast.success("Marked as no-show."); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <PageShell
       title="Reception"
@@ -59,9 +65,15 @@ export default function ReceptionPage() {
                     key={r.id}
                     r={r}
                     action={
-                      <Button size="sm" onClick={() => setCheckingIn(r)}>
-                        <LogIn size={15} /> Check in
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" onClick={() => setCheckingIn(r)}>
+                          <LogIn size={15} /> Check in
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-fg-muted hover:text-danger" title="Guest never arrived"
+                          disabled={noShow.isPending && noShow.variables?.id === r.id} onClick={() => noShow.mutate(r)}>
+                          {noShow.isPending && noShow.variables?.id === r.id ? <Loader2 size={15} className="animate-spin" /> : <UserX size={15} />}
+                        </Button>
+                      </div>
                     }
                   />
                 ))}
@@ -236,16 +248,21 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function GuestRow({ r, action }: { r: Reservation; action: React.ReactNode }) {
+  // Overdue: still in-house past the scheduled check-out date.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const overdue = r.status === "CHECKED_IN" && r.checkOutDate < todayIso;
   return (
     <li className="flex items-center justify-between px-5 py-3.5">
       <div>
         <p className="flex items-center gap-1.5 text-sm font-medium text-fg">
           {r.guestName}
           {r.isVip && <span className="text-brand-primary-dark" title="VIP guest — alert at check-in">★</span>}
+          {overdue && <Badge tone="danger">Overdue</Badge>}
         </p>
         <p className="text-xs text-fg-muted">
           {r.reservationNumber} · {getRoomType(r.roomTypeSlug)?.name}
           {r.roomNumber ? ` · Room ${r.roomNumber}` : ""}
+          {overdue ? ` · due ${r.checkOutDate}` : ""}
         </p>
       </div>
       {action}

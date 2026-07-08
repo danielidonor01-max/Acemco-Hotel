@@ -285,6 +285,15 @@ export class ReservationsService {
     return this.prisma.reservation.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason } });
   }
 
+  /** Mark a pending/confirmed reservation as a no-show (guest never arrived), releasing any held room. */
+  async noShow(id: string) {
+    const r = await this.get(id);
+    if (r.status !== 'PENDING' && r.status !== 'CONFIRMED') {
+      throw new ConflictException({ code: 'INVALID_STATE', message: `Only a pending or confirmed reservation can be marked no-show (currently ${r.status}).` });
+    }
+    return this.prisma.reservation.update({ where: { id }, data: { status: 'NO_SHOW', roomId: null }, include: this.detailInclude });
+  }
+
   /** Edit a pending/confirmed reservation: change dates, room type or occupancy, re-checking availability. */
   async edit(id: string, dto: EditReservationDto) {
     const r = await this.get(id);
