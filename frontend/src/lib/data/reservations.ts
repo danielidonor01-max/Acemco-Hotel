@@ -10,6 +10,7 @@ interface ApiReservation {
   source: Reservation["source"];
   totalAmount: string | number;
   depositPaid: boolean;
+  depositAmount?: string | number;
   adults: number;
   children: number;
   checkInDate: string;
@@ -40,6 +41,7 @@ function mapApi(r: ApiReservation): Reservation {
     source: r.source,
     totalAmount: Number(r.totalAmount),
     depositPaid: r.depositPaid,
+    depositAmount: r.depositAmount != null ? Number(r.depositAmount) : undefined,
     isVip: r.guest?.isVip,
     type: r.type,
     company: r.company?.name ?? undefined,
@@ -83,6 +85,7 @@ export interface NewReservation {
   children: number;
   type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
   companyId?: string;
+  depositAmount?: number;
 }
 
 export async function createReservation(input: NewReservation): Promise<Reservation> {
@@ -112,6 +115,7 @@ export interface EditReservation {
   children?: number;
   type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
   companyId?: string | null;
+  depositAmount?: number;
 }
 export async function editReservation(id: string, input: EditReservation): Promise<Reservation> {
   const { data } = await apiRequest<ApiReservation>(`/reservations/${id}`, { method: "PATCH", body: JSON.stringify(input) });

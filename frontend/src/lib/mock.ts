@@ -22,6 +22,7 @@ export interface Reservation {
   source: "WEBSITE" | "WALK_IN" | "PHONE" | "OTA" | "INTERNAL";
   totalAmount: number;
   depositPaid: boolean;
+  depositAmount?: number;
   isVip?: boolean;
   type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
   company?: string;

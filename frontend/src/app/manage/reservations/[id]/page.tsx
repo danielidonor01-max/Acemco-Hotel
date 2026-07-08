@@ -81,7 +81,11 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
                 {r.company && <span className="text-fg-muted"> · {r.company}</span>}
               </Detail>
               <Detail icon={Users} label="Deposit">
-                <Badge tone={r.depositPaid ? "success" : "warning"}>{r.depositPaid ? "Paid" : "Unpaid"}</Badge>
+                {r.depositAmount && r.depositAmount > 0 ? (
+                  <span className="flex items-center gap-2">{formatNaira(r.depositAmount)} <Badge tone="success">Paid</Badge></span>
+                ) : (
+                  <Badge tone={r.depositPaid ? "success" : "warning"}>{r.depositPaid ? "Paid" : "None"}</Badge>
+                )}
               </Detail>
             </CardContent>
           </Card>
@@ -98,6 +102,7 @@ export default function ReservationDetailPage({ params }: { params: Promise<{ id
             reservationId={r.id}
             nights={nights}
             baseTotal={r.totalAmount}
+            deposit={r.depositAmount ?? 0}
             header={{ guestName: r.guestName, reservationNumber: r.reservationNumber, roomType: room?.name, room: r.roomNumber, checkIn: r.checkInDate, checkOut: r.checkOutDate, company: r.company }}
           />
         </div>
@@ -115,6 +120,7 @@ function EditReservationDialog({ reservation, onClose }: { reservation: Reservat
     checkOutDate: reservation.checkOutDate,
     adults: reservation.adults,
     children: reservation.children,
+    deposit: reservation.depositAmount ? String(reservation.depositAmount) : "",
   });
   const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -125,6 +131,7 @@ function EditReservationDialog({ reservation, onClose }: { reservation: Reservat
       checkOutDate: form.checkOutDate,
       adults: form.adults,
       children: form.children,
+      depositAmount: form.deposit ? Number(form.deposit) : 0,
     }),
     onSuccess: () => {
       toast.success("Reservation updated.");
@@ -176,6 +183,10 @@ function EditReservationDialog({ reservation, onClose }: { reservation: Reservat
               </Select>
             </div>
           </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="edit-deposit">Deposit taken (₦)</Label>
+            <Input id="edit-deposit" type="number" min={0} value={form.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="0" />
+          </div>
           {invalid ? (
             <p className="text-sm text-danger">Check-out must be after check-in.</p>
           ) : (
@@ -213,7 +224,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FolioPanel({ reservationId, nights, baseTotal, header }: { reservationId: string; nights: number; baseTotal: number; header: FolioHeader }) {
+function FolioPanel({ reservationId, nights, baseTotal, deposit, header }: { reservationId: string; nights: number; baseTotal: number; deposit: number; header: FolioHeader }) {
   const { hasPermission } = useAuth();
   const [adding, setAdding] = useState<{ description: string; type: string } | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ["folio", reservationId], queryFn: () => getFolio(reservationId) });
@@ -264,11 +275,12 @@ function FolioPanel({ reservationId, nights, baseTotal, header }: { reservationI
             {/* No folio yet (guest not checked in) — show the reservation estimate. */}
             <Row label={`Room · ${nights} night(s)`} value={formatNaira(baseTotal)} />
             <Row label="Taxes & service" value={formatNaira(Math.round(baseTotal * 0.075))} />
+            {deposit > 0 && <Row label="Deposit (prepaid)" value={`− ${formatNaira(deposit)}`} />}
             <div className="flex justify-between border-t border-line pt-3 text-base font-semibold text-fg">
-              <span>Estimated total</span>
-              <span>{formatNaira(baseTotal)}</span>
+              <span>{deposit > 0 ? "Balance at check-in" : "Estimated total"}</span>
+              <span>{formatNaira(Math.max(0, baseTotal - deposit))}</span>
             </div>
-            <p className="text-xs text-fg-muted">A folio opens automatically at check-in.</p>
+            <p className="text-xs text-fg-muted">A folio opens automatically at check-in{deposit > 0 ? ", with the deposit credited" : ""}.</p>
           </>
         )}
       </CardContent>

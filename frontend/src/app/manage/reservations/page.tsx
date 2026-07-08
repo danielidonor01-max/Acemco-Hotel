@@ -238,7 +238,7 @@ function NewReservationModal({
   const [form, setForm] = useState({
     guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug,
     checkInDate: "", checkOutDate: "", adults: 2, children: 0,
-    type: "INDIVIDUAL" as "INDIVIDUAL" | "CORPORATE" | "CONFERENCE", companyId: "",
+    type: "INDIVIDUAL" as "INDIVIDUAL" | "CORPORATE" | "CONFERENCE", companyId: "", deposit: "",
   });
   const [error, setError] = useState<string | null>(null);
   const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
@@ -265,6 +265,7 @@ function NewReservationModal({
           adults: form.adults, children: form.children,
           type: form.type,
           companyId: form.type !== "INDIVIDUAL" && form.companyId ? form.companyId : undefined,
+          depositAmount: form.deposit ? Number(form.deposit) : undefined,
         });
       }
       const rt = getRoomType(form.roomTypeSlug)!;
@@ -277,12 +278,13 @@ function NewReservationModal({
         checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
         adults: form.adults, children: form.children,
         status: "PENDING", source: "INTERNAL",
-        totalAmount: rt.basePrice * nights, depositPaid: false,
+        totalAmount: rt.basePrice * nights, depositPaid: !!form.deposit && Number(form.deposit) > 0,
+        depositAmount: form.deposit ? Number(form.deposit) : undefined,
       };
     },
     onSuccess: (r) => {
       toast.success(`Reservation ${r.reservationNumber} created.`);
-      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0, type: "INDIVIDUAL", companyId: "" });
+      setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0].slug, checkInDate: "", checkOutDate: "", adults: 2, children: 0, type: "INDIVIDUAL", companyId: "", deposit: "" });
       setError(null);
       onCreated(r);
     },
@@ -379,6 +381,10 @@ function NewReservationModal({
               <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
               <SelectContent>{[0, 1, 2, 3].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
             </Select>
+          </div>
+          <div className="block sm:col-span-2">
+            <span className="text-sm font-medium text-fg-soft">Deposit taken (₦)</span>
+            <input type="number" min={0} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} className={inputCls} placeholder="0 — optional prepayment credited to the folio at check-in" />
           </div>
         </div>
 

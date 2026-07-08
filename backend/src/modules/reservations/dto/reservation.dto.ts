@@ -23,6 +23,7 @@ export const createReservationSchema = z
     children: z.number().int().min(0).default(0),
     source: z.nativeEnum(ReservationSource).default('INTERNAL'),
     specialRequests: z.string().optional(),
+    depositAmount: z.number().min(0).optional(),
   })
   .refine((d) => new Date(d.checkOutDate) > new Date(d.checkInDate), {
     message: 'Check-out must be after check-in',
@@ -102,5 +103,6 @@ export const editReservationSchema = z.object({
   specialRequests: z.string().optional(),
   type: z.nativeEnum(ReservationType).optional(),
   companyId: z.string().uuid().nullable().optional(),
+  depositAmount: z.number().min(0).optional(),
 });
 export type EditReservationDto = z.infer<typeof editReservationSchema>;

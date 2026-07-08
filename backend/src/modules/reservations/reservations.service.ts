@@ -94,6 +94,8 @@ export class ReservationsService {
         source: dto.source,
         specialRequests: dto.specialRequests,
         totalAmount: total,
+        depositAmount: dto.depositAmount ?? 0,
+        depositPaid: (dto.depositAmount ?? 0) > 0,
         createdByUserId: userId,
       },
       include: { guest: { select: { firstName: true, lastName: true, isVip: true } }, roomType: { select: { name: true } } },
@@ -233,6 +235,25 @@ export class ReservationsService {
           status: 'POSTED',
         },
       });
+      // A deposit taken at booking is a prepaid credit against the folio balance.
+      const deposit = Number(r.depositAmount);
+      if (deposit > 0) {
+        await tx.chargeLedger.create({
+          data: {
+            chargeNumber: chargeNumber(chargeCount + 2),
+            reservationId: id,
+            guestId: r.guestId,
+            companyId: r.companyId ?? undefined,
+            roomId: room.id,
+            department: 'OTHER',
+            sourceModule: 'reservations',
+            referenceNumber: reservation.reservationNumber,
+            description: `Deposit applied (prepaid) · ${reservation.reservationNumber}`,
+            amount: -deposit,
+            status: 'PAID',
+          },
+        });
+      }
       return reservation;
     }, { timeout: 20000, maxWait: 10000 });
   }
@@ -348,6 +369,7 @@ export class ReservationsService {
         companyId: dto.companyId === undefined ? r.companyId : dto.companyId,
         roomId,
         totalAmount: total,
+        ...(dto.depositAmount !== undefined ? { depositAmount: dto.depositAmount, depositPaid: dto.depositAmount > 0 } : {}),
       },
       include: this.detailInclude,
     });

@@ -191,6 +191,7 @@ async function main() {
     UPDATE guests SET tier='VIP' WHERE is_vip = true AND tier='STANDARD';
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS type "ReservationType" NOT NULL DEFAULT 'INDIVIDUAL';
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS company_id text REFERENCES companies(id);
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_amount numeric(12,2) NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS charge_ledger (
       id text PRIMARY KEY, charge_number text NOT NULL UNIQUE,
       reservation_id text REFERENCES reservations(id), guest_id text REFERENCES guests(id),
