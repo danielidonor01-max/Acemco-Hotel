@@ -70,22 +70,22 @@ export async function PublicFooter({ siteSettings }: { siteSettings?: SiteSettin
         {/* Connect — concierge details */}
         <div className="pt-8 pb-16 md:py-20 md:col-span-3">
           <Overline className="text-[8px] tracking-[0.20em]">Connect</Overline>
-          <address className="mt-5 space-y-1 not-italic text-[10px] leading-relaxed text-pub-ink-soft">
+          <address className="mt-5 space-y-1 not-italic text-[12px] leading-relaxed text-pub-ink-soft">
             <p>{site.address}</p>
             <p>{site.city}</p>
           </address>
           <div className="mt-4 space-y-1.5">
-            <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="block text-[10px] font-semibold uppercase tracking-[0.05em] text-pub-ink transition-colors hover:text-pub-gold-deep">
+            <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-pub-ink transition-colors hover:text-pub-gold-deep">
               {site.phone}
             </a>
-            <a href={`mailto:${site.email}`} className="block text-[10px] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
+            <a href={`mailto:${site.email}`} className="block text-[12px] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
               {site.email}
             </a>
           </div>
 
           <dl className="mt-6 space-y-1.5">
             {site.hours.map((h) => (
-              <div key={h.label} className="flex justify-between gap-4 border-b border-pub-line py-1.5 text-[10px]">
+              <div key={h.label} className="flex justify-between gap-4 border-b border-pub-line py-1.5 text-[12px]">
                 <dt className="text-pub-ink-muted">{h.label}</dt>
                 <dd className="text-pub-ink">{h.value}</dd>
               </div>
@@ -94,7 +94,7 @@ export async function PublicFooter({ siteSettings }: { siteSettings?: SiteSettin
 
           <div className="mt-6 flex gap-5">
             {site.socials.map((s) => (
-              <a key={s.label} href={s.href} className="text-[8px] font-semibold uppercase tracking-[0.15em] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
+              <a key={s.label} href={s.href} className="text-[12px] font-semibold uppercase tracking-[0.15em] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
                 {s.label} ↗
               </a>
             ))}
