@@ -17,7 +17,12 @@ export const sanityClient: SanityClient | null = hasSanity()
       projectId: config.sanity.projectId!,
       dataset: config.sanity.dataset,
       apiVersion: config.sanity.apiVersion,
-      useCdn: true,
+      // useCdn:false so revalidation fetches FRESH content. Next's ISR + "cms"
+      // tag cache already sits in front (see sanityFetch), so reads stay cached;
+      // with useCdn:true the refetch would hit Sanity's CDN and return data up to
+      // ~60s stale even after the webhook busts our cache — the "changes are slow"
+      // symptom. Image URLs are unaffected (they always use the image CDN).
+      useCdn: false,
     })
   : null;
 
