@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
 import { Hero } from "@/components/public/hero";
-import { Section } from "@/components/public/section";
 import { EditorialSplit } from "@/components/public/editorial-split";
-import { ExperienceCard } from "@/components/public/cards";
-import { RevealGroup, RevealItem } from "@/components/public/reveal";
-import { amenities } from "@/lib/cms";
 
 export const metadata: Metadata = {
   title: "Facilities",
@@ -18,16 +14,6 @@ export default function FacilitiesPage() {
         slot="facilities.hero"
         title={<>Room to <em>do more</em></>}
       />
-
-      <Section band="cream">
-        <RevealGroup className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {amenities.map((a) => (
-            <RevealItem key={a.title}>
-              <ExperienceCard amenity={a} />
-            </RevealItem>
-          ))}
-        </RevealGroup>
-      </Section>
 
       <EditorialSplit
         slot="facilities.pool"
