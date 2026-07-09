@@ -29,6 +29,8 @@ export interface MediaFrameProps {
   zoom?: boolean;
   /** Ken-burns scale on mount (heroes only). */
   kenburns?: boolean;
+  /** Endless slow "breathing" drift — a still hero photo that feels alive. */
+  alive?: boolean;
   /** Fill the (sized) parent instead of using an aspect-ratio box — for heroes. */
   background?: boolean;
   /** Sleek scroll parallax — the image drifts as the frame passes the viewport. */
@@ -53,6 +55,7 @@ export function MediaFrame({
   overlay = "scrim-none",
   zoom,
   kenburns,
+  alive,
   background,
   parallax,
   sizes = "100vw",
@@ -63,6 +66,7 @@ export function MediaFrame({
     "object-cover",
     zoom && "transition-transform duration-[600ms] ease-out group-hover:scale-[1.04]",
     kenburns && "pub-kenburns",
+    alive && "pub-hero-alive",
   );
   return (
     <div

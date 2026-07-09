@@ -53,9 +53,7 @@ export default async function RoomDetailPage({
         slot={`room.${room.slug}.hero`}
         size="page"
         align="left"
-        overline={room.tier}
         title={room.name}
-        subtitle={room.summary}
       />
 
       {/* Overview + booking */}

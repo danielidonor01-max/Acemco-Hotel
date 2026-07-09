@@ -25,9 +25,7 @@ export default async function ContactPage() {
     <>
       <Hero
         slot="contact.hero"
-        overline="Contact"
         title={<>We&apos;d love to <em>hear from you</em></>}
-        subtitle="Reservations, events, or a simple question — reach us however suits you best."
       />
 
       <Section band="cream">

@@ -21,9 +21,7 @@ export default async function DiningPage() {
     <>
       <Hero
         slot="dining.hero"
-        overline="Dining & Lounge"
         title={<>Where the day <em>slows down</em></>}
-        subtitle="Two rooms, one philosophy: let the market lead, keep it warm, make it worth lingering over."
       />
 
       <Section band="cream">

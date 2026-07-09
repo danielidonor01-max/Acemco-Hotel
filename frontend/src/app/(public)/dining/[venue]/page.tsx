@@ -36,9 +36,7 @@ export default async function VenuePage({
     <>
       <Hero
         slot={`dining.${v.slug}.hero`}
-        overline={v.overline}
         title={v.name}
-        subtitle={v.story}
       />
 
       <Section band="cream">

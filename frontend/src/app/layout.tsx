@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces } from "next/font/google";
+import { Inter, Cormorant } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -9,10 +9,13 @@ const inter = Inter({
   display: "swap",
 });
 
-// Display serif for headings + the Acemco wordmark (replaces Playfair Display).
-const fraunces = Fraunces({
+// Display serif for headings + the Acemco wordmark. Cormorant — a delicate,
+// high-contrast light serif — evokes the same editorial-luxury feel as Rosa
+// Hotels' PP Fragment Serif (a free, self-hosted stand-in for the paid face).
+const cormorant = Cormorant({
   subsets: ["latin"],
-  variable: "--font-fraunces",
+  variable: "--font-cormorant",
+  weight: ["300", "400", "500", "600"],
   style: ["normal", "italic"],
   display: "swap",
 });
@@ -33,7 +36,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${inter.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         {children}

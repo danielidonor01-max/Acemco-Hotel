@@ -20,9 +20,7 @@ export default async function AboutPage() {
     <>
       <Hero
         slot="about.hero"
-        overline="Our Story"
         title={<>A house with a <em>point of view</em></>}
-        subtitle={`How ${site.hotelName} came to be, and the ideas that shape every stay.`}
       />
 
       <EditorialSplit

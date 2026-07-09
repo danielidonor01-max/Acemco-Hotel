@@ -21,9 +21,7 @@ export default async function ReservationsPage({
       <Hero
         slot="reservations.hero"
         size="page"
-        overline="Reservations"
         title={<>Begin your <em>stay</em></>}
-        subtitle="Tell us your dates and we'll confirm availability and hold your room."
       />
 
       <Section band="cream">

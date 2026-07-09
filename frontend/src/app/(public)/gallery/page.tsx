@@ -16,9 +16,7 @@ export default async function GalleryPage() {
     <>
       <Hero
         slot="gallery.hero"
-        overline="Gallery"
         title={<>A closer <em>look</em></>}
-        subtitle="The rooms, the table, the pool — and the quiet moments in between."
       />
       <Section band="cream">
         <GallerySection tiles={tiles} />

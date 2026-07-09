@@ -30,20 +30,19 @@ export default async function HomePage() {
         slot="home.hero"
         size="full"
         align="center"
-        overline={`${site.city.split(",")[0]} · ${site.tagline}`}
+        video="/videos/hero-room.mp4"
         title={<>Rooms that feel <br className="hidden sm:block" />like <em>arrivals</em></>}
-        subtitle="A warm, considered stay where every detail is quietly in your favour — from the light in your room to the last cocktail of the night."
         actions={
           <>
             <PubButton href="/reservations">Reserve a Room</PubButton>
-            <PubButton href="/rooms" variant="pub-on-dark">Explore Rooms</PubButton>
+            <PubButton href="/rooms" variant="pub-outline">Explore Rooms</PubButton>
           </>
         }
       />
 
-      {/* Booking widget overlapping the hero */}
+      {/* Booking widget */}
       <div className="relative z-30 bg-pub-bg">
-        <div className="pub-container -mt-16 md:-mt-14">
+        <div className="pub-container">
           <BookingWidget />
         </div>
       </div>

@@ -1,77 +1,76 @@
 import { MediaFrame } from "./media-frame";
-import { Overline } from "./ui";
+import { HeroVideo } from "./hero-video";
 import { Reveal } from "./reveal";
 import { getHeroImage } from "@/lib/data/content";
 import { cn } from "@/lib/utils";
 
 /**
- * Full-bleed cinematic hero (§15.8). Media fills the section; a heavy scrim
- * guarantees white-on-dark legibility even over a light CMS placeholder.
- * The image resolves from the Sanity `pageMedia` document matching `slot`
- * (falls back to a dignified placeholder when unset).
+ * Hero (§15.8, redesigned). A single full-viewport "living" visual: a looping
+ * muted video when one is supplied (a still room with the curtains breathing in
+ * the breeze), otherwise the still image with a slow ambient drift so it feels
+ * alive. The hook headline + CTAs sit in a band directly *beneath* the image,
+ * on the light page ground — so the type is always full-contrast and never
+ * fights the photo. No eyebrow, no sub-copy: just the one big line.
  */
 export async function Hero({
   slot,
-  overline,
   title,
-  subtitle,
   actions,
   size = "page",
   align = "center",
+  video,
+  videoMobile,
 }: {
   slot: string;
-  overline?: string;
   title: React.ReactNode;
-  subtitle?: string;
   actions?: React.ReactNode;
   size?: "full" | "page";
   align?: "center" | "left";
+  /** Optional looping video URL (landscape) — full-bleed, muted, autoplay. */
+  video?: string;
+  /** Optional portrait cut used on phones (≤767px) so it isn't hard-cropped. */
+  videoMobile?: string;
 }) {
   const src = await getHeroImage(slot);
+  const mediaH =
+    size === "full" ? "h-[92svh] min-h-[560px]" : "h-[56svh] min-h-[380px]";
+
   return (
-    <section
-      className={cn(
-        "relative flex w-full overflow-hidden bg-pub-espresso text-pub-on-dark",
-        size === "full" ? "min-h-[92vh]" : "min-h-[62vh]",
-        align === "center" ? "items-center justify-center text-center" : "items-end",
-      )}
-    >
-      <MediaFrame slot={slot} src={src} background overlay="scrim-hero" kenburns parallax priority sizes="100vw" />
+    <section className="relative w-full bg-pub-bg">
+      {/* The living visual — fills the viewport behind the floating navbar. */}
+      <div className={cn("relative w-full overflow-hidden bg-pub-espresso", mediaH)}>
+        {video ? (
+          <HeroVideo
+            src={video}
+            srcMobile={videoMobile}
+            poster={src}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <MediaFrame slot={slot} src={src} background alive priority sizes="100vw" />
+        )}
+        {/* Soft top wash so the translucent navbar stays legible over a bright frame. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-32 bg-gradient-to-b from-black/25 to-transparent" />
+        {/* Seam: the image melts into the text band below. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-28 bg-gradient-to-b from-transparent to-pub-bg" />
+      </div>
+
+      {/* Text band — dark ink on the light ground → always legible. */}
       <div
         className={cn(
-          "pub-container relative z-20 pb-16 pt-32",
-          align === "left" && "pb-20",
+          "pub-container relative z-20 pb-14 pt-10 md:pb-20 md:pt-12",
+          align === "center" ? "text-center" : "text-left",
         )}
       >
-        <div className={cn("max-w-3xl", align === "center" && "mx-auto")}>
-          {overline && (
-            <Reveal slow>
-              <Overline onDark className="mb-4">
-                {overline}
-              </Overline>
-            </Reveal>
-          )}
-          <Reveal slow delay={0.08}>
+        <div className={cn("max-w-4xl", align === "center" && "mx-auto")}>
+          <Reveal slow>
             <h1 className={size === "full" ? "pub-display-hero" : "pub-display-1"}>{title}</h1>
           </Reveal>
-          {subtitle && (
-            <Reveal delay={0.18}>
-              <p
-                className={cn(
-                  "pub-body-lg mt-6 text-pub-on-dark-soft",
-                  align === "center" && "mx-auto",
-                  "max-w-xl",
-                )}
-              >
-                {subtitle}
-              </p>
-            </Reveal>
-          )}
           {actions && (
-            <Reveal delay={0.28}>
+            <Reveal delay={0.12}>
               <div
                 className={cn(
-                  "mt-9 flex flex-wrap gap-4",
+                  "mt-8 flex flex-wrap gap-4",
                   align === "center" && "justify-center",
                 )}
               >

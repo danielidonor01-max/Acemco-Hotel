@@ -16,9 +16,7 @@ export default function FacilitiesPage() {
     <>
       <Hero
         slot="facilities.hero"
-        overline="The Hotel"
         title={<>Room to <em>do more</em></>}
-        subtitle="A serene swimming pool and a versatile event hall — with a fitness studio on the way."
       />
 
       <Section band="cream">

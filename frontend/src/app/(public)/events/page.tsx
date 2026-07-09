@@ -16,9 +16,7 @@ export default async function EventsPage() {
     <>
       <Hero
         slot="events.hero"
-        overline="What's On"
         title={<>Moments worth <em>gathering for</em></>}
-        subtitle="From live jazz to poolside brunches, there's always something happening at Acemco."
       />
 
       <Section band="cream">

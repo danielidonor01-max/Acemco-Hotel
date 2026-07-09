@@ -25,9 +25,7 @@ export default async function RoomsPage() {
     <>
       <Hero
         slot="rooms.hero"
-        overline="Accommodations"
         title={<>Rooms &amp; <em>Suites</em></>}
-        subtitle="From a serene king to a suite with room to breathe — find the stay that fits your journey."
       />
 
       <Section band="cream">
