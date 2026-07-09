@@ -20,6 +20,7 @@ export async function Hero({
   align = "center",
   video,
   videoMobile,
+  poster,
 }: {
   slot: string;
   title: React.ReactNode;
@@ -30,8 +31,12 @@ export async function Hero({
   video?: string;
   /** Optional portrait cut used on phones (≤767px) so it isn't hard-cropped. */
   videoMobile?: string;
+  /** Optional still for the video hero; defaults to a frame from the video. */
+  poster?: string;
 }) {
-  const src = await getHeroImage(slot);
+  // A video hero is self-contained — no CMS image is fetched or used, so the
+  // homepage never depends on (or waits on) Sanity for its hero.
+  const src = video ? undefined : await getHeroImage(slot);
   const mediaH =
     size === "full" ? "h-[92svh] min-h-[560px]" : "h-[56svh] min-h-[380px]";
 
@@ -43,7 +48,7 @@ export async function Hero({
           <HeroVideo
             src={video}
             srcMobile={videoMobile}
-            poster={src}
+            poster={poster}
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : (

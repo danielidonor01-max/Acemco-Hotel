@@ -8,10 +8,11 @@ import { useReducedMotion } from "framer-motion";
  * curtains breathing in the breeze. Muted + autoplay + loop + inline so it
  * plays silently on every device (the combination iOS/Android require).
  *
- * Because the frame is `object-cover`, a landscape clip is cropped hard on a
- * portrait phone. Supply `srcMobile` (a portrait cut of the same footage) and
- * it's used at ≤767px, `src` (landscape) above — remounting so the new source
- * autoplays. Under reduced-motion it falls back to the poster still.
+ * The poster/fallback is drawn from the video itself, never a CMS image — so
+ * the homepage hero is fully decoupled from Sanity. Because the frame is
+ * `object-cover`, a landscape clip is cropped hard on a portrait phone: supply
+ * `srcMobile` (a portrait cut of the same footage) and it's used at ≤767px.
+ * Under reduced-motion the clip is shown paused on a seeked still frame.
  */
 export function HeroVideo({
   src,
@@ -21,6 +22,7 @@ export function HeroVideo({
 }: {
   src: string;
   srcMobile?: string;
+  /** Optional explicit still; defaults to a frame seeked from the video. */
   poster?: string;
   className?: string;
 }) {
@@ -36,14 +38,24 @@ export function HeroVideo({
     return () => mq.removeEventListener("change", apply);
   }, [srcMobile]);
 
-  if (reduce) {
-    return poster ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={poster} alt="" className={className} />
-    ) : null;
-  }
-
   const activeSrc = isMobile && srcMobile ? srcMobile : src;
+
+  // Reduced motion: show a static frame seeked from the video itself (paused,
+  // no autoplay) — motion-sensitive guests still see the room, never a CMS image.
+  if (reduce) {
+    return (
+      <video
+        key={`still-${activeSrc}`}
+        className={className}
+        src={`${activeSrc}#t=0.5`}
+        preload="metadata"
+        muted
+        playsInline
+        poster={poster}
+        aria-hidden="true"
+      />
+    );
+  }
 
   return (
     <video
