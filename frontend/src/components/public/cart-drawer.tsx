@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, Minus, Plus, ShoppingBag, Trash2, ArrowLeft, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
 import { useCart, useCartUI } from "@/stores/cart.store";
-import { useOrders } from "@/stores/orders.store";
-import { orderTotal } from "@/lib/orders";
 import { publicRequest } from "@/lib/api";
-import { hasPublicApi } from "@/lib/config";
 import { formatNaira, cn } from "@/lib/utils";
 import { Overline } from "./ui";
 
@@ -16,8 +13,6 @@ type Verify = "idle" | "checking" | "ok" | "fail";
 export function CartDrawer() {
   const { isOpen, close } = useCartUI();
   const { lines, setQty, remove, subtotal, clear } = useCart();
-  const addOrder = useOrders((s) => s.addOrder);
-  const orderCount = useOrders((s) => s.orders.length);
   const [mounted, setMounted] = useState(false);
 
   const [view, setView] = useState<"cart" | "checkout">("cart");
@@ -42,7 +37,6 @@ export function CartDrawer() {
 
   const total = subtotal();
   const storefront = lines[0]?.storefront ?? "RESTAURANT";
-  const gated = hasPublicApi(); // production: verification enforced
 
   function resetAndClose() {
     setView("cart"); setForm({ room: "", lastName: "", instructions: "" });
@@ -63,42 +57,34 @@ export function CartDrawer() {
     } catch { setVerify("fail"); }
   }
 
+  // The order always goes to the API. It used to fall back to a client-side store
+  // when the public API wasn't configured, which showed the guest a "confirmed"
+  // order number for a meal the kitchen would never receive — a silent failure in
+  // exactly the case (misconfigured deploy) where it does the most damage.
   async function placeOrder() {
     setPlacing(true); setError(null);
     try {
-      if (gated) {
-        const order = await publicRequest<{ orderNumber: string }>("/orders", {
-          method: "POST",
-          body: JSON.stringify({
-            storefront,
-            items: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes })),
-            roomNumber: form.room,
-            lastName: form.lastName,
-            specialInstructions: form.instructions || undefined,
-          }),
-        });
-        setPlaced({ orderNumber: order.orderNumber, room: form.room });
-      } else {
-        // Dev/offline demo (no live API to verify against).
-        const number = `WEB-2026-${String(300 + orderCount).padStart(5, "0")}`;
-        addOrder({
-          id: `web-${orderCount}`, orderNumber: number, storefront, source: "WEBSITE", status: "PENDING",
-          roomNumber: form.room || undefined, customerName: form.lastName || "Guest",
-          lines: lines.map((l) => ({ menuItemId: l.menuItemId, name: l.name, quantity: l.quantity, unitPrice: l.unitPrice })),
-          totalAmount: total, createdAt: new Date().toISOString(),
-        });
-        setPlaced({ orderNumber: number, room: form.room || "—" });
-      }
+      const order = await publicRequest<{ orderNumber: string }>("/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          storefront,
+          items: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes })),
+          roomNumber: form.room,
+          lastName: form.lastName,
+          specialInstructions: form.instructions || undefined,
+        }),
+      });
+      setPlaced({ orderNumber: order.orderNumber, room: form.room });
       clear();
     } catch (e) {
-      const msg = (e as { message?: string }).message ?? "Could not place the order.";
+      const msg = (e as { message?: string }).message ?? "Could not place the order. Please call reception.";
       setError(msg);
     } finally {
       setPlacing(false);
     }
   }
 
-  const canPlace = lines.length > 0 && (gated ? verify === "ok" : Boolean(form.room && form.lastName));
+  const canPlace = lines.length > 0 && verify === "ok";
 
   return (
     <>
@@ -181,20 +167,18 @@ export function CartDrawer() {
                   <Field label="Room number" required value={form.room} onChange={(v) => setForm({ ...form, room: v })} />
                   <Field label="Last name" required value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
 
-                  {gated && (
-                    <div>
-                      <button
-                        onClick={runVerify}
-                        disabled={!form.room || !form.lastName || verify === "checking"}
-                        className="inline-flex items-center gap-2 rounded-full border border-pub-ink px-4 py-2 pub-cta text-pub-ink transition-colors hover:bg-pub-ink hover:text-pub-bg disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {verify === "checking" ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
-                        Verify guest
-                      </button>
-                      {verify === "ok" && <p className="mt-2 pub-body-sm text-pub-gold-deep">✓ Verified — welcome, {guest}. Charging to Room {form.room}.</p>}
-                      {verify === "fail" && <p className="mt-2 pub-body-sm text-pub-danger">We couldn&apos;t verify that room and name. Ordering is available to in-house guests.</p>}
-                    </div>
-                  )}
+                  <div>
+                    <button
+                      onClick={runVerify}
+                      disabled={!form.room || !form.lastName || verify === "checking"}
+                      className="inline-flex items-center gap-2 rounded-full border border-pub-ink px-4 py-2 pub-cta text-pub-ink transition-colors hover:bg-pub-ink hover:text-pub-bg disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {verify === "checking" ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+                      Verify guest
+                    </button>
+                    {verify === "ok" && <p className="mt-2 pub-body-sm text-pub-gold-deep">✓ Verified — welcome, {guest}. Charging to Room {form.room}.</p>}
+                    {verify === "fail" && <p className="mt-2 pub-body-sm text-pub-danger">We couldn&apos;t verify that room and name. Ordering is available to in-house guests.</p>}
+                  </div>
 
                   <Field label="Special instructions" textarea value={form.instructions} onChange={(v) => setForm({ ...form, instructions: v })} />
                   {error && <p className="pub-body-sm text-pub-danger">{error}</p>}

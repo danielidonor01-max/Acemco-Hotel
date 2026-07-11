@@ -79,26 +79,34 @@ export class OrdersService {
 
   async create(dto: CreateOrderDto, userId?: string) {
     const { lines, total } = await this.buildLines(dto.storefront, dto.items);
-    const order = await this.prisma.order.create({
-      data: {
-        orderNumber: await this.nextNumber(dto.storefront),
-        storefront: dto.storefront,
-        source: dto.source,
-        status: dto.source === 'INTERNAL_POS' ? 'CONFIRMED' : 'PENDING',
-        customerName: dto.customerName,
-        customerPhone: dto.customerPhone,
-        roomNumber: dto.roomNumber,
-        tableNumber: dto.tableNumber,
-        deliveryLocation: dto.deliveryLocation,
-        specialInstructions: dto.specialInstructions,
-        totalAmount: total,
-        handledByUserId: userId,
-        items: { create: lines.map(({ name, ...l }) => l) },
-      },
-      include: { items: true },
+    const number = await this.nextNumber(dto.storefront);
+    // The order and the charge that bills it commit together. Posting the charge
+    // used to be fire-and-forget (`.catch(() => undefined)`), so a failed post
+    // left a fulfilled, un-billed order and no trace of the lost revenue.
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          orderNumber: number,
+          storefront: dto.storefront,
+          source: dto.source,
+          status: dto.source === 'INTERNAL_POS' ? 'CONFIRMED' : 'PENDING',
+          customerName: dto.customerName,
+          customerPhone: dto.customerPhone,
+          roomNumber: dto.roomNumber,
+          tableNumber: dto.tableNumber,
+          deliveryLocation: dto.deliveryLocation,
+          specialInstructions: dto.specialInstructions,
+          totalAmount: total,
+          handledByUserId: userId,
+          items: { create: lines.map(({ name, ...l }) => l) },
+        },
+        include: { items: true },
+      });
+      if (order.roomNumber) {
+        await this.folios.postOrderToRoom(order.roomNumber, order.storefront, total, order.orderNumber, tx);
+      }
+      return order;
     });
-    if (order.roomNumber) await this.folios.postOrderToRoom(order.roomNumber, order.storefront, total, order.orderNumber).catch(() => undefined);
-    return order;
   }
 
   /**
@@ -137,24 +145,28 @@ export class OrdersService {
       });
     }
     const { lines, total } = await this.buildLines(dto.storefront as Storefront, dto.items);
-    const order = await this.prisma.order.create({
-      data: {
-        orderNumber: await this.nextNumber(dto.storefront as Storefront),
-        storefront: dto.storefront as Storefront,
-        source: OrderSource.ROOM_SERVICE,
-        status: 'PENDING',
-        guestId: check.guestId,
-        customerName: check.guestName,
-        roomNumber: check.roomNumber,
-        specialInstructions: dto.specialInstructions,
-        totalAmount: total,
-        items: { create: lines.map(({ name, ...l }) => l) },
-      },
-      include: { items: true },
+    const number = await this.nextNumber(dto.storefront as Storefront);
+    // Order + room charge commit together: the guest never receives food we failed
+    // to bill them for, and we never bill for food we failed to order.
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          orderNumber: number,
+          storefront: dto.storefront as Storefront,
+          source: OrderSource.ROOM_SERVICE,
+          status: 'PENDING',
+          guestId: check.guestId,
+          customerName: check.guestName,
+          roomNumber: check.roomNumber,
+          specialInstructions: dto.specialInstructions,
+          totalAmount: total,
+          items: { create: lines.map(({ name, ...l }) => l) },
+        },
+        include: { items: true },
+      });
+      await this.folios.postOrderToRoom(check.roomNumber, dto.storefront as Storefront, total, order.orderNumber, tx);
+      return order;
     });
-    // Post the room-service charge to the guest's open folio (best-effort interlock).
-    await this.folios.postOrderToRoom(check.roomNumber, dto.storefront as Storefront, total, order.orderNumber).catch(() => undefined);
-    return order;
   }
 
   async advance(id: string) {
@@ -164,11 +176,16 @@ export class OrdersService {
     }
     const i = FLOW.indexOf(order.status);
     const next = FLOW[i + 1];
-    const updated = await this.prisma.order.update({ where: { id }, data: { status: next } });
+    if (next !== 'COMPLETED') {
+      return this.prisma.order.update({ where: { id }, data: { status: next } });
+    }
     // Recognise revenue when the order completes (Domain §7 — F&B revenue posting).
-    if (next === 'COMPLETED') {
-      await this.finance
-        .create({
+    // The status flip and the revenue line commit together: the post used to be
+    // swallowed, so an order could read COMPLETED while Finance never saw the money.
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({ where: { id }, data: { status: next } });
+      await this.finance.create(
+        {
           type: 'REVENUE',
           amount: Number(order.totalAmount),
           direction: 'CREDIT',
@@ -176,10 +193,11 @@ export class OrdersService {
           description: `Order ${order.orderNumber}`,
           date: todayISO(),
           status: 'POSTED',
-        })
-        .catch(() => undefined);
-    }
-    return updated;
+        },
+        tx,
+      );
+      return updated;
+    });
   }
 
   async cancel(id: string) {

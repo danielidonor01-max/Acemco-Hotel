@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ChargeDepartment, Storefront } from '@prisma/client';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ChargeDepartment, Prisma, Storefront } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ChargesService } from '../charges/charges.service';
 
@@ -59,23 +59,46 @@ export class FoliosService {
     });
   }
 
-  /** Post a storefront order to the in-house guest's stay (order → ledger charge). */
-  async postOrderToRoom(roomNumber: string, storefront: Storefront, amount: number, orderNumber: string) {
-    const reservation = await this.prisma.reservation.findFirst({
+  /**
+   * Post a storefront order to the in-house guest's stay (order → ledger charge).
+   *
+   * Throws if the room has no checked-in guest. It used to `return` silently,
+   * which meant an order charged to an empty room was fulfilled and NEVER billed
+   * — the guest ate for free and nothing recorded that it happened. Refusing the
+   * charge (and, with `tx`, rolling the order back with it) is the only safe
+   * behaviour: you cannot bill a room that nobody is staying in.
+   */
+  async postOrderToRoom(
+    roomNumber: string,
+    storefront: Storefront,
+    amount: number,
+    orderNumber: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
+    const reservation = await db.reservation.findFirst({
       where: { status: 'CHECKED_IN', room: { roomNumber } },
       orderBy: { checkInDate: 'desc' },
     });
-    if (!reservation) return;
-    await this.charges.post({
-      reservationId: reservation.id,
-      guestId: reservation.guestId,
-      companyId: reservation.companyId ?? undefined,
-      roomId: reservation.roomId,
-      department: STOREFRONT_DEPT[storefront],
-      sourceModule: 'orders',
-      referenceNumber: orderNumber,
-      description: `${storefront} order ${orderNumber}`,
-      amount,
-    });
+    if (!reservation) {
+      throw new UnprocessableEntityException({
+        code: 'ROOM_NOT_OCCUPIED',
+        message: `Room ${roomNumber} has no checked-in guest, so the order cannot be charged to it.`,
+      });
+    }
+    await this.charges.post(
+      {
+        reservationId: reservation.id,
+        guestId: reservation.guestId,
+        companyId: reservation.companyId ?? undefined,
+        roomId: reservation.roomId,
+        department: STOREFRONT_DEPT[storefront],
+        sourceModule: 'orders',
+        referenceNumber: orderNumber,
+        description: `${storefront} order ${orderNumber}`,
+        amount,
+      },
+      tx,
+    );
   }
 }

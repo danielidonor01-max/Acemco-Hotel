@@ -21,10 +21,17 @@ export interface PostCharge {
 export class ChargesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** The one entry point every module uses to bill a guest/company (Domain §7). */
-  async post(entry: PostCharge) {
-    const count = await this.prisma.chargeLedger.count();
-    return this.prisma.chargeLedger.create({
+  /**
+   * The one entry point every module uses to bill a guest/company (Domain §7).
+   *
+   * Pass `tx` to enlist the charge in the caller's transaction, so the billable
+   * action and the charge that pays for it commit or fail together — an order
+   * that cannot be billed must not survive as an un-billed order.
+   */
+  async post(entry: PostCharge, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma;
+    const count = await db.chargeLedger.count();
+    return db.chargeLedger.create({
       data: {
         chargeNumber: chargeNumber(count + 1),
         reservationId: entry.reservationId,

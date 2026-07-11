@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Minus, Trash2, Send, Check, Search, Loader2 } from "lucide-react";
+import { Plus, Minus, Trash2, Send, Check, Search, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Badge } from "./ui";
-import { useOrders } from "@/stores/orders.store";
 import { getPosCatalogue, createOrder, type Sellable } from "@/lib/data/orders-api";
-import { orderTotal, type OrderLine, type OrderSource } from "@/lib/orders";
+import { orderTotal, type OrderLine } from "@/lib/orders";
 import { type Storefront } from "@/lib/cms";
 import { formatNaira, cn } from "@/lib/utils";
 
@@ -16,8 +16,6 @@ const TAX_RATE = 0.075;
 /** POS terminal (Domain §4.1). Menu/product grid + order pad → unified Orders pipeline. */
 export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE" }) {
   const qc = useQueryClient();
-  const addOrder = useOrders((s) => s.addOrder);
-  const orderCount = useOrders((s) => s.orders.length);
 
   const { data: catalogue, isLoading } = useQuery({
     queryKey: ["pos-catalogue", storefront],
@@ -56,40 +54,24 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
   const tax = Math.round(subtotal * TAX_RATE);
   const total = subtotal + tax;
 
+  // Every sale posts to the API. There is no local fallback: a sale that isn't
+  // persisted is money the hotel can't see, and the old fallback silently kept
+  // boutique takings in browser memory until the page was refreshed.
   const send = useMutation({
     mutationFn: async () => {
-      if (live) {
-        const order = await createOrder({
-          storefront,
-          items: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes })),
-          tableNumber: kind !== "retail" ? ref || undefined : undefined,
-          customerName: kind === "retail" ? ref || undefined : undefined,
-        });
-        return order.orderNumber;
-      }
-      // Local fallback (boutique / no API): keep the demo pipeline working.
-      const prefix = storefront === "LOUNGE" ? "LNGE" : storefront === "BOUTIQUE" ? "BTQ" : "REST";
-      const number = `${prefix}-2026-${String(400 + orderCount).padStart(5, "0")}`;
-      const source: OrderSource = "INTERNAL_POS";
-      addOrder({
-        id: `pos-${orderCount}-${storefront}`,
-        orderNumber: number,
-        storefront: storefront === "BOUTIQUE" ? "RESTAURANT" : storefront,
-        source,
-        status: kind === "retail" ? "COMPLETED" : "CONFIRMED",
-        tableNumber: kind !== "retail" && ref ? ref : undefined,
-        customerName: kind === "retail" && ref ? ref : undefined,
-        lines,
-        totalAmount: total,
-        createdAt: new Date().toISOString(),
+      const order = await createOrder({
+        storefront,
+        items: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes })),
+        tableNumber: kind !== "retail" ? ref || undefined : undefined,
+        customerName: kind === "retail" ? ref || undefined : undefined,
       });
-      return number;
+      return order.orderNumber;
     },
     onSuccess: (number) => {
       setSent(number);
       setLines([]);
       setRef("");
-      if (live) qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["orders"] });
       setTimeout(() => setSent(null), 2500);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -113,6 +95,20 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
 
         {isLoading ? (
           <p className="py-12 text-center text-sm text-fg-muted">Loading menu…</p>
+        ) : !live ? (
+          // No live catalogue → the terminal cannot record a sale, so it must not
+          // pretend to. Selling here would produce takings with no DB record.
+          <div className="rounded-lg border border-warn/40 bg-warn/5 p-8 text-center">
+            <AlertTriangle size={22} className="mx-auto text-warn" strokeWidth={1.6} />
+            <p className="mt-3 font-medium text-fg">This till can&apos;t take orders yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-fg-soft">
+              No items are set up for this storefront, so a sale couldn&apos;t be recorded against the
+              hotel&apos;s books. Add items under <span className="font-medium text-fg">Menu</span> first.
+            </p>
+            <Link href="/manage/menu" className="mt-4 inline-block">
+              <Button size="sm">Go to Menu</Button>
+            </Link>
+          </div>
         ) : (
           <>
             {!query && (
@@ -203,7 +199,7 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
                 <span>Total</span><span>{formatNaira(total)}</span>
               </div>
             </div>
-            <Button onClick={() => send.mutate()} disabled={lines.length === 0 || send.isPending} className="mt-4 w-full" size="lg">
+            <Button onClick={() => send.mutate()} disabled={!live || lines.length === 0 || send.isPending} className="mt-4 w-full" size="lg">
               {send.isPending ? <Loader2 size={16} className="animate-spin" /> : kind === "retail" ? <><Check size={16} /> Charge</> : <><Send size={16} /> Send to Kitchen</>}
             </Button>
             {sent && (

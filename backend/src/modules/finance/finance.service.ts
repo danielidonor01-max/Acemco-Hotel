@@ -17,9 +17,14 @@ export class FinanceService {
     });
   }
 
-  async create(dto: { type: TransactionType; amount: number; direction: any; account: string; description: string; date: string; status?: TransactionStatus }) {
-    const count = await this.prisma.financeTransaction.count();
-    return this.prisma.financeTransaction.create({
+  /** Pass `tx` to record the transaction atomically with whatever caused it. */
+  async create(
+    dto: { type: TransactionType; amount: number; direction: any; account: string; description: string; date: string; status?: TransactionStatus },
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
+    const count = await db.financeTransaction.count();
+    return db.financeTransaction.create({
       data: {
         ...dto,
         transactionNumber: transactionNumber(count + 1),

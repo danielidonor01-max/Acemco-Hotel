@@ -1,8 +1,7 @@
 import { apiRequest, publicRequest } from "@/lib/api";
-import { hasApi, hasPublicApi } from "@/lib/config";
+import { hasPublicApi } from "@/lib/config";
 import type { Order, OrderStatus, OrderSource } from "@/lib/orders";
-import { venues, boutiqueProducts, type Storefront } from "@/lib/cms";
-import { getVenue } from "@/lib/data/menus";
+import { type Storefront } from "@/lib/cms";
 
 interface ApiMenuCat { id: string; name: string; items: { id: string; name: string; price: string | number; tags: string[]; isAvailable: boolean; isHidden: boolean }[] }
 
@@ -100,43 +99,43 @@ export interface PosCatalogue {
   live: boolean;
 }
 
-export async function getPosCatalogue(storefront: Storefront | "BOUTIQUE"): Promise<PosCatalogue> {
-  if (storefront === "BOUTIQUE") {
-    // Prefer the live boutique menu (real item IDs) so sales post to the API.
-    if (hasPublicApi()) {
-      try {
-        const cats = await publicRequest<ApiMenuCat[]>("/menus/boutique");
-        if (cats?.length) {
-          const items: Sellable[] = cats.flatMap((c) =>
-            c.items.filter((i) => !i.isHidden).map((i) => ({
-              id: i.id, name: i.name, price: Number(i.price), category: c.name,
-              available: i.isAvailable, meta: (i.tags ?? []).join(" · ") || undefined,
-            })),
-          );
-          if (items.length) return { items, categories: [...new Set(items.map((i) => i.category))], kind: "retail", live: true };
-        }
-      } catch {
-        /* fall through to local sample */
-      }
-    }
-    const items: Sellable[] = boutiqueProducts.map((p) => ({
-      id: p.id, name: p.name, price: p.price, category: p.category,
-      available: p.stockQty > 0,
-      meta: p.stockQty > 0 ? `${p.stockQty} in stock · ${p.sku}` : "Out of stock",
-    }));
-    return { items, categories: [...new Set(items.map((i) => i.category))], kind: "retail", live: false };
+/** Live menu for a storefront, or null when the API has none. Never a sample. */
+async function fetchLiveMenu(storefront: Storefront | "BOUTIQUE"): Promise<Omit<PosCatalogue, "kind" | "live"> | null> {
+  if (!hasPublicApi()) return null;
+  try {
+    const cats = await publicRequest<ApiMenuCat[]>(`/menus/${storefront.toLowerCase()}`);
+    const items: Sellable[] = (cats ?? []).flatMap((c) =>
+      c.items
+        .filter((i) => !i.isHidden)
+        .map((i) => ({
+          id: i.id,
+          name: i.name,
+          price: Number(i.price),
+          category: c.name,
+          available: i.isAvailable,
+          meta: (i.tags ?? []).join(" · ") || undefined,
+        })),
+    );
+    if (!items.length) return null;
+    return { items, categories: [...new Set(items.map((i) => i.category))] };
+  } catch {
+    return null;
   }
+}
 
-  const sampleVenue = venues.find((v) => v.storefront === storefront);
-  const venue = sampleVenue ? (await getVenue(sampleVenue.slug)) ?? sampleVenue : undefined;
-  const items: Sellable[] = (venue?.categories ?? []).flatMap((c) =>
-    c.items
-      .filter((i) => !i.isHidden)
-      .map((i) => ({
-        id: i.id, name: i.name, price: i.price, category: c.name,
-        available: i.isAvailable,
-        meta: i.tags.join(" · ") || undefined,
-      })),
-  );
-  return { items, categories: venue?.categories.map((c) => c.name) ?? [], kind: "food", live: hasApi() };
+/**
+ * The sellable catalogue, sourced ONLY from the live menu so every line carries a
+ * real DB `menuItemId` and the sale can actually be posted.
+ *
+ * There is deliberately no sample fallback. It used to fall back to hardcoded
+ * items whose ids don't exist in the database, and the terminal then routed the
+ * sale into a client-side store — staff rang up real money that was never
+ * persisted and never reached Orders or Finance. An unpopulated menu now yields
+ * `live: false` with no items, and the terminal refuses to sell (see POSTerminal).
+ */
+export async function getPosCatalogue(storefront: Storefront | "BOUTIQUE"): Promise<PosCatalogue> {
+  const kind: PosCatalogue["kind"] = storefront === "BOUTIQUE" ? "retail" : "food";
+  const menu = await fetchLiveMenu(storefront);
+  if (!menu) return { items: [], categories: [], kind, live: false };
+  return { ...menu, kind, live: true };
 }

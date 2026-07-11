@@ -44,21 +44,27 @@ export class MaintenanceService {
   async updateWorkOrder(id: string, dto: Prisma.WorkOrderUncheckedUpdateInput) {
     const existing = await this.prisma.workOrder.findUnique({ where: { id }, include: { asset: { select: { name: true } } } });
     if (!existing) throw new NotFoundException({ code: 'WORK_ORDER_NOT_FOUND', message: 'Work order not found.' });
-    const updated = await this.prisma.workOrder.update({ where: { id }, data: dto, include: { asset: { select: { name: true } } } });
-    // Post the maintenance expense to Finance when the job is completed (Domain §7).
-    if (updated.status === 'COMPLETED' && existing.status !== 'COMPLETED') {
-      await this.finance
-        .create({
-          type: 'EXPENSE',
-          amount: Number(updated.estimatedCost),
-          direction: 'DEBIT',
-          account: 'Repairs & Maintenance',
-          description: `${updated.workOrderNumber}${updated.asset ? ` · ${updated.asset.name}` : ''}`,
-          date: new Date().toISOString().slice(0, 10),
-          status: 'POSTED',
-        })
-        .catch(() => undefined);
-    }
-    return updated;
+
+    // Completing the job and booking its cost commit together. The expense post was
+    // swallowed before, so a work order could read COMPLETED while the spend never
+    // reached Finance — expenses silently understated.
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.workOrder.update({ where: { id }, data: dto, include: { asset: { select: { name: true } } } });
+      if (updated.status === 'COMPLETED' && existing.status !== 'COMPLETED') {
+        await this.finance.create(
+          {
+            type: 'EXPENSE',
+            amount: Number(updated.estimatedCost),
+            direction: 'DEBIT',
+            account: 'Repairs & Maintenance',
+            description: `${updated.workOrderNumber}${updated.asset ? ` · ${updated.asset.name}` : ''}`,
+            date: new Date().toISOString().slice(0, 10),
+            status: 'POSTED',
+          },
+          tx,
+        );
+      }
+      return updated;
+    });
   }
 }
