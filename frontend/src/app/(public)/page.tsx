@@ -180,12 +180,12 @@ export default async function HomePage() {
         </div>
       </Section>
 
-      <NewsletterBand />
+      <NewsletterBand email={site.email} />
     </>
   );
 }
 
-function NewsletterBand() {
+function NewsletterBand({ email }: { email?: string }) {
   return (
     <Section band="sand">
       <div className="mx-auto max-w-xl text-center">
@@ -194,7 +194,7 @@ function NewsletterBand() {
         <p className="pub-body mt-4 text-pub-ink-soft">
           Seasonal offers and the occasional note from the house. No noise.
         </p>
-        <NewsletterForm />
+        <NewsletterForm email={email} />
         <p className="pub-body-sm mt-3 text-pub-ink-muted">
           We respect your inbox. <Link href="/privacy" className="pub-underline">Privacy</Link>.
         </p>

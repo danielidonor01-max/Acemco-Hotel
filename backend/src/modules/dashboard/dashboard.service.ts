@@ -7,6 +7,13 @@ const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: Date, b: Date) => Math.max(0, Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY));
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
+/** Nights of a stay that fall inside [from, to) — a long stay only counts its overlap. */
+const nightsInWindow = (checkIn: Date, checkOut: Date, from: Date, to: Date) => {
+  const start = +checkIn > +from ? checkIn : from;
+  const end = +checkOut < +to ? checkOut : to;
+  return nightsBetween(start, end);
+};
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -104,18 +111,31 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Rooms occupied right now — derived from the reservation ledger, not the
+   * `room.status` column. Counting `status: 'OCCUPIED'` made the room table a
+   * second source of truth that could drift from the bookings (exactly the bug
+   * that made a maintenance-flagged room vanish from availability with nothing
+   * booked behind it). A room is occupied iff a CHECKED_IN reservation holds it.
+   */
+  private occupiedNow() {
+    return this.prisma.reservation.count({ where: { status: 'CHECKED_IN' } });
+  }
+
   /** Occupancy, ADR and RevPAR over a trailing window, from reservations + ledger. */
   async occupancy(days = 30) {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
     since.setDate(since.getDate() - (days - 1));
+    const until = new Date(since);
+    until.setDate(since.getDate() + days); // exclusive end of the window
 
     const [totalRooms, occupied, statusGroups, stays, roomCharges] = await Promise.all([
       this.prisma.room.count({ where: { isActive: true } }),
-      this.prisma.room.count({ where: { isActive: true, status: 'OCCUPIED' } }),
+      this.occupiedNow(),
       this.prisma.room.groupBy({ by: ['status'], where: { isActive: true }, _count: { _all: true } }),
       this.prisma.reservation.findMany({
-        where: { status: { in: ['CHECKED_IN', 'CHECKED_OUT'] }, checkOutDate: { gte: since } },
+        where: { status: { in: ['CHECKED_IN', 'CHECKED_OUT'] }, checkOutDate: { gte: since }, checkInDate: { lt: until } },
         select: { checkInDate: true, checkOutDate: true },
       }),
       this.prisma.chargeLedger.findMany({
@@ -124,7 +144,10 @@ export class DashboardService {
       }),
     ]);
 
-    const roomNights = stays.reduce((s, r) => s + nightsBetween(r.checkInDate, r.checkOutDate), 0);
+    // Count only the nights that fall INSIDE the window. Summing each stay's full
+    // length counted nights from before `since` against a window that never offered
+    // them, inflating occupancyRate and ADR for any stay straddling the boundary.
+    const roomNights = stays.reduce((s, r) => s + nightsInWindow(r.checkInDate, r.checkOutDate, since, until), 0);
     const roomRevenue = roomCharges.reduce((s, c) => s + Number(c.amount), 0);
     const availableNights = totalRooms * days;
     return {
@@ -150,7 +173,7 @@ export class DashboardService {
     const [totalRooms, occupied, arrivalsToday, departuresToday, pendingReservations, inventory, workOrders, activeHousekeeping, summary] =
       await Promise.all([
         this.prisma.room.count({ where: { isActive: true } }),
-        this.prisma.room.count({ where: { isActive: true, status: 'OCCUPIED' } }),
+        this.occupiedNow(),
         this.prisma.reservation.count({ where: { checkInDate: { gte: startOfToday, lt: endOfToday }, status: { in: ['CONFIRMED', 'CHECKED_IN'] } } }),
         this.prisma.reservation.count({ where: { checkOutDate: { gte: startOfToday, lt: endOfToday }, status: { in: ['CHECKED_IN', 'CHECKED_OUT'] } } }),
         this.prisma.reservation.count({ where: { status: 'PENDING' } }),
@@ -175,7 +198,7 @@ export class DashboardService {
   async reportsOverview() {
     const [rooms, occupied, inventory, payroll, workOrders, summary] = await Promise.all([
       this.prisma.room.count({ where: { isActive: true } }),
-      this.prisma.room.count({ where: { isActive: true, status: 'OCCUPIED' } }),
+      this.occupiedNow(),
       this.prisma.inventoryItem.findMany(),
       this.prisma.payrollPeriod.findMany({ orderBy: { startDate: 'desc' }, take: 1 }),
       this.prisma.workOrder.findMany(),

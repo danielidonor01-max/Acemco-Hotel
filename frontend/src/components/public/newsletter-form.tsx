@@ -3,15 +3,30 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-/** Newsletter signup — client-side confirmation (no email captured until a backend endpoint exists). */
-export function NewsletterForm() {
+/**
+ * Newsletter signup.
+ *
+ * There is no subscriber store or email provider yet (email infra is deliberately
+ * deferred), so this hands the address off to the hotel's mailbox rather than
+ * pretending. It previously cleared the field and said "we'll be in touch" while
+ * discarding the address entirely — the guest believed they had subscribed and
+ * would never hear from us again.
+ */
+export function NewsletterForm({ email: hotelEmail }: { email?: string }) {
   const [email, setEmail] = useState("");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return;
+    if (!hotelEmail) {
+      toast.error("Sign-up isn't available yet — please reach us on the contact page.");
+      return;
+    }
+    const subject = encodeURIComponent("Newsletter sign-up");
+    const body = encodeURIComponent(`Please add ${email} to the Acemco mailing list.`);
+    window.location.href = `mailto:${hotelEmail}?subject=${subject}&body=${body}`;
     setEmail("");
-    toast.success("Thank you — we'll be in touch with quiet news.");
+    toast.success("Opening your mail app to confirm your sign-up.");
   }
 
   return (

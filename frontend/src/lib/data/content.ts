@@ -90,9 +90,17 @@ export async function getOffers(): Promise<Offer[]> {
   return sampleOffers;
 }
 
+/**
+ * Guest reviews — real ones or none at all.
+ *
+ * This used to fall back to three invented quotes attributed to invented people
+ * ("Adaeze O. — Lagos", …), which rendered on the homepage as genuine "Guest
+ * Voices". Fabricated reviews are indistinguishable from real ones to a visitor,
+ * so an empty CMS now yields an empty list and the section hides itself.
+ */
 export async function getTestimonials(): Promise<Testimonial[]> {
   const rows = await sanityFetch<Testimonial[]>(`*[_type=="testimonial"]{ quote, name, origin }`);
-  return rows?.length ? rows : sampleTestimonials;
+  return rows?.length ? rows : [];
 }
 
 export async function getAmenities(): Promise<Amenity[]> {

@@ -75,12 +75,16 @@ export async function PublicFooter({ siteSettings }: { siteSettings?: SiteSettin
             <p>{site.city}</p>
           </address>
           <div className="mt-4 space-y-1.5">
-            <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-pub-ink transition-colors hover:text-pub-gold-deep">
-              {site.phone}
-            </a>
-            <a href={`mailto:${site.email}`} className="block text-[12px] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
-              {site.email}
-            </a>
+            {site.phone && (
+              <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-pub-ink transition-colors hover:text-pub-gold-deep">
+                {site.phone}
+              </a>
+            )}
+            {site.email && (
+              <a href={`mailto:${site.email}`} className="block text-[12px] text-pub-ink-soft transition-colors hover:text-pub-gold-deep">
+                {site.email}
+              </a>
+            )}
           </div>
 
           <dl className="mt-6 space-y-1.5">

@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Users, BedDouble, Search, Loader2 } from "lucide-react";
-import { roomTypes } from "@/lib/cms";
 import { getPublicAvailability } from "@/lib/data/public-booking";
+import { getRoomTypes } from "@/lib/data/rooms";
 import { cn } from "@/lib/utils";
 import { PubDatePicker, PubSelect } from "./fields";
 
@@ -30,6 +30,14 @@ export function BookingWidget({
 
   const datesValid =
     checkIn && checkOut && new Date(checkOut) > new Date(checkIn);
+
+  // The bookable catalogue, live from the API — never the static sample, or the
+  // guest could pick a room the hotel doesn't offer (and the booking would fail).
+  const { data: roomTypes = [] } = useQuery({
+    queryKey: ["public-room-types"],
+    queryFn: getRoomTypes,
+    staleTime: 300_000,
+  });
 
   // Fetch live availability once both dates are set — soft, non-blocking.
   const { data: availData, isFetching } = useQuery({

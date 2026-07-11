@@ -10,6 +10,10 @@ export function TestimonialSection({ items }: { items: Testimonial[] }) {
   const [i, setI] = useState(0);
   const reduce = useReducedMotion();
 
+  // No real reviews → render nothing. Better an absent section than invented
+  // quotes attributed to people who never stayed here.
+  const empty = items.length === 0;
+
   useEffect(() => {
     if (reduce || items.length <= 1) return;
     const t = setInterval(() => setI((n) => (n + 1) % items.length), 6000);
@@ -17,6 +21,7 @@ export function TestimonialSection({ items }: { items: Testimonial[] }) {
   }, [reduce, items.length]);
 
   const t = items[i];
+  if (empty || !t) return null;
 
   return (
     <section className="pub-section bg-pub-espresso text-pub-on-dark">

@@ -23,12 +23,22 @@ export interface SiteSettings {
   socials: { label: string; href: string }[];
 }
 
+/**
+ * Fallback used only when Sanity's `siteSettings` document is unpopulated.
+ *
+ * It carries NO invented contact details. It used to fall back to a placeholder
+ * phone (+234 800 000 0000), a fake WhatsApp number, a mailbox on a domain the
+ * hotel doesn't own, and social links pointing at "#". Those rendered as real,
+ * clickable contact points — a guest could genuinely try to call a stranger, and
+ * the reservation form's WhatsApp handoff sent bookings into the void. Blank
+ * means the UI hides the link rather than lying about it.
+ */
 export const site: SiteSettings = {
   hotelName: "Acemco Express",
   tagline: "Holiday Inn",
-  phone: "+234 800 000 0000",
-  whatsapp: "2348000000000",
-  email: "reservations@acemcohotel.com",
+  phone: "",
+  whatsapp: "",
+  email: "",
   address: "12 Marina Crescent",
   city: "Warri, Delta State, Nigeria",
   hours: [
@@ -36,11 +46,7 @@ export const site: SiteSettings = {
     { label: "Restaurant", value: "07:00 – 23:00" },
     { label: "Lounge", value: "16:00 – 02:00" },
   ],
-  socials: [
-    { label: "Instagram", href: "#" },
-    { label: "Facebook", href: "#" },
-    { label: "X", href: "#" },
-  ],
+  socials: [],
 };
 
 export interface RoomType {

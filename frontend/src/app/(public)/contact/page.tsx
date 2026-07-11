@@ -32,7 +32,7 @@ export default async function ContactPage() {
         <div className="grid gap-12 lg:grid-cols-2">
           {/* Form */}
           <Reveal>
-            <ContactForm />
+            <ContactForm whatsapp={site.whatsapp} />
           </Reveal>
 
           {/* Info */}
@@ -42,17 +42,23 @@ export default async function ContactPage() {
               <InfoRow icon={MapPin} title="Address">
                 {site.address}, {site.city}
               </InfoRow>
-              <InfoRow icon={Phone} title="Phone">
-                <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="pub-underline">{site.phone}</a>
-              </InfoRow>
-              <InfoRow icon={Mail} title="Email">
-                <a href={`mailto:${site.email}`} className="pub-underline">{site.email}</a>
-              </InfoRow>
-              <InfoRow icon={MessageCircle} title="WhatsApp">
-                <a href={`https://wa.me/${site.whatsapp}`} target="_blank" rel="noopener noreferrer" className="pub-underline text-pub-gold-deep">
-                  Chat with us
-                </a>
-              </InfoRow>
+              {site.phone && (
+                <InfoRow icon={Phone} title="Phone">
+                  <a href={`tel:${site.phone.replace(/\s/g, "")}`} className="pub-underline">{site.phone}</a>
+                </InfoRow>
+              )}
+              {site.email && (
+                <InfoRow icon={Mail} title="Email">
+                  <a href={`mailto:${site.email}`} className="pub-underline">{site.email}</a>
+                </InfoRow>
+              )}
+              {site.whatsapp && (
+                <InfoRow icon={MessageCircle} title="WhatsApp">
+                  <a href={`https://wa.me/${site.whatsapp}`} target="_blank" rel="noopener noreferrer" className="pub-underline text-pub-gold-deep">
+                    Chat with us
+                  </a>
+                </InfoRow>
+              )}
             </ul>
           </Reveal>
         </div>

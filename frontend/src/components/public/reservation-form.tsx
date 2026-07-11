@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
-import { site, roomTypes } from "@/lib/cms";
+import { site } from "@/lib/cms";
 import { getPublicAvailability, submitPublicReservation } from "@/lib/data/public-booking";
+import { getRoomTypes } from "@/lib/data/rooms";
 import { Overline } from "./ui";
 import { PubDatePicker, PubSelect } from "./fields";
 
@@ -25,7 +26,7 @@ export function ReservationForm({
     checkOut: initial.checkOut ?? "",
     adults: initial.adults ?? "2",
     children: initial.children ?? "0",
-    roomType: initial.roomType ?? roomTypes[0].slug,
+    roomType: initial.roomType ?? "",
     name: "",
     phone: "",
     email: "",
@@ -34,8 +35,20 @@ export function ReservationForm({
 
   const [confirmed, setConfirmed] = useState<{ reservationNumber: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const room = roomTypes.find((r) => r.slug === form.roomType);
+  // The bookable catalogue, live from the API. Sourcing this from the static sample
+  // let a guest submit a roomTypeSlug the backend doesn't have — the booking then
+  // failed and they were bounced to WhatsApp without ever being told why.
+  const { data: roomTypes = [] } = useQuery({
+    queryKey: ["public-room-types"],
+    queryFn: getRoomTypes,
+    staleTime: 300_000,
+  });
+
+  // Default to the first live type once the catalogue arrives.
+  const selectedSlug = form.roomType || roomTypes[0]?.slug || "";
+  const room = roomTypes.find((r) => r.slug === selectedSlug);
   const nights =
     form.checkIn && form.checkOut
       ? Math.max(0, Math.round((+new Date(form.checkOut) - +new Date(form.checkIn)) / 86_400_000))
@@ -50,7 +63,7 @@ export function ReservationForm({
     staleTime: 60_000,
   });
 
-  const availRow = availData?.find((a) => a.slug === form.roomType);
+  const availRow = availData?.find((a) => a.slug === selectedSlug);
   const available = availRow?.available ?? 0;
   const livePrice = availRow?.totalPrice;
   const estimate = livePrice ?? (room && nights > 0 ? room.basePrice * nights : 0);
@@ -62,9 +75,23 @@ export function ReservationForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  /** Pre-filled WhatsApp handoff — offered as a visible link when booking fails. */
+  const whatsappHref = () => {
+    const msg =
+      `*Reservation request — ${site.hotelName}*%0A%0A` +
+      `Room: ${room?.name ?? "—"}%0ACheck-in: ${form.checkIn}%0ACheck-out: ${form.checkOut} (${nights} night${nights !== 1 ? "s" : ""})%0A` +
+      `Guests: ${form.adults} adult(s), ${form.children} child(ren)%0A` +
+      (estimate ? `Estimate: ${formatNaira(estimate)}%0A` : "") +
+      `%0AName: ${form.name}%0APhone: ${form.phone}` +
+      (form.email ? `%0AEmail: ${form.email}` : "") +
+      (form.requests ? `%0ARequests: ${form.requests}` : "");
+    return `https://wa.me/${site.whatsapp}?text=${msg}`;
+  };
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
 
     const [firstName, ...rest] = form.name.trim().split(" ");
     const payload = {
@@ -72,7 +99,7 @@ export function ReservationForm({
       lastName: rest.join(" ") || firstName || "Guest",
       phone: form.phone,
       email: form.email || undefined,
-      roomTypeSlug: form.roomType,
+      roomTypeSlug: selectedSlug,
       checkInDate: form.checkIn,
       checkOutDate: form.checkOut,
       adults: Number(form.adults),
@@ -83,17 +110,13 @@ export function ReservationForm({
     try {
       const result = await submitPublicReservation(payload);
       setConfirmed({ reservationNumber: result.reservationNumber });
-    } catch {
-      // API unavailable — fall through to WhatsApp so no guest hits a dead end.
-      const msg =
-        `*Reservation request — ${site.hotelName}*%0A%0A` +
-        `Room: ${room?.name}%0ACheck-in: ${form.checkIn}%0ACheck-out: ${form.checkOut} (${nights} night${nights !== 1 ? "s" : ""})%0A` +
-        `Guests: ${form.adults} adult(s), ${form.children} child(ren)%0A` +
-        (estimate ? `Estimate: ${formatNaira(estimate)}%0A` : "") +
-        `%0AName: ${form.name}%0APhone: ${form.phone}` +
-        (form.email ? `%0AEmail: ${form.email}` : "") +
-        (form.requests ? `%0ARequests: ${form.requests}` : "");
-      window.open(`https://wa.me/${site.whatsapp}?text=${msg}`, "_blank");
+    } catch (e) {
+      // Tell the guest what went wrong. This used to swallow every failure —
+      // sold out, blacklisted, validation, network — into a silent window.open()
+      // to WhatsApp; if the popup was blocked (common after an await) the guest was
+      // left with nothing at all: no confirmation, no error, no explanation.
+      const msg = (e as { message?: string }).message ?? "We couldn't complete your booking just now.";
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -118,7 +141,7 @@ export function ReservationForm({
         <button
           onClick={() => {
             setConfirmed(null);
-            setForm({ checkIn: "", checkOut: "", adults: "2", children: "0", roomType: roomTypes[0].slug, name: "", phone: "", email: "", requests: "" });
+            setForm({ checkIn: "", checkOut: "", adults: "2", children: "0", roomType: "", name: "", phone: "", email: "", requests: "" });
           }}
           className="mt-8 rounded-full border border-pub-line px-6 py-2.5 pub-body-sm text-pub-ink-muted transition-colors hover:border-pub-gold hover:text-pub-ink"
         >
@@ -149,7 +172,7 @@ export function ReservationForm({
             <div className="sm:col-span-2">
               <FieldShell label="Room type">
                 <PubSelect
-                  value={form.roomType}
+                  value={selectedSlug}
                   onChange={(v) => set("roomType", v)}
                   options={roomTypes.map((r) => r.slug)}
                   labels={Object.fromEntries(
@@ -222,9 +245,23 @@ export function ReservationForm({
             <span className="pub-display-3">{estimate ? formatNaira(estimate) : "—"}</span>
           </div>
 
+          {error && (
+            <div className="mt-4 rounded-md border border-pub-danger/30 bg-pub-danger/5 px-3 py-2.5">
+              <p className="pub-body-sm text-pub-danger">{error}</p>
+              <a
+                href={whatsappHref()}
+                target="_blank"
+                rel="noreferrer"
+                className="pub-underline mt-1 inline-block pub-body-sm text-pub-ink"
+              >
+                Send this request on WhatsApp instead
+              </a>
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={!datesValid || !form.name || !form.phone || (datesValid && !checkingAvail && available === 0) || submitting}
+            disabled={!selectedSlug || !datesValid || !form.name || !form.phone || (datesValid && !checkingAvail && available === 0) || submitting}
             className="mt-6 w-full rounded-full bg-pub-gold py-3.5 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark disabled:cursor-not-allowed disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {submitting && <Loader2 size={16} className="animate-spin" />}

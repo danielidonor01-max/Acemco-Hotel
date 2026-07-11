@@ -8,20 +8,30 @@ import { Overline } from "./ui";
 const inputCls =
   "mt-1.5 w-full rounded-md border border-pub-line bg-pub-surface px-3 py-2.5 pub-body text-pub-ink focus:border-pub-gold focus:outline-none";
 
-/** Contact form — composes a WhatsApp message to the hotel (same handoff as the reservation form). */
-export function ContactForm() {
+/**
+ * Contact form — composes a WhatsApp message to the hotel (same handoff as the
+ * reservation form). The number is passed in from the CMS: this component used to
+ * read the STATIC sample, so it messaged a placeholder number even when the real
+ * one was configured, and every enquiry sent here went nowhere.
+ */
+export function ContactForm({ whatsapp }: { whatsapp?: string }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "", message: "" });
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const number = whatsapp || site.whatsapp;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name || !form.phone || !form.message) return;
+    if (!number) {
+      toast.error("Messaging isn't set up yet — please use the phone number or email above.");
+      return;
+    }
     const msg =
       `*Enquiry — ${site.hotelName}*%0A%0A` +
       `Name: ${form.name}%0APhone: ${form.phone}` +
       (form.email ? `%0AEmail: ${form.email}` : "") +
       `%0A%0A${form.message}`;
-    window.open(`https://wa.me/${site.whatsapp}?text=${msg}`, "_blank");
+    window.open(`https://wa.me/${number}?text=${msg}`, "_blank");
     toast.success("Opening WhatsApp — we'll reply shortly.");
   }
 
