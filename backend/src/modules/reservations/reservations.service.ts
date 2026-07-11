@@ -42,17 +42,25 @@ export class ReservationsService {
     return r;
   }
 
-  private async assertAvailability(roomTypeId: string, checkIn: string | Date, checkOut: string | Date, excludeReservationId?: string) {
+  private async assertAvailability(
+    roomTypeId: string,
+    checkIn: string | Date,
+    checkOut: string | Date,
+    excludeReservationId?: string,
+    tx?: Prisma.TransactionClient,
+  ) {
     // Invariant 6: availability verified for the actual date span (not just "free right now"),
-    // so future dates can't be silently oversold.
-    const free = await this.availability.isTypeAvailable(roomTypeId, checkIn, checkOut, excludeReservationId);
+    // so future dates can't be silently oversold. Callers that go on to WRITE must
+    // pass `tx` and hold availability.lockBookings(tx), or the check races the insert.
+    const free = await this.availability.isTypeAvailable(roomTypeId, checkIn, checkOut, excludeReservationId, tx);
     if (!free) {
       throw new ConflictException({ code: 'NO_AVAILABILITY', message: 'No rooms of this type are available for those dates.' });
     }
   }
 
-  private async nextNumber(): Promise<string> {
-    const count = await this.prisma.reservation.count();
+  private async nextNumber(tx?: Prisma.TransactionClient): Promise<string> {
+    const db = tx ?? this.prisma;
+    const count = await db.reservation.count();
     return reservationNumber(count + 1);
   }
 
@@ -77,36 +85,40 @@ export class ReservationsService {
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
-    await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate);
     const total = Number(roomType.basePrice) * nights;
 
-    return this.prisma.reservation.create({
-      data: {
-        reservationNumber: await this.nextNumber(),
-        type: dto.type,
-        guestId: guest.id,
-        companyId: dto.companyId,
-        roomTypeId: roomType.id,
-        checkInDate: new Date(dto.checkInDate),
-        checkOutDate: new Date(dto.checkOutDate),
-        adults: dto.adults,
-        children: dto.children,
-        source: dto.source,
-        specialRequests: dto.specialRequests,
-        totalAmount: total,
-        depositAmount: dto.depositAmount ?? 0,
-        depositPaid: (dto.depositAmount ?? 0) > 0,
-        createdByUserId: userId,
-      },
-      include: { guest: { select: { firstName: true, lastName: true, isVip: true } }, roomType: { select: { name: true } } },
-    });
+    // Lock → re-check → insert, all in one transaction, so the last room of a type
+    // can't be sold twice by two concurrent bookings.
+    return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+      await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate, undefined, tx);
+      return tx.reservation.create({
+        data: {
+          reservationNumber: await this.nextNumber(tx),
+          type: dto.type,
+          guestId: guest.id,
+          companyId: dto.companyId,
+          roomTypeId: roomType.id,
+          checkInDate: new Date(dto.checkInDate),
+          checkOutDate: new Date(dto.checkOutDate),
+          adults: dto.adults,
+          children: dto.children,
+          source: dto.source,
+          specialRequests: dto.specialRequests,
+          totalAmount: total,
+          depositAmount: dto.depositAmount ?? 0,
+          depositPaid: (dto.depositAmount ?? 0) > 0,
+          createdByUserId: userId,
+        },
+        include: { guest: { select: { firstName: true, lastName: true, isVip: true } }, roomType: { select: { name: true } } },
+      });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /** Website reservation: find-or-create guest, then a PENDING reservation (source WEBSITE). */
   async createPublic(dto: PublicReservationDto) {
     const roomType = await this.prisma.roomType.findUnique({ where: { slug: dto.roomTypeSlug } });
     if (!roomType) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
-    await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate);
 
     let guest = await this.prisma.guest.findFirst({ where: { phone: dto.phone, deletedAt: null } });
     if (guest?.isBlacklisted) throw new UnprocessableEntityException({ code: 'GUEST_BLACKLISTED', message: 'Unable to complete this reservation.' });
@@ -117,30 +129,42 @@ export class ReservationsService {
     }
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
+    if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
     const total = Number(roomType.basePrice) * nights;
+    const guestId = guest.id;
 
-    return this.prisma.reservation.create({
-      data: {
-        reservationNumber: await this.nextNumber(),
-        guestId: guest.id,
-        roomTypeId: roomType.id,
-        checkInDate: new Date(dto.checkInDate),
-        checkOutDate: new Date(dto.checkOutDate),
-        adults: dto.adults,
-        children: dto.children,
-        source: 'WEBSITE',
-        specialRequests: dto.specialRequests,
-        totalAmount: total,
-      },
-    });
+    // Same lock → re-check → insert as the internal path. The website is the most
+    // concurrent entry point, so this is where an oversell would actually happen.
+    return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+      await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate, undefined, tx);
+      return tx.reservation.create({
+        data: {
+          reservationNumber: await this.nextNumber(tx),
+          guestId,
+          roomTypeId: roomType.id,
+          checkInDate: new Date(dto.checkInDate),
+          checkOutDate: new Date(dto.checkOutDate),
+          adults: dto.adults,
+          children: dto.children,
+          source: 'WEBSITE',
+          specialRequests: dto.specialRequests,
+          totalAmount: total,
+        },
+      });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   async confirm(id: string) {
     const r = await this.get(id);
     if (r.status !== 'PENDING') throw new ConflictException({ code: 'INVALID_STATE', message: `Cannot confirm a ${r.status} reservation.` });
-    // Re-verify availability at confirmation time (Invariant 6), excluding this reservation's own hold.
-    await this.assertAvailability(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id);
-    return this.prisma.reservation.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
+    // Re-verify availability at confirmation time (Invariant 6), excluding this
+    // reservation's own hold — under the lock, so the re-check can't race a booking.
+    return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+      await this.assertAvailability(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id, tx);
+      return tx.reservation.update({ where: { id }, data: { status: 'CONFIRMED', confirmedAt: new Date() } });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /** Corporate booking: create several reservations (one per guest/room) under one company. */
@@ -191,27 +215,32 @@ export class ReservationsService {
     if (r.status !== 'CONFIRMED') {
       throw new ConflictException({ code: 'INVALID_STATE', message: `Only a confirmed reservation can be checked in (currently ${r.status}).` });
     }
-    let room = roomId
-      ? await this.prisma.room.findUnique({ where: { id: roomId } })
-      : r.roomId
-        ? await this.prisma.room.findUnique({ where: { id: r.roomId } })
-        : null;
-    if (!room) {
-      // Auto-assign: first room of the booked type that's free for the whole stay.
-      const candidates = await this.availability.rooms(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id);
-      const pick = candidates.find((c) => c.assignable && c.status === 'AVAILABLE') ?? candidates.find((c) => c.assignable);
-      if (pick) room = await this.prisma.room.findUnique({ where: { id: pick.id } });
-    }
-    if (!room) throw new ConflictException({ code: 'NO_ROOM', message: 'No available room of this type to assign.' });
-    if (room.roomTypeId !== r.roomTypeId) throw new BadRequestException({ code: 'ROOM_TYPE_MISMATCH', message: `Room ${room.roomNumber} is not the booked room type.` });
-    if (AvailabilityService.BLOCKED_FOR_CHECKIN.includes(room.status)) throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
-    // No other overlapping reservation may already hold this specific room.
-    const roomClash = await this.prisma.reservation.count({
-      where: { roomId: room.id, id: { not: id }, ...this.availability.overlapWhere(r.checkInDate, r.checkOutDate) },
-    });
-    if (roomClash) throw new ConflictException({ code: 'ROOM_TAKEN', message: `Room ${room.roomNumber} is already assigned for these dates.` });
-
+    // Resolve the room, validate it and claim it — all under the lock, inside the
+    // transaction. These checks used to run outside it, so two concurrent check-ins
+    // could both pass the clash check and be handed the SAME physical room.
     return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+
+      let room = roomId
+        ? await tx.room.findUnique({ where: { id: roomId } })
+        : r.roomId
+          ? await tx.room.findUnique({ where: { id: r.roomId } })
+          : null;
+      if (!room) {
+        // Auto-assign: first room of the booked type that's free for the whole stay.
+        const candidates = await this.availability.rooms(r.roomTypeId, r.checkInDate, r.checkOutDate, r.id, tx);
+        const pick = candidates.find((c) => c.assignable && c.status === 'AVAILABLE') ?? candidates.find((c) => c.assignable);
+        if (pick) room = await tx.room.findUnique({ where: { id: pick.id } });
+      }
+      if (!room) throw new ConflictException({ code: 'NO_ROOM', message: 'No available room of this type to assign.' });
+      if (room.roomTypeId !== r.roomTypeId) throw new BadRequestException({ code: 'ROOM_TYPE_MISMATCH', message: `Room ${room.roomNumber} is not the booked room type.` });
+      if (AvailabilityService.BLOCKED_FOR_CHECKIN.includes(room.status)) throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
+      // No other overlapping reservation may already hold this specific room.
+      const roomClash = await tx.reservation.count({
+        where: { roomId: room.id, id: { not: id }, ...this.availability.overlapWhere(r.checkInDate, r.checkOutDate) },
+      });
+      if (roomClash) throw new ConflictException({ code: 'ROOM_TAKEN', message: `Room ${room.roomNumber} is already assigned for these dates.` });
+
       const reservation = await tx.reservation.update({ where: { id }, data: { status: 'CHECKED_IN', roomId: room.id }, include: this.detailInclude });
       await tx.room.update({ where: { id: room.id }, data: { status: 'OCCUPIED' } });
       const checkIn = await tx.checkIn.create({
@@ -267,20 +296,26 @@ export class ReservationsService {
     if (r.status !== 'CHECKED_IN') {
       throw new ConflictException({ code: 'INVALID_STATE', message: `Only a checked-in reservation can be checked out (currently ${r.status}).` });
     }
-    const checkIn = await this.prisma.checkIn.findFirst({
-      where: { reservationId: id, checkOut: null },
-      orderBy: { checkedInAt: 'desc' },
-      include: { folio: true },
-    });
-    // Balance comes from the Charge Ledger (single source of billing truth).
-    const charges = await this.prisma.chargeLedger.findMany({ where: { reservationId: id, status: { not: 'VOIDED' } } });
-    const balance = charges.length
-      ? charges.reduce((s, c) => s + Number(c.amount) + Number(c.tax), 0)
-      : Number(r.totalAmount);
     // Corporate stays are billed to the company (INVOICED); individuals settle now (PAID).
     const settledStatus = r.companyId ? 'INVOICED' : 'PAID';
 
     return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+
+      const checkIn = await tx.checkIn.findFirst({
+        where: { reservationId: id, checkOut: null },
+        orderBy: { checkedInAt: 'desc' },
+        include: { folio: true },
+      });
+      // Balance comes from the Charge Ledger (single source of billing truth), read
+      // INSIDE the transaction. It used to be read before it, so a charge posted in
+      // the gap (a last-minute room-service order) was flipped to settled by the
+      // updateMany below without ever being counted in totalCharged or collected.
+      const charges = await tx.chargeLedger.findMany({ where: { reservationId: id, status: { not: 'VOIDED' } } });
+      const balance = charges.length
+        ? charges.reduce((s, c) => s + Number(c.amount) + Number(c.tax), 0)
+        : Number(r.totalAmount);
+
       const reservation = await tx.reservation.update({ where: { id }, data: { status: 'CHECKED_OUT' }, include: this.detailInclude });
       if (r.roomId) await tx.room.update({ where: { id: r.roomId }, data: { status: 'CLEANING' } });
       await tx.chargeLedger.updateMany({ where: { reservationId: id, status: 'POSTED' }, data: { status: settledStatus } });
@@ -339,40 +374,46 @@ export class ReservationsService {
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
     const datesChanged = checkInDate !== iso(r.checkInDate) || checkOutDate !== iso(r.checkOutDate);
 
-    // Re-verify availability for the new type/dates, excluding this reservation's own hold.
-    if (roomTypeChanged || datesChanged) {
-      await this.assertAvailability(roomType.id, checkInDate, checkOutDate, r.id);
-    }
-
-    // Keep a pre-assigned room only if it still fits the new type and dates.
-    let roomId = r.roomId;
-    if (roomId && roomTypeChanged) {
-      roomId = null;
-    } else if (roomId && datesChanged) {
-      const clash = await this.prisma.reservation.count({
-        where: { roomId, id: { not: id }, ...this.availability.overlapWhere(new Date(checkInDate), new Date(checkOutDate)) },
-      });
-      if (clash) roomId = null;
-    }
-
     const total = Number(roomType.basePrice) * nights;
-    return this.prisma.reservation.update({
-      where: { id },
-      data: {
-        roomTypeId: roomType.id,
-        checkInDate: new Date(checkInDate),
-        checkOutDate: new Date(checkOutDate),
-        adults: dto.adults ?? r.adults,
-        children: dto.children ?? r.children,
-        specialRequests: dto.specialRequests ?? r.specialRequests,
-        type: dto.type ?? r.type,
-        companyId: dto.companyId === undefined ? r.companyId : dto.companyId,
-        roomId,
-        totalAmount: total,
-        ...(dto.depositAmount !== undefined ? { depositAmount: dto.depositAmount, depositPaid: dto.depositAmount > 0 } : {}),
-      },
-      include: this.detailInclude,
-    });
+
+    // Moving a booking re-takes inventory, so it needs the same lock → re-check →
+    // write as creating one: an edit into the last free room must not race a booking.
+    return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+
+      if (roomTypeChanged || datesChanged) {
+        await this.assertAvailability(roomType.id, checkInDate, checkOutDate, r.id, tx);
+      }
+
+      // Keep a pre-assigned room only if it still fits the new type and dates.
+      let roomId = r.roomId;
+      if (roomId && roomTypeChanged) {
+        roomId = null;
+      } else if (roomId && datesChanged) {
+        const clash = await tx.reservation.count({
+          where: { roomId, id: { not: id }, ...this.availability.overlapWhere(new Date(checkInDate), new Date(checkOutDate)) },
+        });
+        if (clash) roomId = null;
+      }
+
+      return tx.reservation.update({
+        where: { id },
+        data: {
+          roomTypeId: roomType.id,
+          checkInDate: new Date(checkInDate),
+          checkOutDate: new Date(checkOutDate),
+          adults: dto.adults ?? r.adults,
+          children: dto.children ?? r.children,
+          specialRequests: dto.specialRequests ?? r.specialRequests,
+          type: dto.type ?? r.type,
+          companyId: dto.companyId === undefined ? r.companyId : dto.companyId,
+          roomId,
+          totalAmount: total,
+          ...(dto.depositAmount !== undefined ? { depositAmount: dto.depositAmount, depositPaid: dto.depositAmount > 0 } : {}),
+        },
+        include: this.detailInclude,
+      });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /** Rooms of the booked type, flagged assignable/not for this reservation's dates. */
@@ -390,16 +431,22 @@ export class ReservationsService {
     if (roomId === null) {
       return this.prisma.reservation.update({ where: { id }, data: { roomId: null }, include: this.detailInclude });
     }
-    const room = await this.prisma.room.findUnique({ where: { id: roomId } });
-    if (!room || !room.isActive) throw new NotFoundException({ code: 'ROOM_NOT_FOUND', message: 'Room not found.' });
-    if (room.roomTypeId !== r.roomTypeId) throw new BadRequestException({ code: 'ROOM_TYPE_MISMATCH', message: `Room ${room.roomNumber} is not the booked room type.` });
-    if (AvailabilityService.BLOCKED_FOR_CHECKIN.includes(room.status) && r.status !== 'CHECKED_IN') {
-      throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
-    }
-    const clash = await this.prisma.reservation.count({
-      where: { roomId, id: { not: id }, ...this.availability.overlapWhere(r.checkInDate, r.checkOutDate) },
-    });
-    if (clash) throw new ConflictException({ code: 'ROOM_TAKEN', message: `Room ${room.roomNumber} is already assigned for these dates.` });
-    return this.prisma.reservation.update({ where: { id }, data: { roomId }, include: this.detailInclude });
+    // Claiming a specific room is a check-then-act too: without the lock, two
+    // reservations could both pass the clash check and be given the same room.
+    return this.prisma.$transaction(async (tx) => {
+      await this.availability.lockBookings(tx);
+
+      const room = await tx.room.findUnique({ where: { id: roomId } });
+      if (!room || !room.isActive) throw new NotFoundException({ code: 'ROOM_NOT_FOUND', message: 'Room not found.' });
+      if (room.roomTypeId !== r.roomTypeId) throw new BadRequestException({ code: 'ROOM_TYPE_MISMATCH', message: `Room ${room.roomNumber} is not the booked room type.` });
+      if (AvailabilityService.BLOCKED_FOR_CHECKIN.includes(room.status) && r.status !== 'CHECKED_IN') {
+        throw new ConflictException({ code: 'ROOM_UNAVAILABLE', message: `Room ${room.roomNumber} is ${room.status}.` });
+      }
+      const clash = await tx.reservation.count({
+        where: { roomId, id: { not: id }, ...this.availability.overlapWhere(r.checkInDate, r.checkOutDate) },
+      });
+      if (clash) throw new ConflictException({ code: 'ROOM_TAKEN', message: `Room ${room.roomNumber} is already assigned for these dates.` });
+      return tx.reservation.update({ where: { id }, data: { roomId }, include: this.detailInclude });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 }

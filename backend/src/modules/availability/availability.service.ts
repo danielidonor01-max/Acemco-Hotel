@@ -55,22 +55,48 @@ export class AvailabilityService {
     checkIn: string | Date,
     checkOut: string | Date,
     excludeReservationId?: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<number> {
+    const db = tx ?? this.prisma;
     const ci = asDate(checkIn);
     const co = asDate(checkOut);
-    const [capacity, outOfService, held] = await Promise.all([
-      this.prisma.room.count({ where: { roomTypeId, isActive: true } }),
-      this.prisma.room.count({ where: { roomTypeId, isActive: true, status: { in: OUT_OF_SERVICE } } }),
-      this.prisma.reservation.count({
-        where: { roomTypeId, ...this.overlapWhere(ci, co), id: excludeReservationId ? { not: excludeReservationId } : undefined },
-      }),
-    ]);
+    // Sequential (not Promise.all): inside an interactive transaction these share
+    // one connection, and the count must be read under the caller's lock anyway.
+    const capacity = await db.room.count({ where: { roomTypeId, isActive: true } });
+    const outOfService = await db.room.count({ where: { roomTypeId, isActive: true, status: { in: OUT_OF_SERVICE } } });
+    const held = await db.reservation.count({
+      where: { roomTypeId, ...this.overlapWhere(ci, co), id: excludeReservationId ? { not: excludeReservationId } : undefined },
+    });
     return Math.max(0, capacity - outOfService - held);
   }
 
   /** True if at least one room of the type is free for the whole span. */
-  async isTypeAvailable(roomTypeId: string, checkIn: string | Date, checkOut: string | Date, excludeReservationId?: string): Promise<boolean> {
-    return (await this.countForType(roomTypeId, checkIn, checkOut, excludeReservationId)) > 0;
+  async isTypeAvailable(
+    roomTypeId: string,
+    checkIn: string | Date,
+    checkOut: string | Date,
+    excludeReservationId?: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    return (await this.countForType(roomTypeId, checkIn, checkOut, excludeReservationId, tx)) > 0;
+  }
+
+  /**
+   * Serialize booking decisions (Postgres transaction-scoped advisory lock).
+   *
+   * Availability is a check-then-act: two concurrent bookings can both read "1
+   * room left" and both insert a hold, overselling the last room — and two
+   * concurrent check-ins can both pass the clash check and be given the SAME
+   * physical room. Taking this lock first makes the check and the write atomic
+   * with respect to each other. It also serializes the `count()+1` number
+   * generators, which could otherwise collide on a unique constraint.
+   *
+   * The lock is released automatically at commit/rollback (safe under a
+   * transaction-mode pooler), and a hotel's booking volume makes the
+   * serialization cost irrelevant.
+   */
+  async lockBookings(tx: Prisma.TransactionClient): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(4012, 26)`;
   }
 
   /** Availability for every active room type over a date span (for the booking summary). */
@@ -112,24 +138,29 @@ export class AvailabilityService {
   }
 
   /** Physical rooms of a type, flagged assignable/not for a span (for the room-picker). */
-  async rooms(roomTypeId: string, checkInStr: string | Date, checkOutStr: string | Date, excludeReservationId?: string) {
+  async rooms(
+    roomTypeId: string,
+    checkInStr: string | Date,
+    checkOutStr: string | Date,
+    excludeReservationId?: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
     const checkIn = asDate(checkInStr);
     const checkOut = asDate(checkOutStr);
-    const [rooms, clashes] = await Promise.all([
-      this.prisma.room.findMany({
-        where: { roomTypeId, isActive: true },
-        orderBy: { roomNumber: 'asc' },
-        select: { id: true, roomNumber: true, floor: true, status: true },
-      }),
-      this.prisma.reservation.findMany({
-        where: {
-          ...this.overlapWhere(checkIn, checkOut),
-          roomId: { not: null },
-          id: excludeReservationId ? { not: excludeReservationId } : undefined,
-        },
-        select: { roomId: true },
-      }),
-    ]);
+    const rooms = await db.room.findMany({
+      where: { roomTypeId, isActive: true },
+      orderBy: { roomNumber: 'asc' },
+      select: { id: true, roomNumber: true, floor: true, status: true },
+    });
+    const clashes = await db.reservation.findMany({
+      where: {
+        ...this.overlapWhere(checkIn, checkOut),
+        roomId: { not: null },
+        id: excludeReservationId ? { not: excludeReservationId } : undefined,
+      },
+      select: { roomId: true },
+    });
     const taken = new Set(clashes.map((c) => c.roomId));
     return rooms.map((r) => {
       // A room can't be assigned if it's physically blocked (occupied / out of service)
