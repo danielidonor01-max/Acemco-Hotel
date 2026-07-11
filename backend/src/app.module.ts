@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
@@ -33,6 +34,13 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Baseline request throttling. THROTTLE_TTL/THROTTLE_LIMIT were in .env but
+    // nothing read them — the API, including /auth/login, had no rate limiting at
+    // all, so passwords could be guessed without limit. Login is throttled far
+    // harder than this baseline (see @Throttle on AuthController.login).
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 120 },
+    ]),
     PrismaModule,
     AuthModule,
     RoomsModule,
@@ -58,7 +66,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     HealthModule,
   ],
   providers: [
-    // Global pipeline: JWT auth → RBAC → handler → envelope → audit → error filter.
+    // Global pipeline: throttle → JWT auth → RBAC → handler → envelope → audit → error filter.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },

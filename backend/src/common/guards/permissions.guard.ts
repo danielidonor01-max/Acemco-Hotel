@@ -2,9 +2,18 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { AUTHENTICATED_ONLY_KEY } from '../decorators/authenticated-only.decorator';
 import { AuthenticatedUser } from '../types/jwt-payload.types';
 
-/** Global RBAC guard — enforces @RequirePermissions() against the user's grants. */
+/**
+ * Global RBAC guard — enforces @RequirePermissions() against the user's grants.
+ *
+ * Fails CLOSED. Every route must declare its access exactly one way: @Public(),
+ * @RequirePermissions(...), or @AuthenticatedOnly(). An undeclared route is
+ * rejected. It used to `return true` when no permission decorator was present, so
+ * forgetting one silently exposed the endpoint to every authenticated user
+ * regardless of role — the kind of hole you only find after it's exploited.
+ */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -20,7 +29,19 @@ export class PermissionsGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required || required.length === 0) return true;
+
+    if (!required || required.length === 0) {
+      const authenticatedOnly = this.reflector.getAllAndOverride<boolean>(AUTHENTICATED_ONLY_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (authenticatedOnly) return true;
+      // Undeclared route → deny. This is a coding error, not a user error.
+      throw new ForbiddenException({
+        code: 'ROUTE_NOT_DECLARED',
+        message: 'This endpoint does not declare its access policy.',
+      });
+    }
 
     const { user } = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>();
     const granted = new Set(user?.permissions ?? []);

@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { AuthenticatedOnly } from '../../common/decorators/authenticated-only.decorator';
 
 @ApiTags('dashboard')
 @Controller('v1')
@@ -9,11 +10,13 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   // No permission requirement — the dashboard is the landing page for every signed-in role.
+  @AuthenticatedOnly()
   @Get('dashboard/stats')
   stats() {
     return this.dashboard.stats();
   }
 
+  @AuthenticatedOnly()
   @Get('dashboard/brief')
   brief() {
     return this.dashboard.brief();

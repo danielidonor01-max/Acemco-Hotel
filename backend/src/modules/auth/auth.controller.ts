@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -9,6 +10,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
+import { AuthenticatedOnly } from '../../common/decorators/authenticated-only.decorator';
 
 const REFRESH_COOKIE = 'refresh_token';
 
@@ -43,6 +45,9 @@ export class AuthController {
   }
 
   @Public()
+  // Brute-force guard: 5 attempts per minute per IP. There was no rate limiting at
+  // all, so an attacker could guess passwords as fast as the API would answer.
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Authenticate and receive an access token' })
@@ -66,6 +71,7 @@ export class AuthController {
     return { accessToken: result.accessToken };
   }
 
+  @AuthenticatedOnly()
   @Post('logout')
   @HttpCode(200)
   @ApiOperation({ summary: 'Revoke the current refresh token' })
@@ -75,12 +81,14 @@ export class AuthController {
     return { message: 'Logged out.' };
   }
 
+  @AuthenticatedOnly()
   @Get('me')
   @ApiOperation({ summary: 'Current authenticated user' })
   me(@CurrentUser() user: AuthenticatedUser) {
     return user;
   }
 
+  @AuthenticatedOnly()
   @Patch('me')
   @ApiOperation({ summary: 'Update your own profile (name)' })
   updateProfile(
@@ -90,6 +98,9 @@ export class AuthController {
     return this.auth.updateProfile(user.id, dto.name);
   }
 
+  // Verifies the current password, so it's a guessing surface too.
+  @AuthenticatedOnly()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('change-password')
   @HttpCode(200)
   @ApiOperation({ summary: 'Change your own password' })

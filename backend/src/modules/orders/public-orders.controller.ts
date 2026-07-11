@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Storefront } from '@prisma/client';
 import { OrdersService } from './orders.service';
@@ -22,6 +23,9 @@ export class PublicOrdersController {
     return this.orders.publicMenu(sf as Storefront);
   }
 
+  // Unauthenticated and answers "is <surname> staying in room <n>?" — throttle it so
+  // it can't be used to enumerate who is in the hotel.
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('verify-guest')
   @ApiOperation({ summary: 'Confirm the requester is a checked-in guest before ordering' })
   verify(@Body(new ZodValidationPipe(verifyGuestSchema)) dto: VerifyGuestDto) {

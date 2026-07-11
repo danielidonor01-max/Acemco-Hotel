@@ -20,21 +20,20 @@ interface NavItem {
   href?: string;
   icon: LucideIcon;
   perm?: [string, Action];
-  enabled?: boolean;
   children?: { label: string; href: string; icon: LucideIcon; perm: [string, Action] }[];
 }
 
 const SECTIONS: { items: NavItem[] }[] = [
   {
     items: [
-      { label: "Dashboard", href: "/manage/dashboard", icon: LayoutDashboard, enabled: true },
-      { label: "Reservations", href: "/manage/reservations", icon: Calendar, perm: ["reservations", "VIEW"], enabled: true },
+      { label: "Dashboard", href: "/manage/dashboard", icon: LayoutDashboard },
+      { label: "Reservations", href: "/manage/reservations", icon: Calendar, perm: ["reservations", "VIEW"] },
       { label: "Availability", href: "/manage/availability", icon: CalendarRange, perm: ["reservations", "VIEW"] },
       { label: "Guests", href: "/manage/guests", icon: Users, perm: ["guests", "VIEW"] },
       { label: "Companies", href: "/manage/companies", icon: Building2, perm: ["guests", "VIEW"] },
-      { label: "Rooms", href: "/manage/rooms", icon: BedDouble, perm: ["rooms", "VIEW"], enabled: true },
+      { label: "Rooms", href: "/manage/rooms", icon: BedDouble, perm: ["rooms", "VIEW"] },
       { label: "Room Types", href: "/manage/room-types", icon: Tags, perm: ["rooms", "VIEW"] },
-      { label: "Reception", href: "/manage/reception", icon: ConciergeBell, perm: ["reception", "VIEW"], enabled: true },
+      { label: "Reception", href: "/manage/reception", icon: ConciergeBell, perm: ["reception", "VIEW"] },
       { label: "Conferences", href: "/manage/conferences", icon: CalendarClock, perm: ["reservations", "VIEW"] },
     ],
   },
@@ -48,7 +47,7 @@ const SECTIONS: { items: NavItem[] }[] = [
           { label: "Boutique", href: "/manage/pos/boutique", icon: ShoppingBag, perm: ["pos.boutique", "VIEW"] },
         ],
       },
-      { label: "Orders", href: "/manage/orders", icon: ClipboardList, perm: ["pos.restaurant", "VIEW"], enabled: true },
+      { label: "Orders", href: "/manage/orders", icon: ClipboardList, perm: ["pos.restaurant", "VIEW"] },
       { label: "Menu", href: "/manage/menu", icon: BookOpen, perm: ["pos.restaurant", "VIEW"] },
       { label: "Inventory", href: "/manage/inventory", icon: Package, perm: ["inventory", "VIEW"] },
       { label: "Housekeeping", href: "/manage/housekeeping", icon: Sparkles, perm: ["housekeeping", "VIEW"] },
@@ -153,7 +152,11 @@ function NavRow({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const { hasPermission } = useAuth();
 
   // Permission gate (§8.11): only show items the user can VIEW.
-  const permitted = item.enabled || !item.perm || hasPermission(item.perm[0], item.perm[1]);
+  // This used to read `item.enabled || !item.perm || hasPermission(...)`. `enabled`
+  // was a build-progress flag meaning "this module ships", but in that `||` it
+  // short-circuited the permission check — so Reservations, Rooms, Reception and
+  // Orders were visible to users with none of those grants. The flag is gone.
+  const permitted = !item.perm || hasPermission(item.perm[0], item.perm[1]);
   if (item.children) {
     const visibleChildren = item.children.filter((c) => hasPermission(c.perm[0], c.perm[1]));
     if (visibleChildren.length === 0) return null;

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { assertSecrets } from './common/config/assert-secrets';
 
 /**
  * Builds and configures the Nest app WITHOUT calling listen().
@@ -12,6 +13,10 @@ import { AppModule } from './app.module';
 export async function createApp(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
   const config = app.get(ConfigService);
+
+  // Refuse to boot with a missing/placeholder signing key rather than falling back
+  // to a hardcoded one and accepting forged tokens.
+  assertSecrets(config);
 
   app.use(cookieParser());
   app.setGlobalPrefix('api');
