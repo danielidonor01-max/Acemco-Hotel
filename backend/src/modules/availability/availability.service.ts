@@ -14,6 +14,12 @@ const BLOCKED_FOR_CHECKIN: RoomStatus[] = ['OCCUPIED', ...OUT_OF_SERVICE];
 /** Parse a YYYY-MM-DD (or ISO) string to a UTC-midnight Date, matching Prisma @db.Date semantics. */
 const asDate = (v: string | Date) => (v instanceof Date ? v : new Date(v));
 
+/** Start of today, UTC — matching Prisma @db.Date semantics. */
+const todayUtc = () => {
+  const n = new Date();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+};
+
 @Injectable()
 export class AvailabilityService {
   constructor(private readonly prisma: PrismaService) {}
@@ -25,8 +31,31 @@ export class AvailabilityService {
 
   static readonly BLOCKED_FOR_CHECKIN = BLOCKED_FOR_CHECKIN;
 
-  /** True if at least one room of the type is free for the whole span. */
-  async isTypeAvailable(roomTypeId: string, checkIn: string | Date, checkOut: string | Date, excludeReservationId?: string): Promise<boolean> {
+  /** Tonight (today → tomorrow, UTC) — the default span when a caller has no dates. */
+  static tonight(): { checkIn: Date; checkOut: Date } {
+    const checkIn = todayUtc();
+    return { checkIn, checkOut: new Date(checkIn.getTime() + MS_PER_DAY) };
+  }
+
+  /**
+   * Free-room COUNT for one type over a span. This is the single source of truth
+   * every surface must agree on (public site, booking, calendar, check-in):
+   *
+   *   available = active rooms − genuinely out of service − overlapping holds
+   *
+   * Note what is NOT subtracted, and why: OCCUPIED is not a separate deduction
+   * because a checked-in guest is already counted via their CHECKED_IN
+   * reservation (subtracting both would double-count); CLEANING/INSPECTION are
+   * housekeeping states, and a dirty room is still sellable — it just has to be
+   * turned over before arrival. Only MAINTENANCE/OUT_OF_ORDER/BLOCKED remove a
+   * room from the sellable pool outright.
+   */
+  async countForType(
+    roomTypeId: string,
+    checkIn: string | Date,
+    checkOut: string | Date,
+    excludeReservationId?: string,
+  ): Promise<number> {
     const ci = asDate(checkIn);
     const co = asDate(checkOut);
     const [capacity, outOfService, held] = await Promise.all([
@@ -36,7 +65,12 @@ export class AvailabilityService {
         where: { roomTypeId, ...this.overlapWhere(ci, co), id: excludeReservationId ? { not: excludeReservationId } : undefined },
       }),
     ]);
-    return capacity - outOfService - held > 0;
+    return Math.max(0, capacity - outOfService - held);
+  }
+
+  /** True if at least one room of the type is free for the whole span. */
+  async isTypeAvailable(roomTypeId: string, checkIn: string | Date, checkOut: string | Date, excludeReservationId?: string): Promise<boolean> {
+    return (await this.countForType(roomTypeId, checkIn, checkOut, excludeReservationId)) > 0;
   }
 
   /** Availability for every active room type over a date span (for the booking summary). */

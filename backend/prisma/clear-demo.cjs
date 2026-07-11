@@ -64,11 +64,16 @@ async function main() {
   await client.query(`TRUNCATE ${targets.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`);
   console.log(`Cleared demo data from: ${targets.join(', ')}.`);
 
-  // Reconcile physical room status: no reservations means no occupancy — release
-  // any OCCUPIED/RESERVED rooms back to AVAILABLE (maintenance states preserved).
-  await client.query(`
-    UPDATE rooms SET status='AVAILABLE'
-    WHERE status IN ('OCCUPIED','RESERVED')`);
+  // Reconcile physical room status. A non-AVAILABLE room must always be backed by
+  // a record that explains it: OCCUPIED/RESERVED by a reservation, CLEANING/
+  // INSPECTION by a housekeeping task, MAINTENANCE/OUT_OF_ORDER/BLOCKED by a work
+  // order. This wipe truncates reservations, housekeeping_tasks AND work_orders —
+  // so every one of those statuses is now orphaned and must be released, or the
+  // room silently leaves the sellable pool with nothing in the system explaining
+  // why (which is exactly how rooms drifted out of inventory before).
+  const released = await client.query(`
+    UPDATE rooms SET status='AVAILABLE' WHERE status <> 'AVAILABLE'`);
+  console.log(`Released ${released.rowCount} room(s) back to AVAILABLE.`);
 
   const kept = ['permissions', 'roles', 'users', 'room_types', 'rooms', 'menu_categories', 'menu_items', 'settings'];
   const counts = {};

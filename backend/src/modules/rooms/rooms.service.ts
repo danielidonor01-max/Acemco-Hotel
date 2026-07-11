@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AvailabilityService } from '../availability/availability.service';
 
 export interface RoomTypeInput {
   name: string;
@@ -28,7 +29,10 @@ export interface ReservationSummary {
 
 @Injectable()
 export class RoomsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly availability: AvailabilityService,
+  ) {}
 
   /** List all rooms, annotated with current occupant and nearest upcoming confirmed reservation. */
   async listRooms(status?: RoomStatus) {
@@ -239,8 +243,20 @@ export class RoomsService {
   }
 
   /** Count of AVAILABLE rooms of a type (availability for public reservation flow). */
-  availabilityByType(roomTypeId: string) {
-    return this.prisma.room.count({ where: { roomTypeId, status: 'AVAILABLE', isActive: true } });
+  /**
+   * Sellable rooms of a type for a span, from the ONE availability engine that
+   * reservations, the calendar and check-in all use — so the public site can
+   * never disagree with the ledger. Defaults to tonight when the caller (the
+   * public room page) has no dates yet.
+   *
+   * Previously this counted rooms whose `status` column was AVAILABLE, which
+   * ignored the reservation ledger entirely and treated housekeeping state as
+   * inventory — a second source of truth that drifted (a room parked in
+   * CLEANING/MAINTENANCE vanished from availability with no booking behind it).
+   */
+  availabilityByType(roomTypeId: string, checkIn?: string | Date, checkOut?: string | Date) {
+    const tonight = AvailabilityService.tonight();
+    return this.availability.countForType(roomTypeId, checkIn ?? tonight.checkIn, checkOut ?? tonight.checkOut);
   }
 
   // ---------------- Room types (category) CRUD ----------------
