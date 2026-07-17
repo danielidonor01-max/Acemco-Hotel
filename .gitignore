@@ -27,3 +27,7 @@ Thumbs.db
 
 # Local agent/session config
 .claude/
+
+# Backups contain guest personal data (NDPA) — never commit them.
+backups/
+*.sql.gz
