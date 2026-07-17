@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
 import { ReservationsController } from './reservations.controller';
 import { PublicReservationsController } from './public-reservations.controller';
+import { GroupsController } from './groups.controller';
+import { GroupService } from './group.service';
 import { AvailabilityModule } from '../availability/availability.module';
 import { ChargesModule } from '../charges/charges.module';
 import { PricingModule } from '../pricing/pricing.module';
@@ -11,8 +13,8 @@ import { CancellationService } from './cancellation.service';
 
 @Module({
   imports: [AvailabilityModule, ChargesModule, PricingModule, FinanceModule, CashModule],
-  controllers: [ReservationsController, PublicReservationsController],
-  providers: [ReservationsService, CancellationService],
+  controllers: [ReservationsController, PublicReservationsController, GroupsController],
+  providers: [ReservationsService, CancellationService, GroupService],
   exports: [ReservationsService, CancellationService],
 })
 export class ReservationsModule {}

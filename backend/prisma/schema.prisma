@@ -317,6 +317,30 @@ enum IdType {
 
 // ============================ Reservations (Domain §3.4) ============================
 
+/// A group booking: several rooms reserved together as one unit.
+///
+/// The old "corporate booking" created N independent reservations in separate
+/// transactions with nothing linking them — so it wasn't atomic (room 3 failing
+/// left rooms 1–2 booked) and couldn't be viewed, cancelled, or billed as a
+/// group. A group ties its member reservations together and is created
+/// all-or-nothing under the booking lock.
+model BookingGroup {
+  id              String   @id @default(uuid())
+  groupNumber     String   @unique @map("group_number")
+  name            String
+  companyId       String?  @map("company_id")
+  notes           String?
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id])
+  reservations Reservation[]
+
+  @@index([companyId])
+  @@map("booking_groups")
+}
+
 model Reservation {
   id                 String            @id @default(uuid())
   reservationNumber  String            @unique @map("reservation_number")
@@ -325,6 +349,8 @@ model Reservation {
   companyId          String?           @map("company_id")
   roomId             String?           @map("room_id")
   roomTypeId         String            @map("room_type_id")
+  /// Set when this reservation is part of a group booking.
+  groupId            String?           @map("group_id")
   checkInDate        DateTime          @map("check_in_date") @db.Date
   checkOutDate       DateTime          @map("check_out_date") @db.Date
   adults             Int               @default(1)
@@ -346,6 +372,7 @@ model Reservation {
   company  Company?       @relation(fields: [companyId], references: [id])
   room     Room?          @relation(fields: [roomId], references: [id])
   roomType RoomType       @relation(fields: [roomTypeId], references: [id])
+  group    BookingGroup?  @relation(fields: [groupId], references: [id])
   checkIns CheckIn[]
   charges  ChargeLedger[]
 
@@ -353,6 +380,7 @@ model Reservation {
   @@index([companyId])
   @@index([status])
   @@index([roomId, checkInDate, checkOutDate])
+  @@index([groupId])
   @@map("reservations")
 }
 
@@ -1039,9 +1067,10 @@ model Company {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  reservations Reservation[]
-  charges      ChargeLedger[]
-  payments     CompanyPayment[]
+  reservations  Reservation[]
+  charges       ChargeLedger[]
+  payments      CompanyPayment[]
+  bookingGroups BookingGroup[]
 
   @@map("companies")
 }

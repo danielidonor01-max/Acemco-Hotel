@@ -88,6 +88,44 @@ export const corporateBookingSchema = z
   });
 export type CorporateBookingDto = z.infer<typeof corporateBookingSchema>;
 
+// Group booking: several rooms reserved together as one unit, created atomically.
+// Each line is one room with its own dates/type/occupancy, so a group can mix room
+// types and staggered nights (common for events and family parties).
+export const groupBookingSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    companyId: z.string().uuid().optional(),
+    // The organiser — the one guest all confirmations go to. A group needs a
+    // human to hold it, even when the rooms are for other people.
+    organiser: z.object({
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      phone: z.string().min(3),
+      whatsapp: z.string().min(7).optional(),
+      email: z.string().email().optional(),
+    }),
+    notes: z.string().max(500).optional(),
+    rooms: z
+      .array(
+        z.object({
+          roomTypeSlug: z.string().min(1),
+          checkInDate: dateStr,
+          checkOutDate: dateStr,
+          adults: z.number().int().min(1).default(1),
+          children: z.number().int().min(0).default(0),
+          // Optional occupant name per room; falls back to the organiser.
+          guestName: z.string().max(120).optional(),
+        }),
+      )
+      .min(1, 'A group needs at least one room')
+      .max(50, 'That is a lot of rooms for one group — split it if intentional'),
+  })
+  .refine((d) => d.rooms.every((r) => new Date(r.checkOutDate) > new Date(r.checkInDate)), {
+    message: 'Every room must check out after it checks in',
+    path: ['rooms'],
+  });
+export type GroupBookingDto = z.infer<typeof groupBookingSchema>;
+
 export const checkOutSchema = z.object({ paymentMethod: z.nativeEnum(PaymentMethod).optional() });
 
 // Assign (or clear, with null) a specific room to a reservation ahead of check-in.

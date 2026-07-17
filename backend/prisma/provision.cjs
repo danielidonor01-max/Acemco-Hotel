@@ -292,6 +292,14 @@ async function main() {
       created_by_user_id text, created_at timestamptz NOT NULL DEFAULT now());
     CREATE INDEX IF NOT EXISTS cash_movements_shift_idx ON cash_movements(shift_id);
     CREATE INDEX IF NOT EXISTS cash_movements_station_idx ON cash_movements(station);
+    -- Group bookings: several rooms reserved together, atomically, and managed as one.
+    CREATE TABLE IF NOT EXISTS booking_groups (
+      id text PRIMARY KEY, group_number text NOT NULL UNIQUE, name text NOT NULL,
+      company_id text REFERENCES companies(id), notes text, created_by_user_id text,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS booking_groups_company_idx ON booking_groups(company_id);
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS group_id text REFERENCES booking_groups(id);
+    CREATE INDEX IF NOT EXISTS reservations_group_idx ON reservations(group_id);
     CREATE TABLE IF NOT EXISTS daily_closes (
       id text PRIMARY KEY, business_date date NOT NULL UNIQUE,
       rooms_available integer NOT NULL, rooms_sold integer NOT NULL,

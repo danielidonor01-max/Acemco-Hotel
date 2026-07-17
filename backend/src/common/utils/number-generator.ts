@@ -23,3 +23,6 @@ export function invoiceNumber(seq: number, year = new Date().getFullYear()): str
 export function conferenceNumber(seq: number, year = new Date().getFullYear()): string {
   return `CONF-${year}-${pad(seq)}`;
 }
+export function groupNumber(seq: number, year = new Date().getFullYear()): string {
+  return `GRP-${year}-${pad(seq)}`;
+}
