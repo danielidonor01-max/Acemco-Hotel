@@ -1,17 +1,21 @@
 import {
   ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ApiError } from '../types/api-response.types';
+import { AuditWriter, AuditableRequest } from '../audit/audit-writer.service';
 
 /** Maps all thrown errors to the standard error envelope (Blueprint §11). */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
+  constructor(private readonly audit: AuditWriter) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
+    const req = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
@@ -31,9 +35,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         details = b.details;
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // The stack and the real message go to the server log only. Returning
+      // `exception.message` to the caller leaked internals (Prisma errors name
+      // tables and columns), so callers get a generic message instead.
       this.logger.error(exception.message, exception.stack);
     }
+
+    // Record the refused/failed attempt. This is the ONLY place a guard rejection
+    // can be audited: guards run before interceptors, so a 403 never reaches the
+    // AuditInterceptor at all — and a denied attempt is exactly what an
+    // investigation needs to see.
+    this.audit.record(req as unknown as AuditableRequest, status === 403 ? 'DENIED' : 'FAILED', status);
 
     const payload: ApiError = {
       success: false,

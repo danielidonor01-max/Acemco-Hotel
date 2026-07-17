@@ -27,6 +27,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ConferencesModule } from './modules/conferences/conferences.module';
 import { AvailabilityModule } from './modules/availability/availability.module';
 import { HealthModule } from './modules/health/health.module';
+import { AuditModule } from './common/audit/audit.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -36,6 +37,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AuditModule,
     // Baseline request throttling. THROTTLE_TTL/THROTTLE_LIMIT were in .env but
     // nothing read them — the API, including /auth/login, had no rate limiting at
     // all, so passwords could be guessed without limit. Login is throttled far
