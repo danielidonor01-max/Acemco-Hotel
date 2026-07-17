@@ -13,7 +13,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
   constructor(private readonly audit: AuditWriter) {}
 
-  catch(exception: unknown, host: ArgumentsHost): void {
+  async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
     const req = ctx.getRequest<Request>();
@@ -43,10 +43,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     // Report the errors worth waking up for — unexpected 5xx, not routine 4xx
-    // like a validation failure or a permission denial. No-op without a DSN. The
-    // path (never the body) goes along, so PII/credentials don't leave with it.
+    // like a validation failure or a permission denial. Awaited BEFORE responding
+    // so the event flushes off a serverless box that would otherwise freeze the
+    // instant we reply. No-op (and instant) without a DSN. The path — never the
+    // body — goes along, so PII/credentials don't leave with it.
     if (status >= 500) {
-      captureException(exception, { path: (req as unknown as { originalUrl?: string; url: string }).originalUrl ?? req.url, method: req.method, code });
+      await captureException(exception, { path: (req as unknown as { originalUrl?: string; url: string }).originalUrl ?? req.url, method: req.method, code });
     }
 
     // Record the refused/failed attempt. This is the ONLY place a guard rejection

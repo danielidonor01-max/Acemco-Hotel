@@ -29,9 +29,22 @@ export function initSentry(dsn?: string, environment = 'production'): boolean {
   return true;
 }
 
-export function captureException(err: unknown, context?: Record<string, unknown>): void {
+/**
+ * Report an error and WAIT for it to be sent.
+ *
+ * On Vercel the function can freeze the instant it responds, so Sentry's
+ * fire-and-forget send never completes and the event is silently dropped — which
+ * is exactly why the first test errors never arrived. `flush` blocks (briefly)
+ * until the event is on the wire. No-op, and instant, when tracking is disabled.
+ */
+export async function captureException(err: unknown, context?: Record<string, unknown>): Promise<void> {
   if (!started) return;
   Sentry.captureException(err, context ? { extra: context } : undefined);
+  try {
+    await Sentry.flush(2000);
+  } catch {
+    /* never let telemetry delay the error response beyond the timeout */
+  }
 }
 
 export const sentryEnabled = () => started;
