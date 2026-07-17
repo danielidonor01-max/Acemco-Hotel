@@ -860,6 +860,14 @@ model Setting {
   email     String   @default("")
   address   String   @default("")
   city      String   @default("")
+
+  /// Hard bounds on what rate rules may do, as a multiple of a room's base price.
+  /// A pricing engine that can produce an absurd number is worse than none: a
+  /// mis-keyed "+500%" would quote 6x and only surface when a guest complains.
+  /// Configurable because the right ceiling is a commercial decision, not a constant.
+  rateFloorMultiplier   Decimal @default(0.5) @map("rate_floor_multiplier") @db.Decimal(5, 2)
+  rateCeilingMultiplier Decimal @default(3.0) @map("rate_ceiling_multiplier") @db.Decimal(5, 2)
+
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("settings")

@@ -258,6 +258,9 @@ async function main() {
     CREATE INDEX IF NOT EXISTS rate_rules_room_type_idx ON rate_rules(room_type_id);
     CREATE INDEX IF NOT EXISTS rate_rules_active_idx ON rate_rules(is_active);
     DROP TABLE IF EXISTS room_pricing;
+    -- Rate guardrails live in settings: the right ceiling is a commercial decision.
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS rate_floor_multiplier numeric(5,2) NOT NULL DEFAULT 0.5;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS rate_ceiling_multiplier numeric(5,2) NOT NULL DEFAULT 3.0;
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);

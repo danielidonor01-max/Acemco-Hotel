@@ -19,8 +19,14 @@ type RuleSeed = Partial<{
  * refusal to produce an absurd number — is pinned down here.
  */
 describe('PricingService', () => {
-  const svc = (rules: RuleSeed[], opts: { capacity?: number; held?: number } = {}) => {
+  const svc = (rules: RuleSeed[], opts: { capacity?: number; held?: number; floor?: number; ceiling?: number } = {}) => {
     const prisma = {
+      setting: {
+        findUnique: async () =>
+          opts.floor !== undefined || opts.ceiling !== undefined
+            ? { id: 'hotel', rateFloorMultiplier: opts.floor ?? 0.5, rateCeilingMultiplier: opts.ceiling ?? 3 }
+            : null,
+      },
       rateRule: {
         findMany: async () =>
           rules.map((r, i) => ({
@@ -120,6 +126,19 @@ describe('PricingService', () => {
     const r = await svc([{ name: 'Typo', adjustment: 'PERCENT', value: -90 }]).rateFor('t', BASE, TUE);
     expect(r.rate).toBe(BASE * 0.5);
     expect(r.clamped).toBe('FLOOR');
+  });
+
+  it('honours the guardrails configured in Settings, not a constant', async () => {
+    // A hotel that allows a 2x ceiling must be clamped at 2x, not the 3x default.
+    const r = await svc([{ name: 'Big uplift', adjustment: 'PERCENT', value: 500 }], { ceiling: 2 }).rateFor('t', BASE, TUE);
+    expect(r.rate).toBe(BASE * 2);
+    expect(r.clamped).toBe('CEILING');
+  });
+
+  it('ignores a nonsensical guardrail pair rather than pricing unguarded', async () => {
+    // floor above ceiling would make every rate nonsense — fall back to safe defaults.
+    const r = await svc([{ name: 'Typo', adjustment: 'PERCENT', value: 500 }], { floor: 5, ceiling: 1 }).rateFor('t', BASE, TUE);
+    expect(r.rate).toBe(BASE * 3);
   });
 
   it('prices a stay night by night, not one flat rate x N', async () => {

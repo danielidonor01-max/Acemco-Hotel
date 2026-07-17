@@ -10,15 +10,16 @@ const dayStart = (d: Date | string) => {
 };
 
 /**
- * Hard bounds on what any combination of rules may do to a rate.
+ * Fallback bounds, used only if the settings row can't be read.
  *
  * A pricing engine that can produce an absurd number is worse than no engine: a
  * mis-keyed "+500%" would quote ₦390,000 for a ₦65,000 room and the mistake only
- * surfaces when a guest complains. Rules bend the price within these bounds and
- * no further, whatever they stack up to.
+ * surfaces when a guest complains. The live values come from Settings — the right
+ * ceiling is a commercial decision, not a constant — but the guard must never be
+ * absent, so these apply if the lookup fails.
  */
-const FLOOR_MULTIPLIER = 0.5; // never sell below half the base rate
-const CEILING_MULTIPLIER = 3; // never quote above 3× the base rate
+const DEFAULT_FLOOR = 0.5;
+const DEFAULT_CEILING = 3;
 
 export interface NightlyRate {
   date: string;
@@ -49,6 +50,20 @@ export interface Quote {
 @Injectable()
 export class PricingService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** The configured bounds. Falls back to safe defaults rather than going unguarded. */
+  private async guardrails(tx?: Prisma.TransactionClient) {
+    try {
+      const s = await (tx ?? this.prisma).setting.findUnique({ where: { id: 'hotel' } });
+      const floor = s ? Number(s.rateFloorMultiplier) : DEFAULT_FLOOR;
+      const ceiling = s ? Number(s.rateCeilingMultiplier) : DEFAULT_CEILING;
+      // A floor above the ceiling would make every rate nonsense; ignore the pair.
+      if (!(floor > 0) || !(ceiling >= floor)) return { floor: DEFAULT_FLOOR, ceiling: DEFAULT_CEILING };
+      return { floor, ceiling };
+    } catch {
+      return { floor: DEFAULT_FLOOR, ceiling: DEFAULT_CEILING };
+    }
+  }
 
   /** Rooms of a type sellable at all (active, not out of service). */
   private async capacityOf(roomTypeId: string, tx?: Prisma.TransactionClient) {
@@ -123,8 +138,9 @@ export class PricingService {
       applied.push({ name: rule.name, adjustment: rule.adjustment, value: Number(rule.value), from, to: money(rate) });
     }
 
-    const floor = basePrice * FLOOR_MULTIPLIER;
-    const ceiling = basePrice * CEILING_MULTIPLIER;
+    const bounds = await this.guardrails(tx);
+    const floor = basePrice * bounds.floor;
+    const ceiling = basePrice * bounds.ceiling;
     let clamped: NightlyRate['clamped'];
     if (rate < floor) { rate = floor; clamped = 'FLOOR'; }
     if (rate > ceiling) { rate = ceiling; clamped = 'CEILING'; }
