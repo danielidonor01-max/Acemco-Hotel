@@ -1,4 +1,6 @@
 import { sanityFetch, urlForImage, type SanityImageSource } from "../sanity";
+import { publicRequest } from "../api";
+import { hasPublicApi } from "../config";
 import {
   offers as sampleOffers, testimonials as sampleTestimonials, amenities as sampleAmenities,
   gallerySlots as sampleGallery, site as sampleSite,
@@ -133,11 +135,58 @@ export async function getGalleryTiles(category?: string): Promise<{ ratio: "1/1"
   return category ? [] : sampleGallery;
 }
 
+/**
+ * Site settings — CONTACT comes from the operational API, everything else from the CMS.
+ *
+ * The hotel's phone/WhatsApp/email lived in BOTH Sanity and the backend `settings`
+ * table: two sources of truth for one fact, which is how a placeholder number
+ * (+234 800 000 0000) stayed live on the site while the real one sat in the
+ * database. It also contradicts the project's own rule — "CMS never holds
+ * operational data" (lib/sanity.ts) — and a number that routes live bookings is
+ * about as operational as it gets.
+ *
+ * So: the API wins for contact (edit it in Manage → Settings), Sanity keeps the
+ * marketing copy (tagline, hours, socials). Sanity's contact fields are ignored.
+ */
 export async function getSiteSettings(): Promise<SiteSettings> {
-  const row = await sanityFetch<SiteSettings>(
-    `*[_type=="siteSettings"][0]{ hotelName, tagline, phone, whatsapp, email, address, city, hours, socials }`,
-  );
-  return row ?? sampleSite;
+  const [cms, contact] = await Promise.all([
+    sanityFetch<SiteSettings>(
+      `*[_type=="siteSettings"][0]{ hotelName, tagline, address, city, hours, socials }`,
+    ),
+    getHotelContact(),
+  ]);
+  const base = cms ?? sampleSite;
+  return {
+    ...sampleSite,
+    ...base,
+    ...(contact ?? {}),
+    hours: base.hours?.length ? base.hours : sampleSite.hours,
+    socials: base.socials ?? [],
+  };
+}
+
+interface ApiSettings {
+  hotelName: string; tagline: string; phone: string; whatsapp: string;
+  email: string; address: string; city: string;
+}
+
+/** Live hotel contact from the API. Null (→ no contact rendered) if unreachable. */
+async function getHotelContact(): Promise<Partial<SiteSettings> | null> {
+  if (!hasPublicApi()) return null;
+  try {
+    const s = await publicRequest<ApiSettings>("/settings");
+    if (!s) return null;
+    return {
+      ...(s.hotelName ? { hotelName: s.hotelName } : {}),
+      ...(s.phone ? { phone: s.phone } : {}),
+      ...(s.whatsapp ? { whatsapp: s.whatsapp } : {}),
+      ...(s.email ? { email: s.email } : {}),
+      ...(s.address ? { address: s.address } : {}),
+      ...(s.city ? { city: s.city } : {}),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Resolve a named hero/section image slot from Sanity (undefined → placeholder). */

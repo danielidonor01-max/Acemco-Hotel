@@ -20,6 +20,8 @@ export interface PublicReservationPayload {
   firstName: string;
   lastName: string;
   phone: string;
+  /** Required — the number the guest's confirmation is sent to. */
+  whatsapp: string;
   email?: string;
   roomTypeSlug: string;
   checkInDate: string;

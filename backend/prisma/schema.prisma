@@ -195,6 +195,11 @@ model Guest {
   lastName      String    @map("last_name")
   email         String?
   phone         String
+  /// E.164 without '+' (e.g. 2348077125775) — the number booking confirmations are
+  /// sent to. Kept separate from `phone`: the line a guest answers calls on isn't
+  /// always the one on WhatsApp, and sending a confirmation to the wrong one is a
+  /// confirmation the guest never gets.
+  whatsapp      String?
   nationality   String?
   dateOfBirth   DateTime? @map("date_of_birth")
   idType        IdType?   @map("id_type")

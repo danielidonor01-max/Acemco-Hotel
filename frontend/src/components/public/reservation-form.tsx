@@ -29,6 +29,8 @@ export function ReservationForm({
     roomType: initial.roomType ?? "",
     name: "",
     phone: "",
+    whatsapp: "",
+    sameWhatsapp: true,
     email: "",
     requests: "",
   });
@@ -75,6 +77,10 @@ export function ReservationForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  // Most guests use one line for both, so default to it and let them opt out —
+  // an extra mandatory field is an extra reason to abandon the booking.
+  const whatsappNumber = form.sameWhatsapp ? form.phone : form.whatsapp;
+
   /** Pre-filled WhatsApp handoff — offered as a visible link when booking fails. */
   const whatsappHref = () => {
     const msg =
@@ -98,6 +104,7 @@ export function ReservationForm({
       firstName: firstName || form.name,
       lastName: rest.join(" ") || firstName || "Guest",
       phone: form.phone,
+      whatsapp: whatsappNumber,
       email: form.email || undefined,
       roomTypeSlug: selectedSlug,
       checkInDate: form.checkIn,
@@ -135,13 +142,31 @@ export function ReservationForm({
         <h2 className="pub-display-3 mb-3 text-pub-ink">You&apos;re on the list</h2>
         <p className="pub-body text-pub-ink-muted mb-6">
           Your reservation request <strong className="text-pub-ink">{confirmed.reservationNumber}</strong> has been received.
-          Our team will contact you shortly to confirm your stay.
+          We&apos;ll confirm your stay on WhatsApp shortly.
         </p>
-        <p className="pub-body-sm text-pub-ink-soft">No payment has been taken.</p>
+
+        {/* Opens a WhatsApp thread with the hotel, carrying the reference. The guest
+            gets a copy of their booking in a place they won't lose (there's no email
+            yet, and the reference is otherwise only on this screen), and the desk is
+            notified with the guest's number already attached. */}
+        {site.whatsapp && (
+          <a
+            href={`https://wa.me/${site.whatsapp}?text=${encodeURIComponent(
+              `Hello ${site.hotelName}, I've just booked online.\n\nReference: ${confirmed.reservationNumber}\nName: ${form.name}\nRoom: ${room?.name ?? "—"}\nCheck-in: ${fmtDate(form.checkIn)}\nCheck-out: ${fmtDate(form.checkOut)}\n\nPlease confirm my reservation.`,
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-pub-gold px-7 py-3.5 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark"
+          >
+            Send us your booking on WhatsApp
+          </a>
+        )}
+
+        <p className="mt-5 pub-body-sm text-pub-ink-soft">No payment has been taken.</p>
         <button
           onClick={() => {
             setConfirmed(null);
-            setForm({ checkIn: "", checkOut: "", adults: "2", children: "0", roomType: "", name: "", phone: "", email: "", requests: "" });
+            setForm({ checkIn: "", checkOut: "", adults: "2", children: "0", roomType: "", name: "", phone: "", whatsapp: "", sameWhatsapp: true, email: "", requests: "" });
           }}
           className="mt-8 rounded-full border border-pub-line px-6 py-2.5 pub-body-sm text-pub-ink-muted transition-colors hover:border-pub-gold hover:text-pub-ink"
         >
@@ -199,6 +224,31 @@ export function ReservationForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" required value={form.name} onChange={(v) => set("name", v)} />
             <Field label="Phone" type="tel" required value={form.phone} onChange={(v) => set("phone", v)} />
+            <div className="sm:col-span-2">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.sameWhatsapp}
+                  onChange={(e) => setForm((f) => ({ ...f, sameWhatsapp: e.target.checked }))}
+                  className="h-4 w-4 accent-pub-gold"
+                />
+                <span className="pub-body-sm text-pub-ink-soft">This number is on WhatsApp</span>
+              </label>
+              {!form.sameWhatsapp && (
+                <div className="mt-3">
+                  <Field
+                    label="WhatsApp number"
+                    type="tel"
+                    required
+                    value={form.whatsapp}
+                    onChange={(v) => set("whatsapp", v)}
+                  />
+                </div>
+              )}
+              <p className="mt-2 pub-body-sm text-pub-ink-muted">
+                We send your booking confirmation on WhatsApp, so please make sure this number is right.
+              </p>
+            </div>
             <div className="sm:col-span-2">
               <Field label="Email (optional)" type="email" value={form.email} onChange={(v) => set("email", v)} />
             </div>
@@ -261,7 +311,7 @@ export function ReservationForm({
 
           <button
             type="submit"
-            disabled={!selectedSlug || !datesValid || !form.name || !form.phone || (datesValid && !checkingAvail && available === 0) || submitting}
+            disabled={!selectedSlug || !datesValid || !form.name || !form.phone || !whatsappNumber || (datesValid && !checkingAvail && available === 0) || submitting}
             className="mt-6 w-full rounded-full bg-pub-gold py-3.5 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark disabled:cursor-not-allowed disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {submitting && <Loader2 size={16} className="animate-spin" />}

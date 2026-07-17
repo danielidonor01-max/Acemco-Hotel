@@ -3,6 +3,7 @@ import { Prisma, ReservationStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
 import { reservationNumber } from '../../common/utils/number-generator';
+import { toWhatsAppNumber } from '../../common/utils/phone';
 import { CreateReservationDto, PublicReservationDto, CorporateBookingDto, EditReservationDto } from './dto/reservation.dto';
 import { AvailabilityService } from '../availability/availability.service';
 import { ChargesService } from '../charges/charges.service';
@@ -122,12 +123,26 @@ export class ReservationsService {
     const roomType = await this.prisma.roomType.findUnique({ where: { slug: dto.roomTypeSlug } });
     if (!roomType) throw new NotFoundException({ code: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found.' });
 
+    // Normalise before storing: 0807… and +234 807… are the same line, and a wa.me
+    // link built from a local 0-prefixed number never resolves.
+    const whatsapp = toWhatsAppNumber(dto.whatsapp);
+    if (!whatsapp) {
+      throw new UnprocessableEntityException({
+        code: 'INVALID_WHATSAPP',
+        message: "That WhatsApp number doesn't look right. Use the number you use on WhatsApp, e.g. 0807 712 5775.",
+      });
+    }
+
     let guest = await this.prisma.guest.findFirst({ where: { phone: dto.phone, deletedAt: null } });
     if (guest?.isBlacklisted) throw new UnprocessableEntityException({ code: 'GUEST_BLACKLISTED', message: 'Unable to complete this reservation.' });
     if (!guest) {
       guest = await this.prisma.guest.create({
-        data: { firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, email: dto.email?.toLowerCase() },
+        data: { firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, whatsapp, email: dto.email?.toLowerCase() },
       });
+    } else if (guest.whatsapp !== whatsapp) {
+      // A returning guest may book from a new line — keep the latest, or the
+      // confirmation goes to a number they no longer use.
+      guest = await this.prisma.guest.update({ where: { id: guest.id }, data: { whatsapp } });
     }
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);

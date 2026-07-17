@@ -194,6 +194,7 @@ async function main() {
       billing_email text, tier "CompanyTier" NOT NULL DEFAULT 'STANDARD', status "CompanyStatus" NOT NULL DEFAULT 'ACTIVE',
       notes text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
     ALTER TABLE guests ADD COLUMN IF NOT EXISTS tier "GuestTier" NOT NULL DEFAULT 'STANDARD';
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS whatsapp text;
     UPDATE guests SET tier='VIP' WHERE is_vip = true AND tier='STANDARD';
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS type "ReservationType" NOT NULL DEFAULT 'INDIVIDUAL';
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS company_id text REFERENCES companies(id);
@@ -410,8 +411,19 @@ async function main() {
   // 7) Settings (config — always seeded so the hotel identity/contact exists).
   await client.query(
     `INSERT INTO settings (id, hotel_name, tagline, phone, whatsapp, email, address, city, updated_at)
-     VALUES ('hotel','Acemco Express','Holiday Inn','+234 800 000 0000','2348000000000','reservations@acemcohotel.com','12 Marina Crescent','Warri, Delta State, Nigeria',now())
+     VALUES ('hotel','Acemco Express','Holiday Inn','+234 807 712 5775','2348077125775','','12 Marina Crescent','Warri, Delta State, Nigeria',now())
      ON CONFLICT (id) DO NOTHING`,
+  );
+  // One-time correction: the row was first seeded with placeholder contact details
+  // (+234 800 000 0000 / a domain the hotel doesn't own). Those went live as real,
+  // clickable contact points. Overwrite the placeholders — but never a real value an
+  // operator has since set.
+  await client.query(
+    `UPDATE settings SET phone='+234 807 712 5775', whatsapp='2348077125775', updated_at=now()
+      WHERE id='hotel' AND (phone LIKE '%800 000 0000%' OR whatsapp='2348000000000')`,
+  );
+  await client.query(
+    `UPDATE settings SET email='', updated_at=now() WHERE id='hotel' AND email='reservations@acemcohotel.com'`,
   );
 
   // 7a) Tax configuration (config — the hotel must be able to bill lawfully on day one).

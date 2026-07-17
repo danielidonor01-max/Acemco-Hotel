@@ -44,6 +44,9 @@ export const publicReservationSchema = z
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     phone: z.string().min(3),
+    // Required: this is how the guest receives their confirmation. A booking we
+    // can't confirm back to the guest isn't much of a booking.
+    whatsapp: z.string().min(7, 'A WhatsApp number is required so we can send your confirmation.'),
     email: z.string().email().optional(),
     roomTypeSlug: z.string().min(1),
     checkInDate: dateStr,

@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, LogIn, XCircle, UserX, Loader2 } from "lucide-react";
+import { CheckCircle, LogIn, XCircle, UserX, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui";
 import { Modal } from "./modal";
-import { confirmReservation, cancelReservation, markNoShow } from "@/lib/data/reservations";
+import { confirmReservation, cancelReservation, markNoShow, getGuestWhatsApp } from "@/lib/data/reservations";
 import type { Reservation } from "@/lib/mock";
 
 /**
@@ -18,6 +18,22 @@ export function ReservationActions({ reservation }: { reservation: Reservation }
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [status, setStatus] = useState(reservation.status);
+
+  // Composes the guest's confirmation server-side and opens WhatsApp with it ready
+  // to send. Business-initiated WhatsApp needs the Meta Cloud API + an approved
+  // template, which isn't set up yet — so a human presses send. The message body is
+  // already the real one, so connecting the API later only swaps the transport.
+  const sendWhatsApp = useMutation({
+    mutationFn: () => getGuestWhatsApp(reservation.id),
+    onSuccess: (msg) => {
+      if (!msg.link) {
+        toast.error("No WhatsApp number on file for this guest.");
+        return;
+      }
+      window.open(msg.link, "_blank", "noopener");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["reservation", reservation.id] });
@@ -48,6 +64,11 @@ export function ReservationActions({ reservation }: { reservation: Reservation }
 
   return (
     <div className="flex flex-wrap gap-2">
+      {/* Available in every live state — the desk re-sends details on request. */}
+      <Button variant="outline" onClick={() => sendWhatsApp.mutate()} disabled={sendWhatsApp.isPending}>
+        {sendWhatsApp.isPending ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
+        WhatsApp guest
+      </Button>
       {status === "PENDING" && (
         <Button onClick={() => confirm.mutate()} disabled={confirm.isPending}>
           {confirm.isPending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />} Confirm

@@ -23,6 +23,7 @@ import { SearchModule } from './modules/search/search.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { TaxModule } from './modules/tax/tax.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ConferencesModule } from './modules/conferences/conferences.module';
 import { AvailabilityModule } from './modules/availability/availability.module';
 import { HealthModule } from './modules/health/health.module';
@@ -63,6 +64,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     CompaniesModule,
     ChargesModule,
     TaxModule,
+    NotificationsModule,
     ConferencesModule,
     AvailabilityModule,
     HealthModule,

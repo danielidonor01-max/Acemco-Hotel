@@ -145,3 +145,26 @@ export async function walkInReservation(input: WalkIn): Promise<Reservation> {
   });
   return mapApi(data);
 }
+
+/** A composed WhatsApp message + wa.me link for a reservation. */
+export interface WhatsAppMessage {
+  to: string | null;
+  message: string;
+  link: string | null;
+}
+
+/**
+ * The guest's confirmation, composed server-side and ready to send.
+ * Link-based until the Meta Cloud API is connected: a human opens the thread and
+ * presses send, so no business-initiated-message approval is needed yet.
+ */
+export async function getGuestWhatsApp(reservationId: string): Promise<WhatsAppMessage> {
+  const { data } = await apiRequest<WhatsAppMessage>(`/notifications/reservations/${reservationId}/whatsapp/guest`);
+  return data;
+}
+
+/** The desk's own copy of the booking, guest number attached, for forwarding. */
+export async function getDeskWhatsApp(reservationId: string): Promise<WhatsAppMessage> {
+  const { data } = await apiRequest<WhatsAppMessage>(`/notifications/reservations/${reservationId}/whatsapp/desk`);
+  return data;
+}
