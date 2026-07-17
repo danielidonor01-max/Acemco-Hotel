@@ -102,27 +102,44 @@ export class NightAuditService {
   }
 
   /**
-   * Called hourly by the cron. Runs the close only when the hotel's configured
-   * hour has arrived and the day isn't already closed — so the schedule lives in
-   * settings, not in the cron expression.
+   * Called hourly by an external scheduler (GitHub Actions). Once the hotel's
+   * configured hour has passed, it closes every not-yet-closed day up to
+   * yesterday — so the schedule lives in settings, not in a cron expression, and
+   * a missed or delayed tick simply catches up on the next run rather than
+   * skipping a day forever.
+   *
+   * Why hourly + a settings hour, not a daily cron at a fixed time: the free
+   * hosting tier only permits daily crons, and a fixed daily UTC time can't be a
+   * hotel-configurable local hour. So the tick fires often and the decision of
+   * WHETHER to run lives here.
    */
-  async tick(): Promise<{ ran: boolean; reason: string; result?: CloseResult }> {
+  async tick(): Promise<{ ran: boolean; reason: string; results?: CloseResult[] }> {
     const cfg = await this.config();
     if (!cfg.enabled) return { ran: false, reason: 'Automatic close is switched off.' };
 
     const hour = localHour(cfg.timezone);
-    if (hour !== cfg.hour) {
-      return { ran: false, reason: `Not the close hour yet (local ${hour}:00, configured ${cfg.hour}:00 ${cfg.timezone}).` };
+    if (hour < cfg.hour) {
+      return { ran: false, reason: `Before the close hour (local ${hour}:00, configured ${cfg.hour}:00 ${cfg.timezone}).` };
     }
 
-    // Close the day that just ENDED. At 3am you are auditing yesterday.
-    const business = localDate(cfg.timezone, new Date(Date.now() - MS_PER_DAY));
-    const existing = await this.prisma.dailyClose.findUnique({ where: { businessDate: asDate(business) } });
-    if (existing) return { ran: false, reason: `${business} is already closed.` };
+    // Everything strictly before today (hotel-local) is a completed day and safe
+    // to close. Catch up from the last close, capped so a long outage can't spin.
+    const today = asDate(localDate(cfg.timezone));
+    const last = await this.prisma.dailyClose.findFirst({ orderBy: { businessDate: 'desc' } });
+    const from = last ? new Date(+last.businessDate + MS_PER_DAY) : new Date(+today - MS_PER_DAY);
+    const MAX_CATCHUP = 14;
 
-    const result = await this.close(business);
-    this.logger.log(`Night audit closed ${business}: ${result.roomsSold} sold, ₦${result.totalRevenue} revenue, ${result.noShowsMarked} no-show(s).`);
-    return { ran: true, reason: `Closed ${business}.`, result };
+    const results: CloseResult[] = [];
+    for (let d = new Date(from); d < today && results.length < MAX_CATCHUP; d = new Date(+d + MS_PER_DAY)) {
+      const ymd = d.toISOString().slice(0, 10);
+      if (await this.prisma.dailyClose.findUnique({ where: { businessDate: asDate(ymd) } })) continue;
+      const result = await this.close(ymd);
+      results.push(result);
+      this.logger.log(`Night audit closed ${ymd}: ${result.roomsSold} sold, ₦${result.totalRevenue} revenue, ${result.noShowsMarked} no-show(s).`);
+    }
+
+    if (!results.length) return { ran: false, reason: 'Nothing to close — every past day is already closed.' };
+    return { ran: true, reason: `Closed ${results.length} day(s): ${results.map((r) => r.businessDate).join(', ')}.`, results };
   }
 
   /**

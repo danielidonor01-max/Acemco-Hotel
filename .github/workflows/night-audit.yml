@@ -1,0 +1,36 @@
+# Hourly night-audit tick.
+#
+# Vercel's free plan only allows DAILY cron jobs, and a fixed daily UTC time can't
+# be the hotel-configurable local close hour the system needs. GitHub Actions
+# schedules are free and unlimited, so the hourly ping lives here instead. The API
+# decides whether the configured hour has arrived; the close is idempotent (unique
+# business date) and catches up on any missed day, so an occasionally delayed or
+# duplicated run does no harm.
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   API_BASE_URL   e.g. https://acemco-hotel-api.vercel.app
+#   CRON_SECRET    the same value set on the Vercel API project
+name: night-audit
+
+on:
+  schedule:
+    - cron: "0 * * * *" # top of every hour (UTC); GitHub may delay under load — fine, it catches up
+  workflow_dispatch: {} # lets you trigger a close by hand from the Actions tab
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the night-audit tick
+        run: |
+          if [ -z "${{ secrets.API_BASE_URL }}" ] || [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "API_BASE_URL / CRON_SECRET not set — skipping. Add them in repo Settings → Secrets."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.API_BASE_URL }}/api/v1/night-audit/tick")
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          # Fail the run on a real error so it surfaces in the Actions tab, but treat
+          # a normal "nothing to close" 200 as success.
+          [ "$code" = "200" ] || exit 1
