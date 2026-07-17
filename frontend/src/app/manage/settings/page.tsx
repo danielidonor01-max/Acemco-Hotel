@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from "@/components/internal/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getSettings, updateSettings, type HotelSettings, type SettingsInput } from "@/lib/data/settings";
+import { getSettings, updateSettings, getNightAuditStatus, getDailyCloses, closeDay, type HotelSettings, type SettingsInput } from "@/lib/data/settings";
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira } from "@/lib/utils";
 
@@ -15,7 +15,11 @@ const BLANK: HotelSettings = {
   hotelName: "", tagline: "", phone: "", whatsapp: "", email: "", address: "", city: "",
   rateFloorMultiplier: 0.5, rateCeilingMultiplier: 3,
   cancellationFreeUntilHours: 48, cancellationLateFeePercent: 50, noShowFeePercent: 100, depositRefundable: true,
+  nightAuditHour: 3, nightAuditEnabled: true, autoMarkNoShows: true, timezone: "Africa/Lagos",
 };
+
+// The audit day is measured in one of these zones. Nigeria is Africa/Lagos.
+const TIMEZONES = ["Africa/Lagos", "Africa/Accra", "Africa/Johannesburg", "Europe/London", "UTC"];
 
 export default function SettingsPage() {
   const { hasPermission } = useAuth();
@@ -40,14 +44,19 @@ export default function SettingsPage() {
         cancellationLateFeePercent: Number(form.cancellationLateFeePercent),
         noShowFeePercent: Number(form.noShowFeePercent),
         depositRefundable: form.depositRefundable,
+        nightAuditHour: Number(form.nightAuditHour),
+        nightAuditEnabled: form.nightAuditEnabled,
+        autoMarkNoShows: form.autoMarkNoShows,
+        timezone: form.timezone,
       };
       return updateSettings(dto);
     },
     onSuccess: () => {
       toast.success("Settings saved.");
       qc.invalidateQueries({ queryKey: ["settings"] });
-      // Rates and quotes read these — refresh anything showing a price.
+      // Rates, quotes and the night-audit status read these — refresh them.
       qc.invalidateQueries({ queryKey: ["rate-quote"] });
+      qc.invalidateQueries({ queryKey: ["night-audit-status"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -163,6 +172,49 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Night audit (end-of-day close)</CardTitle>
+            <CardDescription>
+              Each night the system closes the day just gone: it freezes that day&apos;s occupancy, ADR and revenue
+              so the numbers can&apos;t drift afterwards, and marks any guest who never arrived as a no-show.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <NumField
+              label="Close at (hour, 0–23)"
+              value={form.nightAuditHour}
+              onChange={(v) => set("nightAuditHour", Math.max(0, Math.min(23, Math.round(v))))}
+              disabled={disabled}
+              hint="A quiet hour — most hotels use 3am."
+            />
+            <div className="space-y-1.5">
+              <Label>Timezone</Label>
+              <select
+                value={form.timezone}
+                disabled={disabled}
+                onChange={(e) => set("timezone", e.target.value)}
+                className="h-9 w-full rounded-md border border-line bg-brand-surface px-3 text-sm text-fg disabled:opacity-60"
+              >
+                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground">The day is measured in this zone, not the server&apos;s.</p>
+            </div>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={form.nightAuditEnabled} disabled={disabled} onChange={(e) => set("nightAuditEnabled", e.target.checked)} className="h-4 w-4 accent-brand-primary" />
+              <span className="text-sm text-fg">Close the day automatically</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={form.autoMarkNoShows} disabled={disabled} onChange={(e) => set("autoMarkNoShows", e.target.checked)} className="h-4 w-4 accent-brand-primary" />
+              <span className="text-sm text-fg">Mark un-arrived bookings as no-shows</span>
+            </label>
+            <p className="sm:col-span-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              Marking a no-show applies your cancellation policy&apos;s no-show fee. Turn that off above if you&apos;d rather review arrivals by hand.
+            </p>
+          </CardContent>
+        </Card>
+
         <div className="flex justify-end">
           <Button type="submit" disabled={!canEdit || save.isPending || isLoading}>
             {save.isPending && <Loader2 size={14} className="animate-spin" />} Save Changes
@@ -170,7 +222,96 @@ export default function SettingsPage() {
         </div>
         {!canEdit && <p className="text-right text-sm text-muted-foreground">You have view-only access to settings.</p>}
       </form>
+
+      <div className="mt-6 max-w-2xl">
+        <NightAuditStatusCard canClose={hasPermission("reports", "EXPORT")} />
+      </div>
     </PageShell>
+  );
+}
+
+/** Live audit status + manual close + the frozen daily history. */
+function NightAuditStatusCard({ canClose }: { canClose: boolean }) {
+  const qc = useQueryClient();
+  const { data: status } = useQuery({ queryKey: ["night-audit-status"], queryFn: getNightAuditStatus });
+  const { data: history = [] } = useQuery({ queryKey: ["daily-closes"], queryFn: () => getDailyCloses(30) });
+  const [manualDate, setManualDate] = useState("");
+
+  const runClose = useMutation({
+    mutationFn: (date: string) => closeDay(date),
+    onSuccess: (c) => {
+      toast.success(`Closed ${c.businessDate}.`);
+      qc.invalidateQueries({ queryKey: ["daily-closes"] });
+      qc.invalidateQueries({ queryKey: ["night-audit-status"] });
+      setManualDate("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const num = (v: string | number) => Number(v);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Daily close history</CardTitle>
+        <CardDescription>
+          {status
+            ? `Hotel time ${status.localTime} · closing at ${String(status.hour).padStart(2, "0")}:00 ${status.timezone}` +
+              (status.enabled ? "" : " · automatic close is OFF") +
+              (status.closedToday ? " · today already closed" : "")
+            : "Loading…"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {canClose && (
+          <div className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-brand-surface-2 p-3">
+            <div className="space-y-1.5">
+              <Label>Close a day manually</Label>
+              <Input type="date" value={manualDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setManualDate(e.target.value)} className="w-44" />
+            </div>
+            <Button variant="secondary" size="sm" disabled={!manualDate || runClose.isPending} onClick={() => runClose.mutate(manualDate)}>
+              {runClose.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Close day
+            </Button>
+            <p className="text-xs text-muted-foreground">For a missed night. A day can only be closed once.</p>
+          </div>
+        )}
+
+        {history.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No days closed yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="pb-2 pr-3 font-medium">Date</th>
+                  <th className="pb-2 pr-3 text-right font-medium">Occ.</th>
+                  <th className="pb-2 pr-3 text-right font-medium">ADR</th>
+                  <th className="pb-2 pr-3 text-right font-medium">RevPAR</th>
+                  <th className="pb-2 pr-3 text-right font-medium">Revenue</th>
+                  <th className="pb-2 pr-3 text-right font-medium">Tax</th>
+                  <th className="pb-2 text-right font-medium">No-shows</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((c) => (
+                  <tr key={c.id} className="border-b border-line/60">
+                    <td className="py-2 pr-3 whitespace-nowrap text-fg">
+                      {new Date(c.businessDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
+                    </td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-fg-soft">{num(c.occupancyRate)}%</td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-fg-soft">{formatNaira(num(c.adr))}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-fg-soft">{formatNaira(num(c.revpar))}</td>
+                    <td className="py-2 pr-3 text-right font-medium tabular-nums text-fg">{formatNaira(num(c.totalRevenue))}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-fg-soft">{formatNaira(num(c.taxCollected))}</td>
+                    <td className="py-2 text-right tabular-nums text-fg-muted">{c.noShowsMarked || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

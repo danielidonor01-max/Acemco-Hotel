@@ -23,6 +23,11 @@ const updateSchema = z.object({
   cancellationLateFeePercent: z.number().min(0).max(100).optional(),
   noShowFeePercent: z.number().min(0).max(100).optional(),
   depositRefundable: z.boolean().optional(),
+  // Night audit.
+  nightAuditHour: z.number().int().min(0).max(23).optional(),
+  nightAuditEnabled: z.boolean().optional(),
+  autoMarkNoShows: z.boolean().optional(),
+  timezone: z.string().min(1).max(60).optional(),
 }).refine(
   (d) => d.rateFloorMultiplier === undefined || d.rateCeilingMultiplier === undefined || d.rateCeilingMultiplier >= d.rateFloorMultiplier,
   { message: 'The rate ceiling must not be below the floor', path: ['rateCeilingMultiplier'] },
