@@ -266,6 +266,22 @@ async function main() {
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS cancellation_late_fee_percent numeric(5,2) NOT NULL DEFAULT 50;
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS no_show_fee_percent numeric(5,2) NOT NULL DEFAULT 100;
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS deposit_refundable boolean NOT NULL DEFAULT true;
+    -- Night audit: the close hour is a hotel's own business, so it's data.
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS night_audit_hour integer NOT NULL DEFAULT 3;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS night_audit_enabled boolean NOT NULL DEFAULT true;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS auto_mark_no_shows boolean NOT NULL DEFAULT true;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Africa/Lagos';
+    -- A closed day is frozen: what was reported for that date stays reported.
+    CREATE TABLE IF NOT EXISTS daily_closes (
+      id text PRIMARY KEY, business_date date NOT NULL UNIQUE,
+      rooms_available integer NOT NULL, rooms_sold integer NOT NULL,
+      occupancy_rate numeric(5,2) NOT NULL, adr numeric(12,2) NOT NULL, revpar numeric(12,2) NOT NULL,
+      room_revenue numeric(12,2) NOT NULL, fb_revenue numeric(12,2) NOT NULL,
+      other_revenue numeric(12,2) NOT NULL, total_revenue numeric(12,2) NOT NULL,
+      tax_collected numeric(12,2) NOT NULL,
+      arrivals integer NOT NULL DEFAULT 0, departures integer NOT NULL DEFAULT 0,
+      no_shows_marked integer NOT NULL DEFAULT 0,
+      closed_by_user_id text, closed_at timestamptz NOT NULL DEFAULT now());
     -- A cancellation fee is its own money, not room revenue.
     ALTER TYPE "ChargeDepartment" ADD VALUE IF NOT EXISTS 'CANCELLATION';
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);

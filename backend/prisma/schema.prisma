@@ -209,6 +209,36 @@ model RateRule {
   @@map("rate_rules")
 }
 
+/// A locked snapshot of one trading day.
+///
+/// Occupancy/ADR/RevPAR were only ever computed live, so yesterday's numbers
+/// changed as later edits landed and there was nothing to reconcile against. A
+/// closed day is frozen: what the hotel reported for that date stays reported.
+model DailyClose {
+  id            String   @id @default(uuid())
+  /// The trading day, in the hotel's timezone. One close per day, ever.
+  businessDate  DateTime @unique @map("business_date") @db.Date
+  roomsAvailable Int     @map("rooms_available")
+  roomsSold     Int      @map("rooms_sold")
+  /// Percent, 0–100.
+  occupancyRate Decimal  @map("occupancy_rate") @db.Decimal(5, 2)
+  adr           Decimal  @db.Decimal(12, 2)
+  revpar        Decimal  @db.Decimal(12, 2)
+  roomRevenue   Decimal  @map("room_revenue") @db.Decimal(12, 2)
+  fbRevenue     Decimal  @map("fb_revenue") @db.Decimal(12, 2)
+  otherRevenue  Decimal  @map("other_revenue") @db.Decimal(12, 2)
+  totalRevenue  Decimal  @map("total_revenue") @db.Decimal(12, 2)
+  taxCollected  Decimal  @map("tax_collected") @db.Decimal(12, 2)
+  arrivals      Int      @default(0)
+  departures    Int      @default(0)
+  noShowsMarked Int      @default(0) @map("no_shows_marked")
+  /// Null when the scheduler closed the day; set when a human did.
+  closedByUserId String? @map("closed_by_user_id")
+  closedAt      DateTime @default(now()) @map("closed_at")
+
+  @@map("daily_closes")
+}
+
 enum RoomStatus {
   AVAILABLE
   OCCUPIED
@@ -867,6 +897,18 @@ model Setting {
   /// Configurable because the right ceiling is a commercial decision, not a constant.
   rateFloorMultiplier   Decimal @default(0.5) @map("rate_floor_multiplier") @db.Decimal(5, 2)
   rateCeilingMultiplier Decimal @default(3.0) @map("rate_ceiling_multiplier") @db.Decimal(5, 2)
+
+  /// ---- Night audit / daily close ----
+  /// Local hour (0–23) the day is closed. Configurable because a hotel's quiet
+  /// hour is its own business — 3am for some, 5am for others.
+  nightAuditHour     Int     @default(3) @map("night_audit_hour")
+  /// Turn the automatic close off entirely and run it by hand.
+  nightAuditEnabled  Boolean @default(true) @map("night_audit_enabled")
+  /// Mark un-arrived bookings as no-shows at close (applying the no-show fee).
+  autoMarkNoShows    Boolean @default(true) @map("auto_mark_no_shows")
+  /// IANA zone the hotel's "day" is measured in. Nigeria is Africa/Lagos (UTC+1,
+  /// no DST) — storing it rather than assuming keeps a second property honest.
+  timezone           String  @default("Africa/Lagos")
 
   /// ---- Cancellation policy ----
   /// Cancel at least this many hours before check-in and it's free.

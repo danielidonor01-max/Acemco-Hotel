@@ -5,5 +5,12 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.ts": { "maxDuration": 30 }
-  }
+  },
+  "crons": [
+    {
+      "comment": "Night audit. Hourly ON PURPOSE: Vercel cron expressions are static and run in UTC, but the hotel's close hour is a SETTING it can change without a redeploy — so the tick fires every hour and the API decides whether the configured local hour has arrived. Serverless functions don't stay resident, so an in-process scheduler would never fire at all.",
+      "path": "/api/v1/night-audit/tick",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
