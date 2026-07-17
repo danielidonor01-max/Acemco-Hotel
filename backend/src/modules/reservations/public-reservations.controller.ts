@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { publicReservationSchema, PublicReservationDto } from './dto/reservation.dto';
+import { assertValidDateSpan } from '../../common/utils/date-span';
 
 @ApiTags('public')
 @Public()
@@ -26,17 +27,7 @@ export class PublicReservationsController {
     @Query('checkIn') checkIn: string,
     @Query('checkOut') checkOut: string,
   ) {
-    if (!checkIn || !checkOut)
-      throw new BadRequestException({ code: 'DATES_REQUIRED', message: 'checkIn and checkOut are required.' });
-    // Reject anything that isn't a real YYYY-MM-DD. A bad string used to slip past
-    // the comparison below (NaN <= NaN is false) and reach the engine as an
-    // Invalid Date, throwing an unhandled 500 at a guest instead of a clean error.
-    const ci = new Date(checkIn);
-    const co = new Date(checkOut);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(checkIn) || !/^\d{4}-\d{2}-\d{2}$/.test(checkOut) || Number.isNaN(+ci) || Number.isNaN(+co))
-      throw new BadRequestException({ code: 'INVALID_DATES', message: 'Use valid dates in YYYY-MM-DD format.' });
-    if (co <= ci)
-      throw new BadRequestException({ code: 'INVALID_DATES', message: 'checkOut must be after checkIn.' });
+    assertValidDateSpan(checkIn, checkOut);
     return this.availability.byType(checkIn, checkOut);
   }
 
