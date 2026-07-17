@@ -231,6 +231,15 @@ async function main() {
     -- Orders record the tax they charged so a till total is always reproducible.
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_amount numeric(12,2) NOT NULL DEFAULT 0;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_amount numeric(12,2) NOT NULL DEFAULT 0;
+    -- Audit trail: who acted, from where, and whether it was allowed. actor_email is
+    -- a snapshot so the history still names the actor if the account is removed;
+    -- outcome records DENIED/FAILED attempts, not just successes.
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_email text;
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS outcome text NOT NULL DEFAULT 'SUCCESS';
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status_code integer;
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS path text;
+    CREATE INDEX IF NOT EXISTS audit_logs_outcome_idx ON audit_logs(outcome);
+    CREATE INDEX IF NOT EXISTS audit_logs_occurred_at_idx ON audit_logs(occurred_at);
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);

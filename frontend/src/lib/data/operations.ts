@@ -176,9 +176,49 @@ export async function addFolioLine(folioId: string, input: { description: string
 }
 
 /* ---------------- Audit log ---------------- */
-export interface AuditEntry { id: string; action: string; module: string; targetId?: string; occurredAt: string; user: string; }
-export async function listAuditLogs(): Promise<AuditEntry[]> {
-  const { data } = await apiRequest<AuditEntry[]>("/audit-logs?limit=100");
+export interface AuditEntry {
+  id: string;
+  action: string;
+  module: string;
+  targetId?: string | null;
+  occurredAt: string;
+  /** SUCCESS | DENIED | FAILED — a refused attempt is recorded, not just successes. */
+  outcome: "SUCCESS" | "DENIED" | "FAILED";
+  statusCode?: number | null;
+  path?: string | null;
+  /** The request as sent, with secrets stripped. */
+  payload?: Record<string, unknown> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  user: string;
+  userEmail?: string | null;
+}
+
+export interface AuditFilters {
+  page?: number;
+  pageSize?: number;
+  user?: string;
+  module?: string;
+  action?: string;
+  outcome?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+}
+
+/** Searchable, paginated trail. The viewer used to be capped at the last 100 rows. */
+export async function listAuditLogs(f: AuditFilters = {}): Promise<{ items: AuditEntry[]; total: number }> {
+  const q = new URLSearchParams();
+  Object.entries(f).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+  });
+  const { data, meta } = await apiRequest<AuditEntry[]>(`/audit-logs?${q.toString()}`);
+  return { items: data, total: meta?.total ?? data.length };
+}
+
+export interface AuditActor { id: string; name: string; email: string; actions: number }
+export async function listAuditActors(): Promise<AuditActor[]> {
+  const { data } = await apiRequest<AuditActor[]>("/audit-logs/actors");
   return data;
 }
 

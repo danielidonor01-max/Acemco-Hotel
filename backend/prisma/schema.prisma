@@ -513,13 +513,25 @@ enum TableStatus {
 
 // ============================ Audit Log (Domain §8.4) — append-only ============================
 
+/// Append-only record of every mutating request. Nothing in the API updates or
+/// deletes a row here — the trail has to answer a dispute months later.
 model AuditLog {
   id         String   @id @default(uuid())
   userId     String?  @map("user_id")
+  /// The actor's email, snapshotted at the time. Kept alongside `userId` so the
+  /// history still names who acted even if the account is later removed — a
+  /// trail that forgets its actor isn't a trail.
+  actorEmail String?  @map("actor_email")
+  /// The business operation: CONFIRM, CHECK_IN, CANCEL, CREATE… (not the HTTP verb).
   action     String
   module     String
   targetId   String?  @map("target_id")
   targetType String?  @map("target_type")
+  /// SUCCESS | DENIED | FAILED. Denied attempts are the ones that matter in an
+  /// investigation, so they are recorded, not just successes.
+  outcome    String   @default("SUCCESS")
+  statusCode Int?     @map("status_code")
+  path       String?
   before     Json?
   after      Json?
   ipAddress  String?  @map("ip_address")
@@ -529,6 +541,8 @@ model AuditLog {
 
   @@index([userId])
   @@index([module])
+  @@index([outcome])
+  @@index([occurredAt])
   @@map("audit_logs")
 }
 

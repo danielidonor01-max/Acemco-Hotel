@@ -6,6 +6,7 @@ import { Shield, Plus, Pencil, Loader2, Lock, Trash2, Users as UsersIcon, KeyRou
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardContent, Button, Badge } from "@/components/internal/ui";
 import { DataTable, type Column } from "@/components/internal/data-table";
+import { Modal } from "@/components/internal/modal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,7 @@ import {
   listUsers, createUser, updateUser,
   type AdminRole, type AdminUser, type PermissionGroup,
 } from "@/lib/data/admin";
-import { listAuditLogs } from "@/lib/data/operations";
+import { listAuditLogs, listAuditActors, type AuditEntry, type AuditFilters } from "@/lib/data/operations";
 
 const labelize = (s: string) => s.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -251,16 +252,119 @@ function RoleDialog({ role, groups, onClose, onSaved }: {
 
 /* ============================ Activity (audit log) ============================ */
 
+const OUTCOME_TONE = { SUCCESS: "success", DENIED: "danger", FAILED: "warning" } as const;
+
 function ActivityTab() {
-  const { data: logs = [], isLoading } = useQuery({ queryKey: ["admin", "audit"], queryFn: listAuditLogs });
-  const columns: Column<(typeof logs)[number]>[] = [
-    { key: "occurredAt", header: "When", sortValue: (l) => l.occurredAt, render: (l) => <span className="text-muted-foreground">{new Date(l.occurredAt).toLocaleString()}</span> },
-    { key: "user", header: "User", render: (l) => <span className="font-medium text-foreground">{l.user}</span> },
+  const [f, setF] = useState<AuditFilters>({ page: 1, pageSize: 25 });
+  const [detail, setDetail] = useState<AuditEntry | null>(null);
+  const set = (k: keyof AuditFilters, v: string) => setF((p) => ({ ...p, [k]: v || undefined, page: 1 }));
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["admin", "audit", f],
+    queryFn: () => listAuditLogs(f),
+  });
+  const { data: actors = [] } = useQuery({ queryKey: ["admin", "audit-actors"], queryFn: listAuditActors });
+  const logs = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pageSize = f.pageSize ?? 25;
+  const page = f.page ?? 1;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  const columns: Column<AuditEntry>[] = [
+    { key: "occurredAt", header: "When", sortValue: (l) => l.occurredAt, render: (l) => <span className="whitespace-nowrap text-muted-foreground">{new Date(l.occurredAt).toLocaleString()}</span> },
+    { key: "user", header: "Who", render: (l) => (
+      <span>
+        <span className="block font-medium text-foreground">{l.user}</span>
+        {l.userEmail && <span className="block text-xs text-muted-foreground">{l.userEmail}</span>}
+      </span>
+    ) },
     { key: "action", header: "Action", render: (l) => <Badge tone="neutral">{l.action}</Badge> },
     { key: "module", header: "Module", render: (l) => <span className="capitalize text-muted-foreground">{l.module.replace(/_/g, " ")}</span> },
-    { key: "targetId", header: "Target", render: (l) => <span className="text-xs text-muted-foreground">{l.targetId ?? "—"}</span> },
+    { key: "outcome", header: "Outcome", render: (l) => (
+      <Badge tone={OUTCOME_TONE[l.outcome] ?? "neutral"}>{l.outcome}{l.statusCode ? ` · ${l.statusCode}` : ""}</Badge>
+    ) },
+    { key: "ipAddress", header: "From", render: (l) => <span className="text-xs text-muted-foreground">{l.ipAddress ?? "—"}</span> },
+    { key: "targetId", header: "", align: "right", render: (l) => (
+      <Button variant="ghost" size="sm" onClick={() => setDetail(l)}>Details</Button>
+    ) },
   ];
-  return <DataTable columns={columns} data={logs} isLoading={isLoading} />;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Every change is recorded here — who did it, from where, and whether it was allowed. Refused
+        attempts are kept too. The trail is append-only: nothing in this system can edit or erase it.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <input
+          placeholder="Search user, module, target…"
+          onChange={(e) => set("search", e.target.value)}
+          className="h-9 w-56 rounded-md border border-line bg-brand-surface px-3 text-sm"
+        />
+        <select onChange={(e) => set("user", e.target.value)} className="h-9 rounded-md border border-line bg-brand-surface px-2 text-sm">
+          <option value="">All staff</option>
+          {actors.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.actions})</option>)}
+        </select>
+        <select onChange={(e) => set("outcome", e.target.value)} className="h-9 rounded-md border border-line bg-brand-surface px-2 text-sm">
+          <option value="">Any outcome</option>
+          <option value="SUCCESS">Success</option>
+          <option value="DENIED">Denied</option>
+          <option value="FAILED">Failed</option>
+        </select>
+        <input type="date" onChange={(e) => set("from", e.target.value)} className="h-9 rounded-md border border-line bg-brand-surface px-2 text-sm" />
+        <input type="date" onChange={(e) => set("to", e.target.value)} className="h-9 rounded-md border border-line bg-brand-surface px-2 text-sm" />
+        <span className="ml-auto text-sm text-muted-foreground">{total} event{total === 1 ? "" : "s"}</span>
+      </div>
+
+      {isError ? (
+        <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm text-danger">
+          Couldn&apos;t load the audit trail: {(error as Error).message}
+        </p>
+      ) : (
+        <DataTable columns={columns} data={logs} isLoading={isLoading} />
+      )}
+
+      {pages > 1 && (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setF((p) => ({ ...p, page: page - 1 }))}>Previous</Button>
+          <span className="text-sm text-muted-foreground">Page {page} of {pages}</span>
+          <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setF((p) => ({ ...p, page: page + 1 }))}>Next</Button>
+        </div>
+      )}
+
+      {detail && (
+        <Modal open onClose={() => setDetail(null)} title={`${detail.action} · ${detail.module.replace(/_/g, " ")}`} description={new Date(detail.occurredAt).toLocaleString()}>
+          <dl className="space-y-2 text-sm">
+            <Row label="Who" value={`${detail.user}${detail.userEmail ? ` · ${detail.userEmail}` : ""}`} />
+            <Row label="Outcome" value={`${detail.outcome}${detail.statusCode ? ` (HTTP ${detail.statusCode})` : ""}`} />
+            <Row label="Endpoint" value={detail.path ?? "—"} />
+            <Row label="Target" value={detail.targetId ?? "—"} />
+            <Row label="IP address" value={detail.ipAddress ?? "—"} />
+            <Row label="Device" value={detail.userAgent ?? "—"} />
+          </dl>
+          {detail.payload && Object.keys(detail.payload).length > 0 && (
+            <div className="mt-4">
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">What was submitted</p>
+              <pre className="max-h-60 overflow-auto rounded-md border border-line bg-brand-surface-2 p-3 text-xs text-foreground">
+                {JSON.stringify(detail.payload, null, 2)}
+              </pre>
+              <p className="mt-1.5 text-xs text-muted-foreground">Passwords and tokens are never recorded.</p>
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3">
+      <dt className="w-24 shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 flex-1 break-words text-foreground">{value}</dd>
+    </div>
+  );
 }
 
 /* ============================ Users ============================ */
