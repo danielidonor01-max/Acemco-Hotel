@@ -216,6 +216,17 @@ async function main() {
       reference text, note text, recorded_by_user_id text,
       paid_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now());
     CREATE INDEX IF NOT EXISTS company_payments_company_idx ON company_payments(company_id);
+    -- Tax/levy configuration. Rates are data so the till, the folio, Finance and the
+    -- filing report all read one source instead of a hardcoded constant.
+    CREATE TABLE IF NOT EXISTS tax_rates (
+      id text PRIMARY KEY, name text NOT NULL, code text NOT NULL UNIQUE,
+      rate numeric(6,3) NOT NULL, applies_to "ChargeDepartment"[] NOT NULL DEFAULT '{}',
+      is_inclusive boolean NOT NULL DEFAULT false, is_active boolean NOT NULL DEFAULT true,
+      sort_order integer NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    -- Orders record the tax they charged so a till total is always reproducible.
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_amount numeric(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_amount numeric(12,2) NOT NULL DEFAULT 0;
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);
@@ -401,6 +412,18 @@ async function main() {
     `INSERT INTO settings (id, hotel_name, tagline, phone, whatsapp, email, address, city, updated_at)
      VALUES ('hotel','Acemco Express','Holiday Inn','+234 800 000 0000','2348000000000','reservations@acemcohotel.com','12 Marina Crescent','Warri, Delta State, Nigeria',now())
      ON CONFLICT (id) DO NOTHING`,
+  );
+
+  // 7a) Tax configuration (config — the hotel must be able to bill lawfully on day one).
+  // Nigerian VAT is 7.5% and is charged ON TOP of the listed price. Seeded once;
+  // edit it in Manage → Tax & Compliance, never here. Departments deliberately
+  // excluded: OTHER (deposits/prepaid credits), DISCOUNT, TAX itself, DAMAGE, SERVICE.
+  await client.query(
+    `INSERT INTO tax_rates (id, name, code, rate, applies_to, is_inclusive, is_active, sort_order, created_at, updated_at)
+     VALUES (gen_random_uuid()::text, 'VAT', 'VAT', 7.5,
+             ARRAY['ROOM','RESTAURANT','LOUNGE','BOUTIQUE','LAUNDRY','CONFERENCE']::"ChargeDepartment"[],
+             false, true, 0, now(), now())
+     ON CONFLICT (code) DO NOTHING`,
   );
 
   // 7b) Demo/sample operational data — seeded only when SEED_DEMO=true (default off).

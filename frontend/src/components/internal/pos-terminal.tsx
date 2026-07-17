@@ -7,15 +7,19 @@ import { Plus, Minus, Trash2, Send, Check, Search, Loader2, AlertTriangle } from
 import { toast } from "sonner";
 import { Button, Badge } from "./ui";
 import { getPosCatalogue, createOrder, type Sellable } from "@/lib/data/orders-api";
+import { getTaxRates, taxOn, type TaxDepartment } from "@/lib/data/tax";
 import { orderTotal, type OrderLine } from "@/lib/orders";
 import { type Storefront } from "@/lib/cms";
 import { formatNaira, cn } from "@/lib/utils";
 
-const TAX_RATE = 0.075;
-
 /** POS terminal (Domain §4.1). Menu/product grid + order pad → unified Orders pipeline. */
 export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE" }) {
   const qc = useQueryClient();
+
+  // Tax comes from the hotel's configured rates — the same ones the backend bills
+  // from. This used to be a hardcoded `TAX_RATE = 0.075` here while the ledger
+  // recorded no tax at all, so the cashier collected 7.5% the books never saw.
+  const { data: taxRates = [] } = useQuery({ queryKey: ["tax-rates"], queryFn: getTaxRates, staleTime: 300_000 });
 
   const { data: catalogue, isLoading } = useQuery({
     queryKey: ["pos-catalogue", storefront],
@@ -50,8 +54,9 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
     setLines((prev) => (q <= 0 ? prev.filter((l) => l.menuItemId !== id) : prev.map((l) => (l.menuItemId === id ? { ...l, quantity: q } : l))));
   }
 
+  const department: TaxDepartment = storefront === "BOUTIQUE" ? "BOUTIQUE" : storefront;
   const subtotal = orderTotal(lines);
-  const tax = Math.round(subtotal * TAX_RATE);
+  const { lines: taxLines, tax } = taxOn(taxRates, department, subtotal);
   const total = subtotal + tax;
 
   // Every sale posts to the API. There is no local fallback: a sale that isn't
@@ -194,7 +199,9 @@ export function POSTerminal({ storefront }: { storefront: Storefront | "BOUTIQUE
           <div className="border-t border-line p-4">
             <div className="space-y-1.5 text-sm">
               <Row label="Subtotal" value={formatNaira(subtotal)} />
-              <Row label={`Tax (${(TAX_RATE * 100).toFixed(1)}%)`} value={formatNaira(tax)} />
+              {taxLines.map((t) => (
+                <Row key={t.code} label={`${t.name} (${t.rate}%)`} value={formatNaira(t.amount)} />
+              ))}
               <div className="flex justify-between border-t border-line pt-2 text-base font-semibold text-fg">
                 <span>Total</span><span>{formatNaira(total)}</span>
               </div>

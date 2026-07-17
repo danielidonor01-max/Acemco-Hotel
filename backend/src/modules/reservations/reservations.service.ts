@@ -2,9 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Prisma, ReservationStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate, PaginationQuery } from '../../common/utils/pagination';
-import { reservationNumber, chargeNumber } from '../../common/utils/number-generator';
+import { reservationNumber } from '../../common/utils/number-generator';
 import { CreateReservationDto, PublicReservationDto, CorporateBookingDto, EditReservationDto } from './dto/reservation.dto';
 import { AvailabilityService } from '../availability/availability.service';
+import { ChargesService } from '../charges/charges.service';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
@@ -15,6 +16,7 @@ export class ReservationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
+    private readonly charges: ChargesService,
   ) {}
 
   async list(query: PaginationQuery & { status?: ReservationStatus }) {
@@ -247,11 +249,13 @@ export class ReservationsService {
         data: { reservationId: id, guestId: r.guestId, roomId: room.id, checkedInByUserId: userId, keyIssued: true },
       });
       await tx.folio.create({ data: { guestId: r.guestId, checkInId: checkIn.id, status: 'OPEN' } });
-      // Room charge → the central Charge Ledger (guest + room + company identities).
-      const chargeCount = await tx.chargeLedger.count();
-      await tx.chargeLedger.create({
-        data: {
-          chargeNumber: chargeNumber(chargeCount + 1),
+
+      // Room charge → the central Charge Ledger, via ChargesService so the room's
+      // tax is computed from the configured rates. This used to write the ledger row
+      // inline, bypassing the one entry point every module is supposed to bill
+      // through — which meant the room charge silently carried no VAT.
+      await this.charges.post(
+        {
           reservationId: id,
           guestId: r.guestId,
           companyId: r.companyId ?? undefined,
@@ -260,16 +264,19 @@ export class ReservationsService {
           sourceModule: 'reservations',
           referenceNumber: reservation.reservationNumber,
           description: `Room charge · ${reservation.reservationNumber}`,
-          amount: r.totalAmount,
+          amount: Number(r.totalAmount),
           status: 'POSTED',
         },
-      });
+        tx,
+      );
+
       // A deposit taken at booking is a prepaid credit against the folio balance.
+      // tax: 0 is explicit — the deposit is a payment, not a taxable supply; the
+      // VAT was already charged on the room line it pays down.
       const deposit = Number(r.depositAmount);
       if (deposit > 0) {
-        await tx.chargeLedger.create({
-          data: {
-            chargeNumber: chargeNumber(chargeCount + 2),
+        await this.charges.post(
+          {
             reservationId: id,
             guestId: r.guestId,
             companyId: r.companyId ?? undefined,
@@ -279,9 +286,11 @@ export class ReservationsService {
             referenceNumber: reservation.reservationNumber,
             description: `Deposit applied (prepaid) · ${reservation.reservationNumber}`,
             amount: -deposit,
+            tax: 0,
             status: 'PAID',
           },
-        });
+          tx,
+        );
       }
       return reservation;
     }, { timeout: 20000, maxWait: 10000 });

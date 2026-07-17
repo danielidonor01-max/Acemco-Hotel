@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ChargeDepartment, ChargeStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TaxService } from '../tax/tax.service';
 import { chargeNumber } from '../../common/utils/number-generator';
 
 export interface PostCharge {
@@ -19,7 +20,10 @@ export interface PostCharge {
 
 @Injectable()
 export class ChargesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tax: TaxService,
+  ) {}
 
   /**
    * The one entry point every module uses to bill a guest/company (Domain §7).
@@ -30,6 +34,11 @@ export class ChargesService {
    */
   async post(entry: PostCharge, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma;
+    // Tax is computed HERE, at the one entry point every module bills through, so
+    // no caller can forget it and no caller can invent its own rate (the POS used
+    // to hardcode 7.5% in the till while the ledger recorded 0). An explicit
+    // `tax` still wins, for callers that have already computed it.
+    const tax = entry.tax ?? (await this.tax.computeFor(entry.department, entry.amount, tx)).tax;
     const count = await db.chargeLedger.count();
     return db.chargeLedger.create({
       data: {
@@ -43,7 +52,7 @@ export class ChargesService {
         referenceNumber: entry.referenceNumber,
         description: entry.description,
         amount: entry.amount,
-        tax: entry.tax ?? 0,
+        tax,
         status: entry.status ?? 'POSTED',
       },
     });

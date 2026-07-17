@@ -4,7 +4,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { orderNumber } from '../../common/utils/number-generator';
 import { FinanceService } from '../finance/finance.service';
 import { FoliosService } from '../folios/folios.service';
+import { TaxService } from '../tax/tax.service';
 import { CreateOrderDto, PublicOrderDto } from './dto/order.dto';
+
+/** The charge department a storefront bills under — also selects its tax rates. */
+const STOREFRONT_DEPT = { RESTAURANT: 'RESTAURANT', LOUNGE: 'LOUNGE', BOUTIQUE: 'BOUTIQUE' } as const;
 
 const FLOW: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERED', 'COMPLETED'];
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -15,6 +19,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly finance: FinanceService,
     private readonly folios: FoliosService,
+    private readonly tax: TaxService,
   ) {}
 
   /** Public menu for a storefront — excludes hidden items (Domain rule). */
@@ -69,7 +74,11 @@ export class OrdersService {
       total += subtotal;
       return { menuItemId: mi.id, name: mi.name, quantity: i.quantity, unitPrice, subtotal, notes: i.notes };
     });
-    return { lines, total };
+    // Tax comes from the configured rates for this storefront's department, never a
+    // constant. The till used to add a hardcoded 7.5% on screen that was never
+    // billed, so the drawer and the books disagreed by the tax on every sale.
+    const { tax, gross, lines: taxLines } = await this.tax.computeFor(STOREFRONT_DEPT[storefront], total);
+    return { lines, subtotal: total, tax, total: gross, taxLines };
   }
 
   private async nextNumber(storefront: Storefront) {
@@ -78,7 +87,7 @@ export class OrdersService {
   }
 
   async create(dto: CreateOrderDto, userId?: string) {
-    const { lines, total } = await this.buildLines(dto.storefront, dto.items);
+    const { lines, subtotal, tax, total } = await this.buildLines(dto.storefront, dto.items);
     const number = await this.nextNumber(dto.storefront);
     // The order and the charge that bills it commit together. Posting the charge
     // used to be fire-and-forget (`.catch(() => undefined)`), so a failed post
@@ -96,6 +105,8 @@ export class OrdersService {
           tableNumber: dto.tableNumber,
           deliveryLocation: dto.deliveryLocation,
           specialInstructions: dto.specialInstructions,
+          subtotalAmount: subtotal,
+          taxAmount: tax,
           totalAmount: total,
           handledByUserId: userId,
           items: { create: lines.map(({ name, ...l }) => l) },
@@ -103,7 +114,9 @@ export class OrdersService {
         include: { items: true },
       });
       if (order.roomNumber) {
-        await this.folios.postOrderToRoom(order.roomNumber, order.storefront, total, order.orderNumber, tx);
+        // Pass the NET: ChargesService computes the same tax for this department, so
+        // the folio line (amount + tax) reconciles exactly to order.totalAmount.
+        await this.folios.postOrderToRoom(order.roomNumber, order.storefront, subtotal, order.orderNumber, tx);
       }
       return order;
     });
@@ -144,7 +157,7 @@ export class OrdersService {
         message: 'Ordering is available to checked-in guests. We could not verify that room and name.',
       });
     }
-    const { lines, total } = await this.buildLines(dto.storefront as Storefront, dto.items);
+    const { lines, subtotal, tax, total } = await this.buildLines(dto.storefront as Storefront, dto.items);
     const number = await this.nextNumber(dto.storefront as Storefront);
     // Order + room charge commit together: the guest never receives food we failed
     // to bill them for, and we never bill for food we failed to order.
@@ -159,12 +172,14 @@ export class OrdersService {
           customerName: check.guestName,
           roomNumber: check.roomNumber,
           specialInstructions: dto.specialInstructions,
+          subtotalAmount: subtotal,
+          taxAmount: tax,
           totalAmount: total,
           items: { create: lines.map(({ name, ...l }) => l) },
         },
         include: { items: true },
       });
-      await this.folios.postOrderToRoom(check.roomNumber, dto.storefront as Storefront, total, order.orderNumber, tx);
+      await this.folios.postOrderToRoom(check.roomNumber, dto.storefront as Storefront, subtotal, order.orderNumber, tx);
       return order;
     });
   }
@@ -184,10 +199,14 @@ export class OrdersService {
     // swallowed, so an order could read COMPLETED while Finance never saw the money.
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.order.update({ where: { id }, data: { status: next } });
+      // Revenue is recognised NET of tax — VAT is collected on behalf of the state,
+      // not earned. Booking the gross would overstate revenue by the tax and make
+      // the VAT return impossible to reconcile against Finance.
+      const net = Number(order.subtotalAmount) || Number(order.totalAmount) - Number(order.taxAmount);
       await this.finance.create(
         {
           type: 'REVENUE',
-          amount: Number(order.totalAmount),
+          amount: net,
           direction: 'CREDIT',
           account: 'F&B Revenue',
           description: `Order ${order.orderNumber}`,
@@ -196,6 +215,21 @@ export class OrdersService {
         },
         tx,
       );
+      const taxCollected = Number(order.taxAmount);
+      if (taxCollected > 0) {
+        await this.finance.create(
+          {
+            type: 'REVENUE',
+            amount: taxCollected,
+            direction: 'CREDIT',
+            account: 'Tax Payable',
+            description: `Tax collected · ${order.orderNumber}`,
+            date: todayISO(),
+            status: 'POSTED',
+          },
+          tx,
+        );
+      }
       return updated;
     });
   }

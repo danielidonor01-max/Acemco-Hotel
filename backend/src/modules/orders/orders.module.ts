@@ -4,9 +4,10 @@ import { OrdersController } from './orders.controller';
 import { PublicOrdersController } from './public-orders.controller';
 import { FinanceModule } from '../finance/finance.module';
 import { FoliosModule } from '../folios/folios.module';
+import { TaxModule } from '../tax/tax.module';
 
 @Module({
-  imports: [FinanceModule, FoliosModule],
+  imports: [FinanceModule, FoliosModule, TaxModule],
   controllers: [OrdersController, PublicOrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

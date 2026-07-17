@@ -437,6 +437,11 @@ model Order {
   deliveryLocation    String?     @map("delivery_location")
   specialInstructions String?     @map("special_instructions")
   status              OrderStatus @default(PENDING)
+  /// Net of tax (sum of line subtotals).
+  subtotalAmount      Decimal     @default(0) @map("subtotal_amount") @db.Decimal(12, 2)
+  /// Tax charged on this order, from the configured TaxRates at order time.
+  taxAmount           Decimal     @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  /// What the customer pays: subtotalAmount + taxAmount.
   totalAmount         Decimal     @map("total_amount") @db.Decimal(12, 2)
   handledByUserId     String?     @map("handled_by_user_id")
   createdAt           DateTime    @default(now()) @map("created_at")
@@ -930,4 +935,29 @@ model ChargeLedger {
   @@index([reservationId])
   @@index([status])
   @@map("charge_ledger")
+}
+
+/// A configurable tax/levy (e.g. VAT 7.5%, state consumption tax, service charge).
+/// Rates are DATA, not code: the POS used to hardcode 7.5% in the till while the
+/// backend billed 0, so the drawer and the books disagreed on every sale. Every
+/// charge now takes its tax from here, so one change moves the till, the folio,
+/// Finance and the filing report together.
+model TaxRate {
+  id          String             @id @default(uuid())
+  /// Display name shown on folios and receipts, e.g. "VAT".
+  name        String
+  /// Stable short code, e.g. "VAT". Used in reports.
+  code        String             @unique
+  /// Percentage, e.g. 7.5 means 7.5%.
+  rate        Decimal            @db.Decimal(6, 3)
+  /// Which charge departments this applies to. Empty = applies to none.
+  appliesTo   ChargeDepartment[] @map("applies_to")
+  /// True when the listed price already contains this tax (back-computed).
+  isInclusive Boolean            @default(false) @map("is_inclusive")
+  isActive    Boolean            @default(true) @map("is_active")
+  sortOrder   Int                @default(0) @map("sort_order")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@map("tax_rates")
 }
