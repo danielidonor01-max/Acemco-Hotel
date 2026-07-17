@@ -868,6 +868,17 @@ model Setting {
   rateFloorMultiplier   Decimal @default(0.5) @map("rate_floor_multiplier") @db.Decimal(5, 2)
   rateCeilingMultiplier Decimal @default(3.0) @map("rate_ceiling_multiplier") @db.Decimal(5, 2)
 
+  /// ---- Cancellation policy ----
+  /// Cancel at least this many hours before check-in and it's free.
+  cancellationFreeUntilHours Int     @default(48) @map("cancellation_free_until_hours")
+  /// Charged when cancelling inside that window, as % of the booking total.
+  cancellationLateFeePercent Decimal @default(50) @map("cancellation_late_fee_percent") @db.Decimal(5, 2)
+  /// Charged when a guest never arrives, as % of the booking total.
+  noShowFeePercent           Decimal @default(100) @map("no_show_fee_percent") @db.Decimal(5, 2)
+  /// Whether a deposit comes back on a free cancellation. When false it is kept
+  /// whatever the timing — state it plainly in the terms if you turn this off.
+  depositRefundable          Boolean @default(true) @map("deposit_refundable")
+
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("settings")
@@ -943,6 +954,7 @@ model CompanyPayment {
 
 enum ChargeDepartment {
   ROOM
+  CANCELLATION
   RESTAURANT
   LOUNGE
   BOUTIQUE

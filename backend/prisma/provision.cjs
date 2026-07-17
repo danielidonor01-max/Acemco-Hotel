@@ -261,6 +261,13 @@ async function main() {
     -- Rate guardrails live in settings: the right ceiling is a commercial decision.
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS rate_floor_multiplier numeric(5,2) NOT NULL DEFAULT 0.5;
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS rate_ceiling_multiplier numeric(5,2) NOT NULL DEFAULT 3.0;
+    -- Cancellation policy: terms are a commercial decision, so they're data.
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS cancellation_free_until_hours integer NOT NULL DEFAULT 48;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS cancellation_late_fee_percent numeric(5,2) NOT NULL DEFAULT 50;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS no_show_fee_percent numeric(5,2) NOT NULL DEFAULT 100;
+    ALTER TABLE settings ADD COLUMN IF NOT EXISTS deposit_refundable boolean NOT NULL DEFAULT true;
+    -- A cancellation fee is its own money, not room revenue.
+    ALTER TYPE "ChargeDepartment" ADD VALUE IF NOT EXISTS 'CANCELLATION';
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);

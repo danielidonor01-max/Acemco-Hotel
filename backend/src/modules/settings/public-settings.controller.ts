@@ -30,6 +30,15 @@ export class PublicSettingsController {
       email: s.email,
       address: s.address,
       city: s.city,
+      // The cancellation terms the guest is agreeing to. Published so the booking
+      // form and the Terms page state the LIVE policy rather than a copy that
+      // silently drifts from what the system actually charges.
+      cancellationPolicy: {
+        freeUntilHours: s.cancellationFreeUntilHours,
+        lateFeePercent: Number(s.cancellationLateFeePercent),
+        noShowFeePercent: Number(s.noShowFeePercent),
+        depositRefundable: s.depositRefundable,
+      },
     };
   }
 }

@@ -8,6 +8,8 @@ import { CreateReservationDto, PublicReservationDto, CorporateBookingDto, EditRe
 import { AvailabilityService } from '../availability/availability.service';
 import { ChargesService } from '../charges/charges.service';
 import { PricingService } from '../pricing/pricing.service';
+import { CancellationService } from './cancellation.service';
+import { FinanceService } from '../finance/finance.service';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
@@ -20,6 +22,8 @@ export class ReservationsService {
     private readonly availability: AvailabilityService,
     private readonly charges: ChargesService,
     private readonly pricing: PricingService,
+    private readonly cancellation: CancellationService,
+    private readonly finance: FinanceService,
   ) {}
 
   async list(query: PaginationQuery & { status?: ReservationStatus }) {
@@ -360,12 +364,81 @@ export class ReservationsService {
     }, { timeout: 20000, maxWait: 10000 });
   }
 
+  /**
+   * Settle the money side of a cancellation/no-show: charge the fee, put the
+   * deposit against it, and book any refund. Shared by cancel() and noShow() so
+   * the two can never drift apart.
+   *
+   * This used to be absent entirely — both just flipped a status, so no fee was
+   * ever charged and a deposit was neither forfeited nor returned; it simply
+   * stopped being mentioned.
+   */
+  private async settleCancellation(
+    tx: Prisma.TransactionClient,
+    r: { id: string; guestId: string; companyId: string | null; roomId: string | null; reservationNumber: string; totalAmount: Prisma.Decimal; depositAmount: Prisma.Decimal; checkInDate: Date },
+    kind: 'CANCEL' | 'NO_SHOW',
+  ) {
+    const policy = await this.cancellation.policy();
+    const outcome = this.cancellation.compute(policy, {
+      total: Number(r.totalAmount),
+      deposit: Number(r.depositAmount),
+      checkInDate: r.checkInDate,
+      kind,
+    });
+
+    const common = {
+      reservationId: r.id,
+      guestId: r.guestId,
+      companyId: r.companyId ?? undefined,
+      roomId: r.roomId ?? undefined,
+      department: 'CANCELLATION' as const,
+      sourceModule: 'reservations',
+      referenceNumber: r.reservationNumber,
+    };
+
+    if (outcome.fee > 0) {
+      await this.charges.post({ ...common, description: `${kind === 'NO_SHOW' ? 'No-show' : 'Cancellation'} fee · ${r.reservationNumber} — ${outcome.reasonForFee}`, amount: outcome.fee, status: 'POSTED' }, tx);
+    }
+    if (outcome.depositApplied > 0) {
+      // tax:0 — the deposit is a payment already made, not a taxable supply.
+      await this.charges.post({ ...common, description: `Deposit applied · ${r.reservationNumber}`, amount: -outcome.depositApplied, tax: 0, status: 'PAID' }, tx);
+    }
+    if (outcome.refundDue > 0) {
+      await this.charges.post({ ...common, description: `Deposit refund due · ${r.reservationNumber}`, amount: -outcome.refundDue, tax: 0, status: 'POSTED' }, tx);
+      // Money actually leaving the hotel — recorded so Finance sees the outflow.
+      await this.finance.create(
+        {
+          type: 'REFUND',
+          amount: outcome.refundDue,
+          direction: 'DEBIT',
+          account: 'Deposit Refunds',
+          description: `Deposit refund · ${r.reservationNumber}`,
+          date: new Date().toISOString().slice(0, 10),
+          status: 'POSTED',
+        },
+        tx,
+      );
+    }
+    return outcome;
+  }
+
   async cancel(id: string, reason?: string) {
     const r = await this.get(id);
     // Invariant 7: cannot cancel a CHECKED_IN reservation.
     if (r.status === 'CHECKED_IN') throw new UnprocessableEntityException({ code: 'CANNOT_CANCEL_CHECKED_IN', message: 'Process checkout instead of cancelling.' });
     if (r.status === 'CANCELLED' || r.status === 'CHECKED_OUT') throw new ConflictException({ code: 'INVALID_STATE', message: `Reservation is already ${r.status}.` });
-    return this.prisma.reservation.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason } });
+
+    return this.prisma.$transaction(async (tx) => {
+      const outcome = await this.settleCancellation(tx, r, 'CANCEL');
+      const reservation = await tx.reservation.update({
+        where: { id },
+        // Release the held room with the same write — a cancelled booking must not
+        // keep a room out of inventory.
+        data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason, roomId: null },
+        include: this.detailInclude,
+      });
+      return { ...reservation, cancellation: outcome };
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /** Mark a pending/confirmed reservation as a no-show (guest never arrived), releasing any held room. */
@@ -374,7 +447,11 @@ export class ReservationsService {
     if (r.status !== 'PENDING' && r.status !== 'CONFIRMED') {
       throw new ConflictException({ code: 'INVALID_STATE', message: `Only a pending or confirmed reservation can be marked no-show (currently ${r.status}).` });
     }
-    return this.prisma.reservation.update({ where: { id }, data: { status: 'NO_SHOW', roomId: null }, include: this.detailInclude });
+    return this.prisma.$transaction(async (tx) => {
+      const outcome = await this.settleCancellation(tx, r, 'NO_SHOW');
+      const reservation = await tx.reservation.update({ where: { id }, data: { status: 'NO_SHOW', roomId: null }, include: this.detailInclude });
+      return { ...reservation, cancellation: outcome };
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /** Edit a pending/confirmed reservation: change dates, room type or occupancy, re-checking availability. */

@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReservationStatus, PaymentMethod } from '@prisma/client';
 import { ReservationsService } from './reservations.service';
+import { CancellationService } from './cancellation.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/jwt-payload.types';
@@ -12,7 +13,10 @@ import { createReservationSchema, cancelSchema, checkInSchema, checkOutSchema, c
 @ApiTags('reservations')
 @Controller('v1/reservations')
 export class ReservationsController {
-  constructor(private readonly reservations: ReservationsService) {}
+  constructor(
+    private readonly reservations: ReservationsService,
+    private readonly cancellation: CancellationService,
+  ) {}
 
   @Get()
   @RequirePermissions('reservations:VIEW')
@@ -63,6 +67,16 @@ export class ReservationsController {
   @ApiOperation({ summary: 'Confirm a pending reservation' })
   confirm(@Param('id') id: string) {
     return this.reservations.confirm(id);
+  }
+
+  /** What cancelling would cost, BEFORE committing — so the desk can tell the guest. */
+  @Get(':id/cancellation-preview')
+  @RequirePermissions('reservations:VIEW')
+  @ApiOperation({ summary: 'Preview the fee/refund for cancelling or marking no-show' })
+  async cancellationPreview(@Param('id') id: string, @Query('kind') kind?: string) {
+    const out = await this.cancellation.preview(id, kind === 'NO_SHOW' ? 'NO_SHOW' : 'CANCEL');
+    if (!out) throw new NotFoundException({ code: 'RESERVATION_NOT_FOUND', message: 'Reservation not found.' });
+    return out;
   }
 
   @Post(':id/cancel')
