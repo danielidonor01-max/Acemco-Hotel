@@ -170,6 +170,29 @@ interface ApiSettings {
   email: string; address: string; city: string;
 }
 
+export interface PublicCancellationPolicy {
+  freeUntilHours: number;
+  lateFeePercent: number;
+  noShowFeePercent: number;
+  depositRefundable: boolean;
+}
+
+/**
+ * The LIVE cancellation policy, so the Terms page states what the system actually
+ * charges rather than a copy that silently drifts. Falls back to the current
+ * defaults if the API is unreachable — the terms must never render blank.
+ */
+export async function getCancellationPolicy(): Promise<PublicCancellationPolicy> {
+  const fallback: PublicCancellationPolicy = { freeUntilHours: 48, lateFeePercent: 50, noShowFeePercent: 100, depositRefundable: true };
+  if (!hasPublicApi()) return fallback;
+  try {
+    const s = await publicRequest<{ cancellationPolicy?: PublicCancellationPolicy }>("/settings");
+    return s?.cancellationPolicy ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Live hotel contact from the API. Null (→ no contact rendered) if unreachable. */
 async function getHotelContact(): Promise<Partial<SiteSettings> | null> {
   if (!hasPublicApi()) return null;
