@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Calendar, CalendarClock, CalendarRange, Users, Building2, BedDouble, Tags, ConciergeBell, UtensilsCrossed,
-  Wine, ShoppingBag, Package, Sparkles, Wrench, BarChart3, UserCog, Banknote,
+  Wine, ShoppingBag, Package, Sparkles, Wrench, BarChart3, UserCog, Banknote, UsersRound,
   FileBarChart, Settings, Shield, ClipboardList, BookOpen, Percent, TrendingUp, Wallet, ChevronDown, ChevronLeft, X, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ const SECTIONS: { items: NavItem[] }[] = [
     items: [
       { label: "Dashboard", href: "/manage/dashboard", icon: LayoutDashboard },
       { label: "Reservations", href: "/manage/reservations", icon: Calendar, perm: ["reservations", "VIEW"] },
+      { label: "Group Bookings", href: "/manage/groups", icon: UsersRound, perm: ["reservations", "VIEW"] },
       { label: "Availability", href: "/manage/availability", icon: CalendarRange, perm: ["reservations", "VIEW"] },
       { label: "Guests", href: "/manage/guests", icon: Users, perm: ["guests", "VIEW"] },
       { label: "Companies", href: "/manage/companies", icon: Building2, perm: ["guests", "VIEW"] },
