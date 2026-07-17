@@ -6,3 +6,6 @@ prisma/*.db
 prisma/*.db-journal
 
 .vercel
+
+# Ad-hoc verification scripts (never committed)
+_*.cjs
