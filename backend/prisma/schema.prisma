@@ -441,6 +441,76 @@ enum PaymentMethod {
   CREDIT
 }
 
+/// Where a cash drawer lives. A shift is opened per station.
+enum CashStation {
+  RECEPTION
+  RESTAURANT
+  LOUNGE
+  BOUTIQUE
+}
+
+enum CashShiftStatus {
+  OPEN
+  CLOSED
+}
+
+/// A cashier's shift at one drawer, opened with a float and closed with a count.
+///
+/// A cash business with no shift/float/reconciliation is where money quietly goes
+/// missing and nobody can prove it either way. This makes each drawer accountable
+/// to one person for one shift: open with what's in it, take payments against it,
+/// count it at the end. Expected vs counted = the over/short.
+model CashShift {
+  id            String          @id @default(uuid())
+  station       CashStation
+  status        CashShiftStatus @default(OPEN)
+  openedByUserId String         @map("opened_by_user_id")
+  openingFloat  Decimal         @map("opening_float") @db.Decimal(12, 2)
+  openedAt      DateTime        @default(now()) @map("opened_at")
+  /// Set at close: physical cash counted in the drawer.
+  countedCash   Decimal?        @map("counted_cash") @db.Decimal(12, 2)
+  /// float + cash in − cash out, frozen at close.
+  expectedCash  Decimal?        @map("expected_cash") @db.Decimal(12, 2)
+  /// counted − expected. Negative = short, positive = over.
+  overShort     Decimal?        @map("over_short") @db.Decimal(12, 2)
+  closedByUserId String?        @map("closed_by_user_id")
+  closedAt      DateTime?       @map("closed_at")
+  notes         String?
+
+  movements CashMovement[]
+
+  @@index([station, status])
+  @@map("cash_shifts")
+}
+
+/// Money in or out of a drawer during a shift.
+enum CashDirection {
+  IN
+  OUT
+}
+
+model CashMovement {
+  id          String        @id @default(uuid())
+  shiftId     String?       @map("shift_id")
+  station     CashStation
+  direction   CashDirection
+  /// Payment method. Only CASH affects the drawer count; CARD/TRANSFER are
+  /// recorded so the shift shows total takings by method, but don't reconcile.
+  method      PaymentMethod @default(CASH)
+  amount      Decimal       @db.Decimal(12, 2)
+  reason      String
+  /// Order/reservation number this came from, when there is one.
+  reference   String?
+  createdByUserId String?    @map("created_by_user_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  shift CashShift? @relation(fields: [shiftId], references: [id])
+
+  @@index([shiftId])
+  @@index([station])
+  @@map("cash_movements")
+}
+
 enum FolioStatus {
   OPEN
   SETTLED

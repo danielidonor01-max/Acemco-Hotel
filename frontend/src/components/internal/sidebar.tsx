@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Calendar, CalendarClock, CalendarRange, Users, Building2, BedDouble, Tags, ConciergeBell, UtensilsCrossed,
   Wine, ShoppingBag, Package, Sparkles, Wrench, BarChart3, UserCog, Banknote,
-  FileBarChart, Settings, Shield, ClipboardList, BookOpen, Percent, TrendingUp, ChevronDown, ChevronLeft, X, type LucideIcon,
+  FileBarChart, Settings, Shield, ClipboardList, BookOpen, Percent, TrendingUp, Wallet, ChevronDown, ChevronLeft, X, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui.store";
@@ -58,6 +58,7 @@ const SECTIONS: { items: NavItem[] }[] = [
   {
     items: [
       { label: "Finance", href: "/manage/finance", icon: BarChart3, perm: ["finance", "VIEW"] },
+      { label: "Cash Drawer", href: "/manage/cash", icon: Wallet, perm: ["cash", "VIEW"] },
       { label: "HR", href: "/manage/hr", icon: UserCog, perm: ["hr", "VIEW"] },
       { label: "Payroll", href: "/manage/payroll", icon: Banknote, perm: ["payroll", "VIEW"] },
       { label: "Reports", href: "/manage/reports", icon: FileBarChart, perm: ["reports", "VIEW"] },

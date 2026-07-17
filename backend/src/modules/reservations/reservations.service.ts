@@ -10,6 +10,7 @@ import { ChargesService } from '../charges/charges.service';
 import { PricingService } from '../pricing/pricing.service';
 import { CancellationService } from './cancellation.service';
 import { FinanceService } from '../finance/finance.service';
+import { CashService } from '../cash/cash.service';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
@@ -24,6 +25,7 @@ export class ReservationsService {
     private readonly pricing: PricingService,
     private readonly cancellation: CancellationService,
     private readonly finance: FinanceService,
+    private readonly cash: CashService,
   ) {}
 
   async list(query: PaginationQuery & { status?: ReservationStatus }) {
@@ -359,6 +361,16 @@ export class ReservationsService {
       // Queue a checkout-clean housekeeping task for the room.
       if (r.room?.roomNumber) {
         await tx.housekeepingTask.create({ data: { roomNumber: r.room.roomNumber, type: 'CHECKOUT_CLEAN', priority: 'HIGH', status: 'PENDING' } });
+      }
+      // Attach the settlement to the reception drawer, so a cash checkout shows up
+      // in the shift and the drawer reconciles. Corporate stays are invoiced, not
+      // paid at the desk, so nothing hits the till. Never throws — money must
+      // always be recordable even if a shift isn't open (it flags as unattributed).
+      if (!r.companyId && balance > 0) {
+        await this.cash.recordPayment(
+          { station: 'RECEPTION', method: paymentMethod, amount: balance, reason: `Checkout · ${reservation.reservationNumber}`, reference: reservation.reservationNumber, userId },
+          tx,
+        );
       }
       return reservation;
     }, { timeout: 20000, maxWait: 10000 });

@@ -37,6 +37,7 @@ const MODULE_ACTIONS = {
   hr: ['VIEW', 'CREATE', 'UPDATE', 'APPROVE'],
   payroll: ['VIEW', 'CREATE', 'APPROVE'],
   finance: ['VIEW', 'CREATE', 'APPROVE', 'EXPORT'],
+  cash: ['VIEW', 'CREATE', 'APPROVE'],
   reports: ['VIEW', 'EXPORT'],
   cms: ['VIEW', 'UPDATE'],
   settings: ['VIEW', 'UPDATE'],
@@ -49,9 +50,9 @@ const mods = (...names) => names.flatMap((m) => (MODULE_ACTIONS[m] || []).map((a
 const ROLE_GRANTS = {
   SUPER_ADMIN: { description: 'Unrestricted access to all modules and settings.', system: true, perms: '*' },
   HOTEL_MANAGER: { description: 'Full operational access, no system settings.', system: true, perms: allPerms().filter((p) => p !== 'settings:UPDATE' && !p.startsWith('administration:')) },
-  RECEPTION: { description: 'Reservations, check-in/out, and guest management.', system: true, perms: ['rooms:VIEW', 'rooms:UPDATE', 'reservations:VIEW', 'reservations:CREATE', 'reservations:UPDATE', 'reception:VIEW', 'reception:CREATE', 'guests:VIEW', 'guests:CREATE', 'guests:UPDATE', 'pos.restaurant:VIEW', 'pos.lounge:VIEW'] },
+  RECEPTION: { description: 'Reservations, check-in/out, and guest management.', system: true, perms: ['rooms:VIEW', 'rooms:UPDATE', 'reservations:VIEW', 'reservations:CREATE', 'reservations:UPDATE', 'reception:VIEW', 'reception:CREATE', 'guests:VIEW', 'guests:CREATE', 'guests:UPDATE', 'pos.restaurant:VIEW', 'pos.lounge:VIEW', 'cash:VIEW', 'cash:CREATE'] },
   'Inventory Manager': { description: 'Full inventory management and stock reporting.', system: false, perms: [...mods('inventory'), 'reports:VIEW'] },
-  'POS Manager': { description: 'Restaurant, lounge, and boutique point of sale.', system: false, perms: [...mods('pos.restaurant', 'pos.lounge', 'pos.boutique'), 'inventory:VIEW', 'reports:VIEW'] },
+  'POS Manager': { description: 'Restaurant, lounge, and boutique point of sale.', system: false, perms: [...mods('pos.restaurant', 'pos.lounge', 'pos.boutique'), 'inventory:VIEW', 'reports:VIEW', 'cash:VIEW', 'cash:CREATE'] },
   Maintenance: { description: 'Assets, work orders, and room maintenance.', system: false, perms: [...mods('maintenance'), 'rooms:VIEW', 'housekeeping:VIEW'] },
   HR: { description: 'Employee records, leave, and payroll view.', system: false, perms: [...mods('hr'), 'payroll:VIEW', 'reports:VIEW'] },
 };
@@ -272,6 +273,25 @@ async function main() {
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS auto_mark_no_shows boolean NOT NULL DEFAULT true;
     ALTER TABLE settings ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Africa/Lagos';
     -- A closed day is frozen: what was reported for that date stays reported.
+    -- Cash drawer: shifts + movements, so takings are accountable to a person.
+    DO $$ BEGIN CREATE TYPE "CashStation" AS ENUM ('RECEPTION','RESTAURANT','LOUNGE','BOUTIQUE'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN CREATE TYPE "CashShiftStatus" AS ENUM ('OPEN','CLOSED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN CREATE TYPE "CashDirection" AS ENUM ('IN','OUT'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    CREATE TABLE IF NOT EXISTS cash_shifts (
+      id text PRIMARY KEY, station "CashStation" NOT NULL, status "CashShiftStatus" NOT NULL DEFAULT 'OPEN',
+      opened_by_user_id text NOT NULL, opening_float numeric(12,2) NOT NULL, opened_at timestamptz NOT NULL DEFAULT now(),
+      counted_cash numeric(12,2), expected_cash numeric(12,2), over_short numeric(12,2),
+      closed_by_user_id text, closed_at timestamptz, notes text);
+    CREATE INDEX IF NOT EXISTS cash_shifts_station_status_idx ON cash_shifts(station, status);
+    -- One open shift per station at a time — two open drawers can't both claim the same cash.
+    CREATE UNIQUE INDEX IF NOT EXISTS cash_shifts_one_open_per_station ON cash_shifts(station) WHERE status='OPEN';
+    CREATE TABLE IF NOT EXISTS cash_movements (
+      id text PRIMARY KEY, shift_id text REFERENCES cash_shifts(id), station "CashStation" NOT NULL,
+      direction "CashDirection" NOT NULL, method "PaymentMethod" NOT NULL DEFAULT 'CASH',
+      amount numeric(12,2) NOT NULL, reason text NOT NULL, reference text,
+      created_by_user_id text, created_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS cash_movements_shift_idx ON cash_movements(shift_id);
+    CREATE INDEX IF NOT EXISTS cash_movements_station_idx ON cash_movements(station);
     CREATE TABLE IF NOT EXISTS daily_closes (
       id text PRIMARY KEY, business_date date NOT NULL UNIQUE,
       rooms_available integer NOT NULL, rooms_sold integer NOT NULL,
