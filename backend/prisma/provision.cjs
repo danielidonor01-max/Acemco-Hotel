@@ -61,10 +61,13 @@ const ROOM_TYPES = [
   { slug: 'executive-suite', name: 'Executive Suite', bed: '1 King Bed + Sofa', occ: 3, price: 120000, features: ['Separate lounge', 'Private bar', 'City view'], sort: 3 },
   { slug: 'garden-family', name: 'Garden Family Room', bed: '1 King + 2 Single Beds', occ: 4, price: 95000, features: ['Courtyard access', 'Family layout', 'Fast Wi-Fi'], sort: 4 },
 ];
-// Physical-status variety only (cleaning/inspection/maintenance/etc.). OCCUPIED/RESERVED are
-// NOT hard-coded here — real occupancy is driven by reservations and reconciled below (§5d),
-// so the physical board never disagrees with computed availability.
-const STATUSES = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'CLEANING', 'AVAILABLE', 'AVAILABLE', 'INSPECTION', 'AVAILABLE', 'MAINTENANCE', 'AVAILABLE', 'AVAILABLE', 'OUT_OF_ORDER', 'AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'CLEANING', 'AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BLOCKED', 'AVAILABLE', 'AVAILABLE', 'INSPECTION', 'AVAILABLE'];
+// A real hotel's rooms start sellable. This used to seed a spread of
+// CLEANING/INSPECTION/MAINTENANCE/OUT_OF_ORDER/BLOCKED for demo colour, which took
+// 7 of 24 rooms out of inventory with NO housekeeping task or work order behind
+// them — the invariant is that a non-AVAILABLE status must be backed by a record
+// explaining it. That noise is demo data, so it lives behind SEED_DEMO now.
+const DEMO_STATUSES = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'CLEANING', 'AVAILABLE', 'AVAILABLE', 'INSPECTION', 'AVAILABLE', 'MAINTENANCE', 'AVAILABLE', 'AVAILABLE', 'OUT_OF_ORDER', 'AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'CLEANING', 'AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BLOCKED', 'AVAILABLE', 'AVAILABLE', 'INSPECTION', 'AVAILABLE'];
+const ROOM_COUNT = DEMO_STATUSES.length;
 const MENU = [
   { sf: 'RESTAURANT', cat: 'Starters', items: [['Pepper Soup, Catfish', 'Aromatic broth, scent leaf, fresh catfish.', 6500, ['Spicy'], true], ['Suya Beef Skewers', 'Charred, dusted with yaji, red onion.', 7000, ['Spicy'], true], ['Garden Salad', 'Leaves, avocado, citrus dressing.', 5000, ['Vegetarian'], true]] },
   { sf: 'RESTAURANT', cat: 'Mains', items: [['Jollof Rice & Grilled Chicken', 'Smoky party jollof, chicken, plantain.', 9500, [], true], ['Seared Barramundi', 'Coconut sauce, greens, jasmine rice.', 14000, [], true], ['Egusi & Pounded Yam', 'Melon seed stew, assorted, pounded yam.', 11000, [], false], ['Ribeye, Pepper Glaze', '300g grass-fed, ata rodo glaze, fries.', 21000, ['Spicy'], true]] },
@@ -301,13 +304,18 @@ async function main() {
     );
     typeIds.push(r.rows[0].id);
   }
-  for (let i = 0; i < STATUSES.length; i++) {
+  const STATUSES = SEED_DEMO ? DEMO_STATUSES : Array(ROOM_COUNT).fill('AVAILABLE');
+  for (let i = 0; i < ROOM_COUNT; i++) {
     const floor = Math.floor(i / 6) + 1;
     const roomNumber = String(floor * 100 + (i % 6) + 1);
     await client.query(
+      // DO NOTHING on conflict: an existing room's status is OPERATIONAL truth, not
+      // config. This used to overwrite it from the array above on every run — so
+      // re-provisioning a live hotel would reset an OCCUPIED room to AVAILABLE and
+      // let reception sell it out from under the guest sleeping in it.
       `INSERT INTO rooms (id, room_number, floor, room_type_id, status, updated_at)
        VALUES ($1,$2,$3,$4,$5::"RoomStatus",now())
-       ON CONFLICT (room_number) DO UPDATE SET status = EXCLUDED.status`,
+       ON CONFLICT (room_number) DO NOTHING`,
       [uuid(), roomNumber, floor, typeIds[i % typeIds.length], STATUSES[i]],
     );
   }
