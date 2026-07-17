@@ -1,7 +1,7 @@
 {
   "name": "aehop-backend",
   "version": "1.0.0",
-  "description": "Acemco Express Hotel Operations Platform \u2014 API (NestJS + Prisma)",
+  "description": "Acemco Express Hotel Operations Platform — API (NestJS + Prisma)",
   "private": true,
   "scripts": {
     "build": "nest build",
@@ -34,6 +34,7 @@
     "@nestjs/swagger": "^11.0.0",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.2.0",
+    "@sentry/node": "^8.55.2",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "passport": "^0.7.0",

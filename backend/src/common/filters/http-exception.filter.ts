@@ -4,6 +4,7 @@ import {
 import { Request, Response } from 'express';
 import { ApiError } from '../types/api-response.types';
 import { AuditWriter, AuditableRequest } from '../audit/audit-writer.service';
+import { captureException } from '../observability/sentry';
 
 /** Maps all thrown errors to the standard error envelope (Blueprint §11). */
 @Catch()
@@ -39,6 +40,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       // `exception.message` to the caller leaked internals (Prisma errors name
       // tables and columns), so callers get a generic message instead.
       this.logger.error(exception.message, exception.stack);
+    }
+
+    // Report the errors worth waking up for — unexpected 5xx, not routine 4xx
+    // like a validation failure or a permission denial. No-op without a DSN. The
+    // path (never the body) goes along, so PII/credentials don't leave with it.
+    if (status >= 500) {
+      captureException(exception, { path: (req as unknown as { originalUrl?: string; url: string }).originalUrl ?? req.url, method: req.method, code });
     }
 
     // Record the refused/failed attempt. This is the ONLY place a guard rejection

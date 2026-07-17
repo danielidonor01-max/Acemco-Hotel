@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { assertSecrets } from './common/config/assert-secrets';
+import { initSentry } from './common/observability/sentry';
 
 /**
  * Builds and configures the Nest app WITHOUT calling listen().
@@ -17,6 +18,9 @@ export async function createApp(): Promise<INestApplication> {
   // Refuse to boot with a missing/placeholder signing key rather than falling back
   // to a hardcoded one and accepting forged tokens.
   assertSecrets(config);
+
+  // Error tracking — no-op unless SENTRY_DSN is set.
+  initSentry(config.get<string>('SENTRY_DSN'), config.get<string>('NODE_ENV') ?? 'production');
 
   app.use(cookieParser());
   app.setGlobalPrefix('api');
