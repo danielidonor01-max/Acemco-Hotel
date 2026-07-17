@@ -4,9 +4,10 @@ import { ReservationsController } from './reservations.controller';
 import { PublicReservationsController } from './public-reservations.controller';
 import { AvailabilityModule } from '../availability/availability.module';
 import { ChargesModule } from '../charges/charges.module';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
-  imports: [AvailabilityModule, ChargesModule],
+  imports: [AvailabilityModule, ChargesModule, PricingModule],
   controllers: [ReservationsController, PublicReservationsController],
   providers: [ReservationsService],
   exports: [ReservationsService],

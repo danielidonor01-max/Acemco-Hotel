@@ -240,6 +240,24 @@ async function main() {
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS path text;
     CREATE INDEX IF NOT EXISTS audit_logs_outcome_idx ON audit_logs(outcome);
     CREATE INDEX IF NOT EXISTS audit_logs_occurred_at_idx ON audit_logs(occurred_at);
+    -- Rate rules: the nightly rate bends with season, weekday and demand. Replaces
+    -- room_pricing (a flat price per date range) which was never read — every night
+    -- sold at base regardless of how full the house was.
+    DO $$ BEGIN
+      CREATE TYPE "RateAdjustment" AS ENUM ('PERCENT','AMOUNT','FIXED');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    CREATE TABLE IF NOT EXISTS rate_rules (
+      id text PRIMARY KEY, name text NOT NULL,
+      room_type_id text REFERENCES room_types(id) ON DELETE CASCADE,
+      start_date date, end_date date,
+      days_of_week integer[] NOT NULL DEFAULT '{}',
+      min_occupancy integer, max_occupancy integer,
+      adjustment "RateAdjustment" NOT NULL, value numeric(12,2) NOT NULL,
+      priority integer NOT NULL DEFAULT 0, is_active boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS rate_rules_room_type_idx ON rate_rules(room_type_id);
+    CREATE INDEX IF NOT EXISTS rate_rules_active_idx ON rate_rules(is_active);
+    DROP TABLE IF EXISTS room_pricing;
     CREATE INDEX IF NOT EXISTS reservations_company_idx ON reservations(company_id);
     CREATE INDEX IF NOT EXISTS assets_area_idx ON assets(area);
     CREATE INDEX IF NOT EXISTS work_orders_asset_id_idx ON work_orders(asset_id);

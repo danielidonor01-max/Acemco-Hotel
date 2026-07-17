@@ -7,6 +7,7 @@ import { toWhatsAppNumber } from '../../common/utils/phone';
 import { CreateReservationDto, PublicReservationDto, CorporateBookingDto, EditReservationDto } from './dto/reservation.dto';
 import { AvailabilityService } from '../availability/availability.service';
 import { ChargesService } from '../charges/charges.service';
+import { PricingService } from '../pricing/pricing.service';
 
 const MS_PER_DAY = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.round((+new Date(b) - +new Date(a)) / MS_PER_DAY);
@@ -18,6 +19,7 @@ export class ReservationsService {
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
     private readonly charges: ChargesService,
+    private readonly pricing: PricingService,
   ) {}
 
   async list(query: PaginationQuery & { status?: ReservationStatus }) {
@@ -88,13 +90,14 @@ export class ReservationsService {
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
-    const total = Number(roomType.basePrice) * nights;
 
-    // Lock → re-check → insert, all in one transaction, so the last room of a type
-    // can't be sold twice by two concurrent bookings.
+    // Lock → re-check → price → insert, all in one transaction, so the last room of
+    // a type can't be sold twice by two concurrent bookings, and the demand-based
+    // rate is read under the same lock that decides availability.
     return this.prisma.$transaction(async (tx) => {
       await this.availability.lockBookings(tx);
       await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate, undefined, tx);
+      const { total } = await this.pricing.quote(roomType.id, Number(roomType.basePrice), dto.checkInDate, dto.checkOutDate, tx);
       return tx.reservation.create({
         data: {
           reservationNumber: await this.nextNumber(tx),
@@ -147,14 +150,14 @@ export class ReservationsService {
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
-    const total = Number(roomType.basePrice) * nights;
     const guestId = guest.id;
 
-    // Same lock → re-check → insert as the internal path. The website is the most
-    // concurrent entry point, so this is where an oversell would actually happen.
+    // Same lock → re-check → price → insert as the internal path. The website is the
+    // most concurrent entry point, so this is where an oversell would actually happen.
     return this.prisma.$transaction(async (tx) => {
       await this.availability.lockBookings(tx);
       await this.assertAvailability(roomType.id, dto.checkInDate, dto.checkOutDate, undefined, tx);
+      const { total } = await this.pricing.quote(roomType.id, Number(roomType.basePrice), dto.checkInDate, dto.checkOutDate, tx);
       return tx.reservation.create({
         data: {
           reservationNumber: await this.nextNumber(tx),
@@ -398,8 +401,6 @@ export class ReservationsService {
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
     const datesChanged = checkInDate !== iso(r.checkInDate) || checkOutDate !== iso(r.checkOutDate);
 
-    const total = Number(roomType.basePrice) * nights;
-
     // Moving a booking re-takes inventory, so it needs the same lock → re-check →
     // write as creating one: an edit into the last free room must not race a booking.
     return this.prisma.$transaction(async (tx) => {
@@ -408,6 +409,9 @@ export class ReservationsService {
       if (roomTypeChanged || datesChanged) {
         await this.assertAvailability(roomType.id, checkInDate, checkOutDate, r.id, tx);
       }
+      // Re-price on the new dates/type — moving a stay onto a weekend or a busy
+      // night must change what it costs, or the rate rules are decorative.
+      const { total } = await this.pricing.quote(roomType.id, Number(roomType.basePrice), checkInDate, checkOutDate, tx);
 
       // Keep a pre-assigned room only if it still fits the new type and dates.
       let roomId = r.roomId;

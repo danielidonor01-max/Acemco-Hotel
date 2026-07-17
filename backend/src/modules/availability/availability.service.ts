@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ReservationStatus, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PricingService } from '../pricing/pricing.service';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -22,7 +23,10 @@ const todayUtc = () => {
 
 @Injectable()
 export class AvailabilityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pricing: PricingService,
+  ) {}
 
   /** Two spans overlap when each starts before the other ends. Half-open: check-out day is free. */
   overlapWhere(checkIn: Date, checkOut: Date): Prisma.ReservationWhereInput {
@@ -117,24 +121,33 @@ export class AvailabilityService {
     const heldMap = new Map(held.map((h) => [h.roomTypeId, h._count._all]));
     const oosMap = new Map(oos.map((o) => [o.roomTypeId, o._count._all]));
 
-    return types.map((t) => {
-      const capacity = t._count.rooms;
-      const heldCount = heldMap.get(t.id) ?? 0;
-      const outOfService = oosMap.get(t.id) ?? 0;
-      const available = Math.max(0, capacity - heldCount - outOfService);
-      return {
-        roomTypeId: t.id,
-        slug: t.slug,
-        name: t.name,
-        basePrice: Number(t.basePrice),
-        capacity,
-        held: heldCount,
-        outOfService,
-        available,
-        nights,
-        totalPrice: Number(t.basePrice) * nights,
-      };
-    });
+    // Price through the rate engine, so the figure quoted here is the figure the
+    // booking will charge. Returning basePrice x nights while create() priced per
+    // night would quote a quiet-Tuesday rate for a full Saturday.
+    return Promise.all(
+      types.map(async (t) => {
+        const capacity = t._count.rooms;
+        const heldCount = heldMap.get(t.id) ?? 0;
+        const outOfService = oosMap.get(t.id) ?? 0;
+        const available = Math.max(0, capacity - heldCount - outOfService);
+        const quote = await this.pricing.quote(t.id, Number(t.basePrice), checkIn, checkOut);
+        return {
+          roomTypeId: t.id,
+          slug: t.slug,
+          name: t.name,
+          basePrice: Number(t.basePrice),
+          capacity,
+          held: heldCount,
+          outOfService,
+          available,
+          nights,
+          totalPrice: quote.total,
+          averageRate: quote.averageRate,
+          /** True when rules moved the rate off base — the UI can say why. */
+          rateAdjusted: quote.breakdown.some((b) => b.applied.length > 0),
+        };
+      }),
+    );
   }
 
   /** Physical rooms of a type, flagged assignable/not for a span (for the room-picker). */
