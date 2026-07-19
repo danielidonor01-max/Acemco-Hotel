@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/internal/date-picker";
-import { listReservations, checkInReservation, checkOutReservation, walkInReservation, markNoShow } from "@/lib/data/reservations";
+import { listReservations, checkInReservation, checkOutReservation, walkInReservation, markNoShow, duplicateInfo, type DuplicateInfo } from "@/lib/data/reservations";
 import { getGuestProfile } from "@/lib/data/guests";
 import { getAvailableRooms, getAvailabilityByType } from "@/lib/data/availability";
 import { getFolio } from "@/lib/data/operations";
@@ -342,6 +342,7 @@ function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
     guestName: "", phone: "", roomTypeSlug: "", checkInDate: "", checkOutDate: "", adults: 1, children: 0,
   });
   const [error, setError] = useState<string | null>(null);
+  const [dupPrompt, setDupPrompt] = useState<DuplicateInfo | null>(null);
   const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
   useEffect(() => {
     if (!form.roomTypeSlug && roomTypes[0]) set("roomTypeSlug", roomTypes[0].slug);
@@ -358,23 +359,30 @@ function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const soldOut = !!selectedAvail && selectedAvail.available <= 0;
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: (confirmDuplicate: boolean) => {
       const [firstName, ...rest] = form.guestName.trim().split(/\s+/);
       return walkInReservation({
         firstName, lastName: rest.join(" ") || firstName, phone: form.phone.trim(),
         roomTypeSlug: form.roomTypeSlug, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
         adults: form.adults, children: form.children,
+        ...(confirmDuplicate ? { confirmDuplicate: true } : {}),
       });
     },
     onSuccess: (r) => { toast.success(`${r.guestName} checked in${r.roomNumber ? ` · Room ${r.roomNumber}` : ""}.`); onDone(); onClose(); },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      // Same guest already has an overlapping reservation — they may have booked
+      // online first and should be checked in, not walked in a second time. Ask.
+      const dup = duplicateInfo(e);
+      if (dup) { setDupPrompt(dup); setError(null); return; }
+      setError(e.message);
+    },
   });
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.guestName.trim() || !form.phone.trim() || !form.checkInDate || !form.checkOutDate) { setError("Fill in name, phone and dates."); return; }
     if (new Date(form.checkOutDate) <= new Date(form.checkInDate)) { setError("Check-out must be after check-in."); return; }
-    setError(null); save.mutate();
+    setError(null); setDupPrompt(null); save.mutate(false);
   }
 
   return (
@@ -433,12 +441,33 @@ function WalkInDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
             </div>
           </div>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={save.isPending || soldOut}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Check in guest</Button>
-          </DialogFooter>
+          {dupPrompt ? (
+            <div className="rounded-md border border-warn/40 bg-warn/10 p-3 text-sm">
+              <p className="font-medium text-fg">This guest already has reservation {dupPrompt.reservationNumber}</p>
+              <p className="mt-1 text-fg-soft">
+                It covers overlapping dates ({fmtWalkDate(dupPrompt.checkInDate)} → {fmtWalkDate(dupPrompt.checkOutDate)}).
+                If they booked online, check that one in instead. Create a new walk-in anyway?
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setDupPrompt(null)}>Go back</Button>
+                <Button type="button" size="sm" onClick={() => save.mutate(true)} disabled={save.isPending}>
+                  {save.isPending && <Loader2 size={14} className="animate-spin" />} Walk in anyway
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={save.isPending || soldOut}>{save.isPending && <Loader2 size={14} className="animate-spin" />} Check in guest</Button>
+            </DialogFooter>
+          )}
         </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** "18 Jul" — compact date for the walk-in duplicate prompt. */
+function fmtWalkDate(iso: string) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }

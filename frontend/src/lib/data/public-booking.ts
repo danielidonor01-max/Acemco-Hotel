@@ -29,6 +29,8 @@ export interface PublicReservationPayload {
   adults: number;
   children: number;
   specialRequests?: string;
+  /** Set true to proceed past the "you already have an overlapping booking" guard. */
+  confirmDuplicate?: boolean;
 }
 
 export interface PublicReservationResult {

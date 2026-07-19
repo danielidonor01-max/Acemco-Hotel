@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { ApiError } from "@/lib/api";
 import { formatNaira } from "@/lib/utils";
 import { site } from "@/lib/cms";
 import { getPublicAvailability, submitPublicReservation } from "@/lib/data/public-booking";
@@ -38,6 +39,9 @@ export function ReservationForm({
   const [confirmed, setConfirmed] = useState<{ reservationNumber: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // When the guest already has an overlapping booking, we don't silently create a
+  // second one — we surface it and ask them to confirm it's intentional.
+  const [dupPrompt, setDupPrompt] = useState<{ reservationNumber: string; checkInDate: string; checkOutDate: string } | null>(null);
 
   // The bookable catalogue, live from the API. Sourcing this from the static sample
   // let a guest submit a roomTypeSlug the backend doesn't have — the booking then
@@ -94,10 +98,15 @@ export function ReservationForm({
     return `https://wa.me/${site.whatsapp}?text=${msg}`;
   };
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
+    void doSubmit(false);
+  }
+
+  async function doSubmit(confirmDuplicate: boolean) {
     setSubmitting(true);
     setError(null);
+    setDupPrompt(null);
 
     const [firstName, ...rest] = form.name.trim().split(" ");
     const payload = {
@@ -112,12 +121,23 @@ export function ReservationForm({
       adults: Number(form.adults),
       children: Number(form.children),
       specialRequests: form.requests || undefined,
+      ...(confirmDuplicate ? { confirmDuplicate: true } : {}),
     };
 
     try {
       const result = await submitPublicReservation(payload);
       setConfirmed({ reservationNumber: result.reservationNumber });
     } catch (e) {
+      // A guest booking dates that overlap one they already have is usually a
+      // double-submit — pause and let them confirm rather than quietly making two.
+      if (e instanceof ApiError && e.code === "DUPLICATE_RESERVATION") {
+        const ex = (e.details as { existing?: { reservationNumber: string; checkInDate: string; checkOutDate: string } })?.existing;
+        if (ex) {
+          setDupPrompt(ex);
+          setSubmitting(false);
+          return;
+        }
+      }
       // Tell the guest what went wrong. This used to swallow every failure —
       // sold out, blacklisted, validation, network — into a silent window.open()
       // to WhatsApp; if the popup was blocked (common after an await) the guest was
@@ -176,7 +196,43 @@ export function ReservationForm({
     );
   }
 
+  const fmtDup = (iso: string) =>
+    new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
   return (
+    <>
+    {dupPrompt && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+        <div className="w-full max-w-md rounded-2xl border border-pub-line bg-pub-surface p-7 text-center shadow-xl">
+          <Overline className="mb-2">Already booked?</Overline>
+          <h3 className="pub-display-3 mb-3 text-pub-ink">You already have a reservation</h3>
+          <p className="pub-body text-pub-ink-muted">
+            We found reservation <strong className="text-pub-ink">{dupPrompt.reservationNumber}</strong> under your details for
+            overlapping dates ({fmtDup(dupPrompt.checkInDate)} → {fmtDup(dupPrompt.checkOutDate)}).
+            Do you want to make another booking as well?
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
+            <button
+              type="button"
+              onClick={() => void doSubmit(true)}
+              disabled={submitting}
+              className="flex flex-1 items-center justify-center gap-2 rounded-full bg-pub-gold py-3 pub-cta text-pub-ink transition-colors hover:bg-pub-gold-deep hover:text-pub-on-dark disabled:opacity-40"
+            >
+              {submitting && <Loader2 size={16} className="animate-spin" />}
+              Yes, book another
+            </button>
+            <button
+              type="button"
+              onClick={() => setDupPrompt(null)}
+              disabled={submitting}
+              className="flex-1 rounded-full border border-pub-line py-3 pub-cta text-pub-ink-muted transition-colors hover:border-pub-gold hover:text-pub-ink disabled:opacity-40"
+            >
+              No, keep the one I have
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <form onSubmit={submit} className="grid gap-10 lg:grid-cols-12">
       <div className="space-y-6 lg:col-span-7">
         <div>
@@ -323,6 +379,7 @@ export function ReservationForm({
         </div>
       </div>
     </form>
+    </>
   );
 }
 

@@ -1,6 +1,27 @@
-import { apiRequest } from "../api";
+import { apiRequest, ApiError } from "../api";
 import { type Reservation } from "../mock";
 import { roomTypes } from "../cms";
+
+/** The existing reservation the backend flags when a new one would duplicate it. */
+export interface DuplicateInfo {
+  reservationNumber: string;
+  checkInDate: string;
+  checkOutDate: string;
+  status?: string;
+}
+
+/**
+ * If this error is the "guest already has an overlapping reservation" conflict,
+ * return the existing reservation so the caller can ask the user to confirm;
+ * otherwise null. Passing confirmDuplicate:true on the next attempt skips it.
+ */
+export function duplicateInfo(e: unknown): DuplicateInfo | null {
+  if (e instanceof ApiError && e.code === "DUPLICATE_RESERVATION") {
+    const ex = (e.details as { existing?: DuplicateInfo } | undefined)?.existing;
+    if (ex) return ex;
+  }
+  return null;
+}
 
 interface ApiReservation {
   id: string;
@@ -72,6 +93,8 @@ export interface NewReservation {
   type?: "INDIVIDUAL" | "CORPORATE" | "CONFERENCE";
   companyId?: string;
   depositAmount?: number;
+  /** Set true to proceed past the overlapping-reservation guard. */
+  confirmDuplicate?: boolean;
 }
 
 export async function createReservation(input: NewReservation): Promise<Reservation> {

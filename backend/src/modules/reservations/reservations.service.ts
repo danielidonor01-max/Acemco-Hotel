@@ -75,6 +75,41 @@ export class ReservationsService {
     return reservationNumber(count + 1);
   }
 
+  /**
+   * Catch an accidental double booking: the same guest already has a live
+   * (pending/confirmed/checked-in) reservation whose dates overlap the new one.
+   * A double-submit produces an exact overlap; two genuinely separate trips
+   * (non-overlapping dates) don't trip this. Callers pass confirmDuplicate:true
+   * to proceed once the person has confirmed it's on purpose. Booking two rooms
+   * for the same nights is legitimate, so this only warns — it never blocks.
+   */
+  private async assertNoDuplicate(guestId: string, checkIn: string, checkOut: string) {
+    const existing = await this.prisma.reservation.findFirst({
+      where: {
+        guestId,
+        status: { in: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN] },
+        checkInDate: { lt: new Date(checkOut) },
+        checkOutDate: { gt: new Date(checkIn) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { reservationNumber: true, checkInDate: true, checkOutDate: true, status: true },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: 'DUPLICATE_RESERVATION',
+        message: `This guest already has reservation ${existing.reservationNumber} for overlapping dates.`,
+        details: {
+          existing: {
+            reservationNumber: existing.reservationNumber,
+            checkInDate: existing.checkInDate.toISOString().slice(0, 10),
+            checkOutDate: existing.checkOutDate.toISOString().slice(0, 10),
+            status: existing.status,
+          },
+        },
+      });
+    }
+  }
+
   async create(dto: CreateReservationDto, userId?: string) {
     // Resolve the room type by id or slug.
     const roomType = dto.roomTypeId
@@ -96,6 +131,8 @@ export class ReservationsService {
 
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
+
+    if (!dto.confirmDuplicate) await this.assertNoDuplicate(guest.id, dto.checkInDate, dto.checkOutDate);
 
     // Lock → re-check → price → insert, all in one transaction, so the last room of
     // a type can't be sold twice by two concurrent bookings, and the demand-based
@@ -157,6 +194,8 @@ export class ReservationsService {
     const nights = nightsBetween(dto.checkInDate, dto.checkOutDate);
     if (nights < 1) throw new BadRequestException({ code: 'INVALID_DATES', message: 'Check-out must be after check-in.' });
     const guestId = guest.id;
+
+    if (!dto.confirmDuplicate) await this.assertNoDuplicate(guestId, dto.checkInDate, dto.checkOutDate);
 
     // Same lock → re-check → price → insert as the internal path. The website is the
     // most concurrent entry point, so this is where an oversell would actually happen.

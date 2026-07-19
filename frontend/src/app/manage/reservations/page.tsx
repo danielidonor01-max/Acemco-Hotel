@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/providers/auth-provider";
 import { formatNaira, cn } from "@/lib/utils";
 import { type Reservation, type ReservationStatus } from "@/lib/mock";
-import { listReservations, createReservation, createCorporateBooking } from "@/lib/data/reservations";
+import { listReservations, createReservation, createCorporateBooking, duplicateInfo, type DuplicateInfo } from "@/lib/data/reservations";
 import { listCompanies } from "@/lib/data/companies";
 import { getAvailabilityByType } from "@/lib/data/availability";
 import { useRoomTypes } from "@/lib/data/room-types";
@@ -284,6 +284,7 @@ function NewReservationModal({
     type: "INDIVIDUAL" as "INDIVIDUAL" | "CORPORATE" | "CONFERENCE", companyId: "", deposit: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [dupPrompt, setDupPrompt] = useState<DuplicateInfo | null>(null);
   const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
   const { roomTypes, getRoomType } = useRoomTypes();
   useEffect(() => {
@@ -301,7 +302,7 @@ function NewReservationModal({
   const soldOut = !!selectedAvail && selectedAvail.available <= 0;
 
   const create = useMutation({
-    mutationFn: async (): Promise<Reservation> => {
+    mutationFn: async (confirmDuplicate: boolean): Promise<Reservation> => {
       const [firstName, ...rest] = form.guestName.trim().split(/\s+/);
       const lastName = rest.join(" ") || firstName;
       return createReservation({
@@ -312,15 +313,23 @@ function NewReservationModal({
         type: form.type,
         companyId: form.type !== "INDIVIDUAL" && form.companyId ? form.companyId : undefined,
         depositAmount: form.deposit ? Number(form.deposit) : undefined,
+        ...(confirmDuplicate ? { confirmDuplicate: true } : {}),
       });
     },
     onSuccess: (r) => {
       toast.success(`Reservation ${r.reservationNumber} created.`);
       setForm({ guestName: "", guestPhone: "", roomTypeSlug: roomTypes[0]?.slug ?? "", checkInDate: "", checkOutDate: "", adults: 2, children: 0, type: "INDIVIDUAL", companyId: "", deposit: "" });
       setError(null);
+      setDupPrompt(null);
       onCreated(r);
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      // This guest already has an overlapping booking — surface it and let the
+      // clerk confirm rather than silently creating a duplicate.
+      const dup = duplicateInfo(e);
+      if (dup) { setDupPrompt(dup); setError(null); return; }
+      setError(e.message);
+    },
   });
 
   function submit(e: React.FormEvent) {
@@ -331,7 +340,8 @@ function NewReservationModal({
       return;
     }
     setError(null);
-    create.mutate();
+    setDupPrompt(null);
+    create.mutate(false);
   }
 
   const inputCls = "mt-1 w-full rounded-md border border-line bg-brand-surface px-3 py-2 text-sm text-fg focus:border-brand-primary focus:outline-none";
@@ -422,13 +432,35 @@ function NewReservationModal({
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
-        <div className="flex justify-end gap-3 border-t border-line pt-4">
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={create.isPending || soldOut}>
-            {create.isPending && <Loader2 size={14} className="animate-spin" />} Create Reservation
-          </Button>
-        </div>
+        {dupPrompt ? (
+          <div className="rounded-md border border-warn/40 bg-warn/10 p-4">
+            <p className="text-sm font-medium text-fg">This guest already has a reservation</p>
+            <p className="mt-1 text-sm text-fg-soft">
+              {dupPrompt.reservationNumber} covers overlapping dates
+              {" "}({fmtDayMon(dupPrompt.checkInDate)} → {fmtDayMon(dupPrompt.checkOutDate)}).
+              Create another one anyway?
+            </p>
+            <div className="mt-3 flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setDupPrompt(null)}>Go back</Button>
+              <Button type="button" onClick={() => create.mutate(true)} disabled={create.isPending}>
+                {create.isPending && <Loader2 size={14} className="animate-spin" />} Create anyway
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end gap-3 border-t border-line pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={create.isPending || soldOut}>
+              {create.isPending && <Loader2 size={14} className="animate-spin" />} Create Reservation
+            </Button>
+          </div>
+        )}
       </form>
     </Modal>
   );
+}
+
+/** "18 Jul" — compact date for the duplicate-reservation prompt. */
+function fmtDayMon(iso: string) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }

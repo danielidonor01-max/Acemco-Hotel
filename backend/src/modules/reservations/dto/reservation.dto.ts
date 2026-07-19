@@ -24,6 +24,9 @@ export const createReservationSchema = z
     source: z.nativeEnum(ReservationSource).default('INTERNAL'),
     specialRequests: z.string().optional(),
     depositAmount: z.number().min(0).optional(),
+    // Set true to proceed past the "this guest already has an overlapping
+    // reservation" guard (staff confirmed it's intentional).
+    confirmDuplicate: z.boolean().optional(),
   })
   .refine((d) => new Date(d.checkOutDate) > new Date(d.checkInDate), {
     message: 'Check-out must be after check-in',
@@ -54,6 +57,9 @@ export const publicReservationSchema = z
     adults: z.number().int().min(1).default(1),
     children: z.number().int().min(0).default(0),
     specialRequests: z.string().optional(),
+    // Set true after the guest confirms they mean to book again despite an
+    // overlapping reservation already on file (guards accidental double-submit).
+    confirmDuplicate: z.boolean().optional(),
   })
   .refine((d) => new Date(d.checkOutDate) > new Date(d.checkInDate), {
     message: 'Check-out must be after check-in',
