@@ -1,0 +1,94 @@
+# Daily off-site database backup.
+#
+# The hotel runs on Supabase's free tier, which has NO restorable backup — the DB
+# is the only copy of every booking, naira and audit row. This job takes a full
+# logical dump each day, encrypts it with AES-256 BEFORE it leaves the runner, and
+# stores it as a build artifact.
+#
+# Why encryption matters: on a PUBLIC repo, workflow artifacts are downloadable by
+# anyone. The dump contains guest PII, so it must never leave the runner in the
+# clear. AES-256 with a passphrase only you hold means the stored artifact is
+# ciphertext — safe to sit in a public artifact store.
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   DIRECT_URL         the Supabase DIRECT connection string (same value as
+#                      backend/.env DIRECT_URL)
+#   BACKUP_PASSPHRASE  a strong passphrase for the AES-256 encryption. KEEP IT SAFE:
+#                      lose it and the backups are unrecoverable.
+#
+# ── How to restore ──────────────────────────────────────────────────────────────
+#   1. Download the artifact (Actions → this run → Artifacts) and unzip it.
+#   2. Decrypt:  gpg --batch --passphrase '<BACKUP_PASSPHRASE>' \
+#                    --decrypt acemco-<stamp>.sql.gpg > restore.sql
+#   3. Restore into an EMPTY database:  psql "<connection string>" -f restore.sql
+#      (The dump is plain SQL — any Postgres, including a future self-hosted server,
+#       can load it.)
+name: backup
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # daily 03:00 UTC (~04:00 Lagos) — after the 3am-local night-audit close
+  workflow_dispatch: {} # run a backup by hand from the Actions tab
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - id: check
+        name: Check secrets are set
+        run: |
+          if [ -n "${{ secrets.DIRECT_URL }}" ] && [ -n "${{ secrets.BACKUP_PASSPHRASE }}" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DIRECT_URL / BACKUP_PASSPHRASE not set — add them in repo Settings → Secrets. Skipping backup."
+          fi
+
+      - if: steps.check.outputs.ok == 'true'
+        uses: actions/checkout@v4
+
+      - if: steps.check.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - if: steps.check.outputs.ok == 'true'
+        name: Install backup dependencies
+        working-directory: backend
+        run: npm ci --ignore-scripts # skips prisma generate — backup.cjs uses pg directly
+
+      - if: steps.check.outputs.ok == 'true'
+        name: Dump the database to plain SQL
+        working-directory: backend
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          BACKUP_DIR: ${{ github.workspace }}/backups
+          BACKUP_KEEP: "0" # retention is handled by the artifact store, not on-runner
+        run: node prisma/backup.cjs
+
+      - if: steps.check.outputs.ok == 'true'
+        name: Encrypt (AES-256) and delete the plaintext
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd "${{ github.workspace }}/backups"
+          count=0
+          for f in *.sql; do
+            gpg --batch --yes --symmetric --cipher-algo AES256 \
+                --passphrase "$BACKUP_PASSPHRASE" -o "$f.gpg" "$f"
+            rm -f "$f"
+            count=$((count+1))
+          done
+          if [ "$count" -eq 0 ]; then echo "No dump produced — failing."; exit 1; fi
+          echo "Encrypted $count backup file(s)."
+
+      - if: steps.check.outputs.ok == 'true'
+        name: Upload the encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: acemco-db-backup-${{ github.run_id }}
+          path: backups/*.sql.gpg
+          retention-days: 90
+          if-no-files-found: error

@@ -24,10 +24,16 @@ const path = require('path');
 const { Client } = require('pg');
 
 function envVar(key) {
-  const env = fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8');
-  const line = env.split(/\r?\n/).find((l) => l.startsWith(key + '='));
-  if (!line) throw new Error(`${key} not found in .env`);
-  return line.slice(key.length + 1).replace(/^"|"$/g, '');
+  // A real environment variable wins — that's how CI (GitHub Actions) passes the
+  // connection string, where there is no .env file on disk.
+  if (process.env[key]) return process.env[key];
+  const envPath = path.join(__dirname, '..', '.env');
+  if (fs.existsSync(envPath)) {
+    const env = fs.readFileSync(envPath, 'utf8');
+    const line = env.split(/\r?\n/).find((l) => l.startsWith(key + '='));
+    if (line) return line.slice(key.length + 1).replace(/^"|"$/g, '');
+  }
+  throw new Error(`${key} not set as an env var and not found in .env`);
 }
 
 /** Quote any Postgres value as a SQL literal. */
