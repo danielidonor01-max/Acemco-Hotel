@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrismaService } from './prisma/prisma.service';
+import { PgThrottlerStorage } from './common/throttler/pg-throttler.storage';
 import { AuthModule } from './modules/auth/auth.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { GuestsModule } from './modules/guests/guests.module';
@@ -45,9 +47,18 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     // nothing read them — the API, including /auth/login, had no rate limiting at
     // all, so passwords could be guessed without limit. Login is throttled far
     // harder than this baseline (see @Throttle on AuthController.login).
-    ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 120 },
-    ]),
+    //
+    // Backed by Postgres (PgThrottlerStorage) rather than the default in-memory Map:
+    // the API is serverless, so an in-process counter is per-instance and reset on
+    // cold start — making the limits trivially evadable. A DB-backed store keeps the
+    // window global across instances.
+    ThrottlerModule.forRootAsync({
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService) => ({
+        throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+        storage: new PgThrottlerStorage(prisma),
+      }),
+    }),
     PrismaModule,
     AuthModule,
     RoomsModule,
