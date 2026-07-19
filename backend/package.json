@@ -19,7 +19,8 @@
     "db:clear-demo": "node prisma/clear-demo.cjs",
     "test": "jest --passWithNoTests",
     "test:unit": "jest",
-    "db:backup": "node prisma/backup.cjs"
+    "db:backup": "node prisma/backup.cjs",
+    "db:restore": "node prisma/restore.cjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed/seed.ts"
