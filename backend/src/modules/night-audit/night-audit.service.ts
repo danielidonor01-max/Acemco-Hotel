@@ -5,6 +5,16 @@ import { ReservationsService } from '../reservations/reservations.service';
 const MS_PER_DAY = 86_400_000;
 const money = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * How long a website "request to book" may hold a room before it's auto-released.
+ * A PENDING booking counts against availability, so an abandoned (or maliciously
+ * created) one blocks inventory until something clears it. Deliberately generous —
+ * a genuine request the hotel confirms within a week is safe; only a week-old,
+ * still-unconfirmed website hold is treated as dead. (Promote to a setting later if
+ * the hotel wants to tune it.)
+ */
+const PUBLIC_HOLD_TTL_HOURS = 168; // 7 days
+
 /** Midnight-UTC Date for a YYYY-MM-DD string — matches Prisma @db.Date. */
 const asDate = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`);
 
@@ -113,13 +123,45 @@ export class NightAuditService {
    * hotel-configurable local hour. So the tick fires often and the decision of
    * WHETHER to run lives here.
    */
-  async tick(): Promise<{ ran: boolean; reason: string; results?: CloseResult[] }> {
+  /**
+   * Release dead PENDING holds — they never get confirmed but keep counting against
+   * availability. Two cases, both PENDING (never confirmed, so no room assigned, no
+   * deposit, no charges — a plain status change is safe and involves no money):
+   *   1. A WEBSITE request older than the hold TTL the hotel never actioned.
+   *   2. ANY pending booking whose check-in date has already passed (dead on arrival —
+   *      you can't check in a booking that was never confirmed).
+   * Runs every tick, independent of the day-close, so holds free up promptly.
+   */
+  private async expireStaleHolds(now: Date, tz: string): Promise<number> {
+    const ttlCutoff = new Date(+now - PUBLIC_HOLD_TTL_HOURS * 3_600_000);
+    const today = asDate(localDate(tz, now));
+    const { count } = await this.prisma.reservation.updateMany({
+      where: {
+        status: 'PENDING',
+        OR: [
+          { source: 'WEBSITE', createdAt: { lt: ttlCutoff } },
+          { checkInDate: { lt: today } },
+        ],
+      },
+      data: { status: 'CANCELLED', cancelledAt: now, cancellationReason: 'Hold expired — reservation was never confirmed.' },
+    });
+    if (count) this.logger.log(`Night audit released ${count} stale hold(s).`);
+    return count;
+  }
+
+  async tick(): Promise<{ ran: boolean; reason: string; results?: CloseResult[]; holdsExpired: number }> {
     const cfg = await this.config();
-    if (!cfg.enabled) return { ran: false, reason: 'Automatic close is switched off.' };
+
+    // Expire dead holds every tick, regardless of whether a day gets closed (or
+    // whether automatic close is even switched on) — an abandoned hold shouldn't
+    // linger just because it isn't 3am yet.
+    const holdsExpired = await this.expireStaleHolds(new Date(), cfg.timezone);
+
+    if (!cfg.enabled) return { ran: false, reason: 'Automatic close is switched off.', holdsExpired };
 
     const hour = localHour(cfg.timezone);
     if (hour < cfg.hour) {
-      return { ran: false, reason: `Before the close hour (local ${hour}:00, configured ${cfg.hour}:00 ${cfg.timezone}).` };
+      return { ran: false, reason: `Before the close hour (local ${hour}:00, configured ${cfg.hour}:00 ${cfg.timezone}).`, holdsExpired };
     }
 
     // Everything strictly before today (hotel-local) is a completed day and safe
@@ -138,8 +180,8 @@ export class NightAuditService {
       this.logger.log(`Night audit closed ${ymd}: ${result.roomsSold} sold, ₦${result.totalRevenue} revenue, ${result.noShowsMarked} no-show(s).`);
     }
 
-    if (!results.length) return { ran: false, reason: 'Nothing to close — every past day is already closed.' };
-    return { ran: true, reason: `Closed ${results.length} day(s): ${results.map((r) => r.businessDate).join(', ')}.`, results };
+    if (!results.length) return { ran: false, reason: 'Nothing to close — every past day is already closed.', holdsExpired };
+    return { ran: true, reason: `Closed ${results.length} day(s): ${results.map((r) => r.businessDate).join(', ')}.`, results, holdsExpired };
   }
 
   /**
