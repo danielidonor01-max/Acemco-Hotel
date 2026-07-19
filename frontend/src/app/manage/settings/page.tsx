@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, Building2, CalendarX2, Coins, MoonStar } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from "@/components/internal/ui";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getSettings, updateSettings, getNightAuditStatus, getDailyCloses, closeDay, type HotelSettings, type SettingsInput } from "@/lib/data/settings";
@@ -27,6 +28,7 @@ export default function SettingsPage() {
   const canEdit = hasPermission("settings", "UPDATE");
   const { data, isLoading } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
   const [form, setForm] = useState<HotelSettings>(BLANK);
+  const [tab, setTab] = useState("profile");
 
   useEffect(() => { if (data) setForm(data); }, [data]);
   const set = <K extends keyof HotelSettings>(k: K, v: HotelSettings[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -68,163 +70,196 @@ export default function SettingsPage() {
 
   return (
     <PageShell title="Settings" breadcrumb={[{ label: "Dashboard", href: "/manage/dashboard" }, { label: "Settings" }]}>
-      <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="max-w-2xl space-y-5">
-        <Card>
-          <CardHeader>
-            <CardTitle>Hotel Profile</CardTitle>
-            <CardDescription>
-              The single source of truth for your contact details — the website reads these, and bookings route to this WhatsApp number.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Hotel name" value={form.hotelName} onChange={(v) => set("hotelName", v)} disabled={disabled} />
-            <Field label="Tagline" value={form.tagline} onChange={(v) => set("tagline", v)} disabled={disabled} />
-            <Field label="Phone" value={form.phone} onChange={(v) => set("phone", v)} disabled={disabled} />
-            <Field label="WhatsApp (no +, e.g. 2348077125775)" value={form.whatsapp} onChange={(v) => set("whatsapp", v)} disabled={disabled} />
-            <Field label="Email" value={form.email} onChange={(v) => set("email", v)} disabled={disabled} />
-            <Field label="Address" value={form.address} onChange={(v) => set("address", v)} disabled={disabled} />
-            <div className="sm:col-span-2">
-              <Field label="City / Region" value={form.city} onChange={(v) => set("city", v)} disabled={disabled} />
-            </div>
-            <p className="sm:col-span-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Info size={13} className="mt-0.5 shrink-0" />
-              Leave a field blank and the website hides that link rather than showing a dead one.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="max-w-2xl">
+        <Tabs value={tab} onValueChange={setTab}>
+          <div className="overflow-x-auto">
+            <TabsList variant="line" className="mb-4">
+              <TabsTrigger value="profile"><Building2 /> Profile</TabsTrigger>
+              <TabsTrigger value="cancellation"><CalendarX2 /> Cancellation</TabsTrigger>
+              <TabsTrigger value="pricing"><Coins /> Pricing</TabsTrigger>
+              <TabsTrigger value="nightaudit"><MoonStar /> Night audit</TabsTrigger>
+            </TabsList>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Cancellation policy</CardTitle>
-            <CardDescription>
-              What a guest is charged when they cancel or don&apos;t arrive. These terms are applied automatically and are
-              published on your Terms page, so the site always states what the system actually charges.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <NumField
-              label="Free cancellation until (hours before check-in)"
-              value={form.cancellationFreeUntilHours}
-              onChange={(v) => set("cancellationFreeUntilHours", Number(v))}
-              disabled={disabled}
-              hint="Cancel earlier than this and there's no fee."
-            />
-            <NumField
-              label="Late cancellation fee (% of booking)"
-              value={form.cancellationLateFeePercent}
-              onChange={(v) => set("cancellationLateFeePercent", v)}
-              disabled={disabled}
-              hint="Charged when cancelling inside the window."
-            />
-            <NumField
-              label="No-show fee (% of booking)"
-              value={form.noShowFeePercent}
-              onChange={(v) => set("noShowFeePercent", v)}
-              disabled={disabled}
-              hint="A no-show is never free — the room was held all night."
-            />
-            <div className="space-y-1.5">
-              <Label>Deposits</Label>
-              <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border border-line px-3">
-                <input
-                  type="checkbox"
-                  checked={form.depositRefundable}
+          {/* ── Profile ── */}
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader>
+                <CardTitle>Hotel profile</CardTitle>
+                <CardDescription>
+                  Your contact details. The website shows these, and every new booking is routed to this WhatsApp number.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Hotel name" value={form.hotelName} onChange={(v) => set("hotelName", v)} disabled={disabled} />
+                <Field label="Tagline" value={form.tagline} onChange={(v) => set("tagline", v)} disabled={disabled} />
+                <Field label="Phone" value={form.phone} onChange={(v) => set("phone", v)} disabled={disabled} />
+                <Field label="WhatsApp (no +, e.g. 2348077125775)" value={form.whatsapp} onChange={(v) => set("whatsapp", v)} disabled={disabled} />
+                <Field label="Email" value={form.email} onChange={(v) => set("email", v)} disabled={disabled} />
+                <Field label="Address" value={form.address} onChange={(v) => set("address", v)} disabled={disabled} />
+                <div className="sm:col-span-2">
+                  <Field label="City / Region" value={form.city} onChange={(v) => set("city", v)} disabled={disabled} />
+                </div>
+                <p className="sm:col-span-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info size={13} className="mt-0.5 shrink-0" />
+                  A blank field is simply hidden on the website — never shown as a dead link.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Cancellation ── */}
+          <TabsContent value="cancellation">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cancellation policy</CardTitle>
+                <CardDescription>
+                  What a guest owes if they cancel late or never arrive. The same figures appear on your Terms page and in
+                  the WhatsApp confirmation — change them here and everywhere updates at once.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <NumField
+                  label="Free until (hours before check-in)"
+                  value={form.cancellationFreeUntilHours}
+                  onChange={(v) => set("cancellationFreeUntilHours", Number(v))}
                   disabled={disabled}
-                  onChange={(e) => set("depositRefundable", e.target.checked)}
-                  className="h-4 w-4 accent-brand-primary"
+                  hint="Cancel earlier than this and there's no charge."
                 />
-                <span className="text-sm text-fg">Refundable on a free cancellation</span>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {form.depositRefundable
-                  ? "A deposit comes back if the guest cancels in time."
-                  : "Deposits are kept whatever the timing — say so plainly in your Terms."}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+                <NumField
+                  label="Late cancellation fee (% of booking)"
+                  value={form.cancellationLateFeePercent}
+                  onChange={(v) => set("cancellationLateFeePercent", v)}
+                  disabled={disabled}
+                  hint="Applied when cancelling inside that window. Set 0 for no fee."
+                />
+                <NumField
+                  label="No-show fee (% of booking)"
+                  value={form.noShowFeePercent}
+                  onChange={(v) => set("noShowFeePercent", v)}
+                  disabled={disabled}
+                  hint="For a guest who never arrives. Set 0 if you don't charge."
+                />
+                <div className="space-y-1.5">
+                  <Label>Deposits</Label>
+                  <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border border-line px-3">
+                    <input
+                      type="checkbox"
+                      checked={form.depositRefundable}
+                      disabled={disabled}
+                      onChange={(e) => set("depositRefundable", e.target.checked)}
+                      className="h-4 w-4 accent-brand-primary"
+                    />
+                    <span className="text-sm text-fg">Refundable on a free cancellation</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {form.depositRefundable
+                      ? "A deposit comes back if the guest cancels in time."
+                      : "Deposits are kept whatever the timing — state this plainly in your Terms."}
+                  </p>
+                </div>
+                <p className="sm:col-span-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info size={13} className="mt-0.5 shrink-0" />
+                  Fees are recorded as owed, not charged to a card — your staff collect them. Set any percentage to 0 to
+                  waive it entirely.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Rate limits</CardTitle>
-            <CardDescription>
-              Hard bounds on what your rate rules may do, as a multiple of each room&apos;s base price. Whatever the rules
-              stack up to, a night can never be sold outside these — so a mis-keyed rule can&apos;t quote an absurd price.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <NumField
-              label="Never below (× base price)"
-              value={form.rateFloorMultiplier}
-              onChange={(v) => set("rateFloorMultiplier", v)}
-              disabled={disabled}
-              step="0.05"
-              hint={`e.g. ${formatNaira(base)} room → never under ${formatNaira(floorEx)}`}
-            />
-            <NumField
-              label="Never above (× base price)"
-              value={form.rateCeilingMultiplier}
-              onChange={(v) => set("rateCeilingMultiplier", v)}
-              disabled={disabled}
-              step="0.05"
-              hint={`e.g. ${formatNaira(base)} room → never over ${formatNaira(ceilEx)}`}
-            />
-          </CardContent>
-        </Card>
+          {/* ── Pricing ── */}
+          <TabsContent value="pricing">
+            <Card>
+              <CardHeader>
+                <CardTitle>Pricing limits</CardTitle>
+                <CardDescription>
+                  The floor and ceiling for any nightly rate, as a multiple of a room&apos;s base price. However your rate
+                  rules stack up, a night can never be sold outside these — so a mis-typed rule can&apos;t quote a silly price.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <NumField
+                  label="Never below (× base price)"
+                  value={form.rateFloorMultiplier}
+                  onChange={(v) => set("rateFloorMultiplier", v)}
+                  disabled={disabled}
+                  step="0.05"
+                  hint={`e.g. a ${formatNaira(base)} room never sells under ${formatNaira(floorEx)}`}
+                />
+                <NumField
+                  label="Never above (× base price)"
+                  value={form.rateCeilingMultiplier}
+                  onChange={(v) => set("rateCeilingMultiplier", v)}
+                  disabled={disabled}
+                  step="0.05"
+                  hint={`e.g. a ${formatNaira(base)} room never sells over ${formatNaira(ceilEx)}`}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Night audit (end-of-day close)</CardTitle>
-            <CardDescription>
-              Each night the system closes the day just gone: it freezes that day&apos;s occupancy, ADR and revenue
-              so the numbers can&apos;t drift afterwards, and marks any guest who never arrived as a no-show.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <NumField
-              label="Close at (hour, 0–23)"
-              value={form.nightAuditHour}
-              onChange={(v) => set("nightAuditHour", Math.max(0, Math.min(23, Math.round(v))))}
-              disabled={disabled}
-              hint="A quiet hour — most hotels use 3am."
-            />
-            <div className="space-y-1.5">
-              <Label>Timezone</Label>
-              <select
-                value={form.timezone}
-                disabled={disabled}
-                onChange={(e) => set("timezone", e.target.value)}
-                className="h-9 w-full rounded-md border border-line bg-brand-surface px-3 text-sm text-fg disabled:opacity-60"
-              >
-                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-              </select>
-              <p className="text-xs text-muted-foreground">The day is measured in this zone, not the server&apos;s.</p>
-            </div>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input type="checkbox" checked={form.nightAuditEnabled} disabled={disabled} onChange={(e) => set("nightAuditEnabled", e.target.checked)} className="h-4 w-4 accent-brand-primary" />
-              <span className="text-sm text-fg">Close the day automatically</span>
-            </label>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input type="checkbox" checked={form.autoMarkNoShows} disabled={disabled} onChange={(e) => set("autoMarkNoShows", e.target.checked)} className="h-4 w-4 accent-brand-primary" />
-              <span className="text-sm text-fg">Mark un-arrived bookings as no-shows</span>
-            </label>
-            <p className="sm:col-span-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Info size={13} className="mt-0.5 shrink-0" />
-              Marking a no-show applies your cancellation policy&apos;s no-show fee. Turn that off above if you&apos;d rather review arrivals by hand.
-            </p>
-          </CardContent>
-        </Card>
+          {/* ── Night audit ── */}
+          <TabsContent value="nightaudit">
+            <Card>
+              <CardHeader>
+                <CardTitle>Night audit (end-of-day close)</CardTitle>
+                <CardDescription>
+                  Each night the system closes the day just gone — it freezes that day&apos;s occupancy, ADR and revenue so
+                  the figures can&apos;t drift later, and marks any guest who never arrived as a no-show.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <NumField
+                  label="Close at (hour, 0–23)"
+                  value={form.nightAuditHour}
+                  onChange={(v) => set("nightAuditHour", Math.max(0, Math.min(23, Math.round(v))))}
+                  disabled={disabled}
+                  hint="A quiet hour — most hotels use 3 (3am)."
+                />
+                <div className="space-y-1.5">
+                  <Label>Timezone</Label>
+                  <select
+                    value={form.timezone}
+                    disabled={disabled}
+                    onChange={(e) => set("timezone", e.target.value)}
+                    className="h-9 w-full rounded-md border border-line bg-brand-surface px-3 text-sm text-fg disabled:opacity-60"
+                  >
+                    {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground">The hotel&apos;s day is measured in this zone.</p>
+                </div>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" checked={form.nightAuditEnabled} disabled={disabled} onChange={(e) => set("nightAuditEnabled", e.target.checked)} className="h-4 w-4 accent-brand-primary" />
+                  <span className="text-sm text-fg">Close the day automatically</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" checked={form.autoMarkNoShows} disabled={disabled} onChange={(e) => set("autoMarkNoShows", e.target.checked)} className="h-4 w-4 accent-brand-primary" />
+                  <span className="text-sm text-fg">Mark un-arrived bookings as no-shows</span>
+                </label>
+                <p className="sm:col-span-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info size={13} className="mt-0.5 shrink-0" />
+                  Marking a no-show frees the room and applies your no-show fee. Leave this on with the fee at 0% to free
+                  rooms without charging.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={!canEdit || save.isPending || isLoading}>
-            {save.isPending && <Loader2 size={14} className="animate-spin" />} Save Changes
+        {/* One save applies to every tab — edits are kept when you switch. */}
+        <div className="mt-5 flex items-center justify-end gap-3 border-t border-line pt-4">
+          {!canEdit && <span className="text-sm text-muted-foreground">View-only access.</span>}
+          <Button onClick={() => save.mutate()} disabled={!canEdit || save.isPending || isLoading}>
+            {save.isPending && <Loader2 size={14} className="animate-spin" />} Save changes
           </Button>
         </div>
-        {!canEdit && <p className="text-right text-sm text-muted-foreground">You have view-only access to settings.</p>}
-      </form>
 
-      <div className="mt-6 max-w-2xl">
-        <NightAuditStatusCard canClose={hasPermission("reports", "EXPORT")} />
+        {/* Live status, manual close, and the frozen daily history — lives with the night audit. */}
+        {tab === "nightaudit" && (
+          <div className="mt-6">
+            <NightAuditStatusCard canClose={hasPermission("reports", "EXPORT")} />
+          </div>
+        )}
       </div>
     </PageShell>
   );
