@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Menu, Search, Bell, LogOut, User, Calendar, BedDouble, ClipboardList, Loader2, DoorClosed, AlertTriangle, Ban, Package, Wrench, Sparkles, CheckCircle2, type LucideIcon } from "lucide-react";
 import { useUIStore } from "@/stores/ui.store";
+import { useNotificationsStore, isUnread } from "@/stores/notifications.store";
 import { useAuth } from "@/providers/auth-provider";
 import { globalSearch, type SearchResult } from "@/lib/data/search";
 import { getDashboardBrief } from "@/lib/data/operations";
@@ -40,11 +41,20 @@ export function TopHeader() {
       ]
     : []
   ).filter((n) => n.count > 0 && hasPermission(n.perm[0], n.perm[1]));
-  const notifTotal = notifs.reduce((s, n) => s + n.count, 0);
 
-  function goNotif(href: string) {
+  // Read-state: the badge only reflects notifications not yet acknowledged at
+  // their current level, so clearing them actually clears the badge — and a new
+  // or grown item brings it straight back.
+  const acknowledged = useNotificationsStore((s) => s.acknowledged);
+  const markRead = useNotificationsStore((s) => s.markRead);
+  const markAllRead = useNotificationsStore((s) => s.markAllRead);
+  const unread = notifs.filter((n) => isUnread(acknowledged, n.key, n.count));
+  const unreadTotal = unread.reduce((s, n) => s + n.count, 0);
+
+  function goNotif(n: Notif) {
+    markRead(n.key, n.count);
     setNotifOpen(false);
-    router.push(href);
+    router.push(n.href);
   }
 
   // ── Global search ──
@@ -136,9 +146,9 @@ export function TopHeader() {
             aria-label="Notifications"
           >
             <Bell size={19} strokeWidth={1.5} />
-            {notifs.length > 0 && (
+            {unreadTotal > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[0.6rem] font-semibold text-white">
-                {notifTotal > 9 ? "9+" : notifTotal}
+                {unreadTotal > 9 ? "9+" : unreadTotal}
               </span>
             )}
           </button>
@@ -146,9 +156,20 @@ export function TopHeader() {
             <>
               <div className="fixed inset-0 z-10" onClick={() => setNotifOpen(false)} />
               <div className="absolute right-0 top-full z-20 mt-1 w-72 overflow-hidden rounded-lg border border-line-2 bg-brand-surface-2 shadow-xl">
-                <div className="border-b border-line px-3 py-2">
-                  <p className="text-sm font-medium text-fg">Notifications</p>
-                  <p className="text-xs text-fg-muted">Action items needing attention</p>
+                <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-fg">Notifications</p>
+                    <p className="text-xs text-fg-muted">Action items needing attention</p>
+                  </div>
+                  {unreadTotal > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => markAllRead(notifs.map((n) => ({ key: n.key, count: n.count })))}
+                      className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-brand-primary hover:bg-brand-surface-3"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
                 </div>
                 {notifs.length === 0 ? (
                   <div className="flex items-center gap-2 px-3 py-6 text-sm text-fg-soft">
@@ -156,21 +177,25 @@ export function TopHeader() {
                   </div>
                 ) : (
                   <ul className="max-h-80 overflow-y-auto py-1">
-                    {notifs.map((n) => (
-                      <li key={n.key}>
-                        <button
-                          type="button"
-                          onClick={() => goNotif(n.href)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-brand-surface-3"
-                        >
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-surface-3 text-fg-soft">
-                            <n.icon size={15} strokeWidth={1.6} />
-                          </span>
-                          <span className="min-w-0 flex-1 text-sm text-fg">{n.label}</span>
-                          <span className="shrink-0 rounded-full bg-brand-surface-3 px-2 py-0.5 text-xs font-semibold tabular-nums text-fg">{n.count}</span>
-                        </button>
-                      </li>
-                    ))}
+                    {notifs.map((n) => {
+                      const fresh = isUnread(acknowledged, n.key, n.count);
+                      return (
+                        <li key={n.key}>
+                          <button
+                            type="button"
+                            onClick={() => goNotif(n)}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-brand-surface-3"
+                          >
+                            <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-surface-3 text-fg-soft">
+                              <n.icon size={15} strokeWidth={1.6} />
+                              {fresh && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-danger ring-2 ring-brand-surface-2" />}
+                            </span>
+                            <span className={cn("min-w-0 flex-1 text-sm", fresh ? "font-medium text-fg" : "text-fg-soft")}>{n.label}</span>
+                            <span className="shrink-0 rounded-full bg-brand-surface-3 px-2 py-0.5 text-xs font-semibold tabular-nums text-fg">{n.count}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
