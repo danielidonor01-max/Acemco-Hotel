@@ -235,7 +235,7 @@ function FolioPanel({ reservationId, nights, baseTotal, deposit, header }: { res
   return (
     <Card>
       <CardHeader className="flex items-center justify-between">
-        <CardTitle>Folio</CardTitle>
+        <CardTitle>Guest Bill</CardTitle>
         <div className="flex items-center gap-2">
           {data?.folio && <Badge tone={data.folio.status === "SETTLED" ? "success" : "info"}>{data.folio.status.toLowerCase()}</Badge>}
           {data?.folio && (
@@ -247,7 +247,7 @@ function FolioPanel({ reservationId, nights, baseTotal, deposit, header }: { res
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {isLoading ? (
-          <p className="text-fg-soft">Loading folio…</p>
+          <p className="text-fg-soft">Loading bill…</p>
         ) : data?.folio ? (
           <>
             {data.lines.map((l) => (
@@ -282,7 +282,7 @@ function FolioPanel({ reservationId, nights, baseTotal, deposit, header }: { res
               <span>{deposit > 0 ? "Balance at check-in" : "Estimated total"}</span>
               <span>{formatNaira(Math.max(0, baseTotal - deposit))}</span>
             </div>
-            <p className="text-xs text-fg-muted">A folio opens automatically at check-in{deposit > 0 ? ", with the deposit credited" : ""}.</p>
+            <p className="text-xs text-fg-muted">A bill opens automatically at check-in{deposit > 0 ? ", with the deposit credited" : ""}.</p>
           </>
         )}
       </CardContent>
@@ -306,7 +306,7 @@ function AddChargeDialog({ folioId, reservationId, preset, onClose }: { folioId:
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add charge</DialogTitle>
-          <DialogDescription>Post a line to the guest folio. Use a negative amount for a discount.</DialogDescription>
+          <DialogDescription>Post a charge to the guest’s bill. Use a negative amount for a discount.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-1.5"><Label htmlFor="fl-desc">Description</Label><Input id="fl-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>

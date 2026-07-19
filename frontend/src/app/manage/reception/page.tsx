@@ -289,7 +289,7 @@ function CheckoutDialog({ reservation, onClose, onDone }: { reservation: Reserva
   const checkOut = useMutation({
     mutationFn: () => checkOutReservation(reservation.id, method),
     onSuccess: () => {
-      toast.success("Checked out · folio settled · room now cleaning.");
+      toast.success("Checked out · bill settled · room now cleaning.");
       setSettled({ total: folio?.balance ?? reservation.totalAmount });
       onDone();
     },
@@ -302,7 +302,7 @@ function CheckoutDialog({ reservation, onClose, onDone }: { reservation: Reserva
         <DialogHeader>
           <DialogTitle>{settled ? "Checked out" : "Check out"} — {reservation.guestName}</DialogTitle>
           <DialogDescription>
-            {settled ? "Folio settled and room released. Print the guest's receipt if needed." : "Settle the folio and release the room. Choose how the balance was paid."}
+            {settled ? "Bill settled and room released. Print the guest's receipt if needed." : "Settle the bill and release the room. Choose how the balance was paid."}
           </DialogDescription>
         </DialogHeader>
 

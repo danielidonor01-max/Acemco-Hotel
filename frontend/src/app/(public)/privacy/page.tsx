@@ -35,7 +35,7 @@ export default async function PrivacyPage() {
           body: [
             "When you make a reservation or check in, we collect your name, phone number, WhatsApp number, email address (if given), stay dates, number of guests, and any special requests.",
             "At check-in, and where required by law, we may record a means of identification (for example a national ID, driver's licence, or passport number) to confirm your identity.",
-            "When you order room service, dining, or from the boutique, we record what you ordered and charge it to your room folio.",
+            "When you order room service, dining, or from the boutique, we record what you ordered and charge it to your room bill.",
             "For billing we keep a record of your charges, payments, and the payment method used. We do NOT store card numbers — card payments are handled at the point of payment.",
             "We also keep records of enquiries you send us, and limited technical information (such as device and browser type) needed to keep the website secure.",
           ],

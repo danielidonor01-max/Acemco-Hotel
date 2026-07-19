@@ -37,7 +37,7 @@ export class ReservationsService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
-        include: { guest: { select: { id: true, firstName: true, lastName: true, isVip: true, tier: true, isBlacklisted: true } }, roomType: { select: { name: true } } },
+        include: { guest: { select: { id: true, firstName: true, lastName: true, isVip: true, tier: true, isBlacklisted: true } }, roomType: { select: { name: true } }, room: { select: { roomNumber: true } } },
       }),
       this.prisma.reservation.count({ where }),
     ]);

@@ -50,7 +50,8 @@ export default function HousekeepingPage() {
                           <Badge tone={PRIORITY_TONE[t.priority]}>{t.priority.toLowerCase()}</Badge>
                         </div>
                         <p className="mt-1 text-sm capitalize text-muted-foreground">{t.type.replace(/_/g, " ").toLowerCase()}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{t.assignedTo ?? "Unassigned"}</p>
+                        {/* Housekeeping isn't assigned to individuals — whoever is on shift picks
+                            up the room, so no assignee/"Unassigned" tag is shown. */}
                         {t.status !== "COMPLETED" && (
                           <Button size="sm" variant="outline" className="mt-3" disabled={advance.isPending && advance.variables?.id === t.id} onClick={() => advance.mutate(t)}>
                             {advance.isPending && advance.variables?.id === t.id ? <Loader2 size={14} className="animate-spin" /> : null}

@@ -33,6 +33,35 @@ const FILTERS: { label: string; value: ReservationStatus | "ALL" }[] = [
   { label: "Cancelled", value: "CANCELLED" },
 ];
 
+type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info" | "brand";
+
+/**
+ * Payment state derived from the reservation's lifecycle — not just `depositPaid`.
+ * The table used to show "Unpaid" purely on depositPaid, so a guest who had
+ * checked out and settled their bill still read "Unpaid", contradicting their
+ * bill. This states where the money actually stands at each stage.
+ */
+function paymentLabel(r: Reservation): { label: string; tone: BadgeTone } {
+  switch (r.status) {
+    case "CHECKED_OUT":
+      // Settled at checkout — corporate stays are billed to the company (invoiced).
+      return r.type === "CORPORATE"
+        ? { label: "Invoiced", tone: "info" }
+        : { label: "Settled", tone: "success" };
+    case "CHECKED_IN":
+      return { label: "Open bill", tone: "info" }; // charges accruing, settled at checkout
+    case "CONFIRMED":
+    case "PENDING":
+      return r.depositPaid ? { label: "Deposit paid", tone: "info" } : { label: "Awaiting payment", tone: "warning" };
+    case "CANCELLED":
+      return { label: "Cancelled", tone: "neutral" };
+    case "NO_SHOW":
+      return { label: "No-show", tone: "danger" };
+    default:
+      return { label: "—", tone: "neutral" };
+  }
+}
+
 export default function ReservationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -72,6 +101,14 @@ export default function ReservationsPage() {
     },
     { key: "roomType", header: "Room type", render: (r) => getRoomType(r.roomTypeSlug)?.name ?? "—" },
     {
+      // Room location — the physical room once assigned. Blank until check-in /
+      // room assignment, so staff can see at a glance who's actually roomed.
+      key: "room", header: "Room", align: "center",
+      render: (r) => r.roomNumber
+        ? <span className="font-medium tabular-nums text-fg">{r.roomNumber}</span>
+        : <span className="text-fg-muted">—</span>,
+    },
+    {
       key: "dates", header: "Dates", sortValue: (r) => r.checkInDate,
       render: (r) => <span className="whitespace-nowrap text-fg-soft">{r.checkInDate} → {r.checkOutDate}</span>,
     },
@@ -79,14 +116,15 @@ export default function ReservationsPage() {
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
     {
       key: "totalAmount", header: "Amount", align: "right", sortValue: (r) => r.totalAmount,
-      render: (r) => (
-        <div className="text-right">
-          <p className="font-medium text-fg">{formatNaira(r.totalAmount)}</p>
-          <Badge tone={r.depositPaid ? "success" : "warning"} className="mt-0.5">
-            {r.depositPaid ? "Deposit paid" : "Unpaid"}
-          </Badge>
-        </div>
-      ),
+      render: (r) => {
+        const pay = paymentLabel(r);
+        return (
+          <div className="text-right">
+            <p className="font-medium text-fg">{formatNaira(r.totalAmount)}</p>
+            <Badge tone={pay.tone} className="mt-0.5">{pay.label}</Badge>
+          </div>
+        );
+      },
     },
   ];
 
@@ -378,7 +416,7 @@ function NewReservationModal({
           </div>
           <div className="block sm:col-span-2">
             <span className="text-sm font-medium text-fg-soft">Deposit taken (₦)</span>
-            <input type="number" min={0} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} className={inputCls} placeholder="0 — optional prepayment credited to the folio at check-in" />
+            <input type="number" min={0} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} className={inputCls} placeholder="0 — optional prepayment credited to the bill at check-in" />
           </div>
         </div>
 

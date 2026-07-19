@@ -24,7 +24,7 @@ export function printGuestFolio(h: FolioHeader, lines: FolioLinePrint[], balance
     .map((l) => `<tr><td style="text-transform:capitalize">${esc(l.type.toLowerCase())}</td><td>${esc(l.description)}</td><td class="r">${naira(l.amount)}</td></tr>`)
     .join("");
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Folio — ${esc(h.guestName)}</title>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Guest Bill — ${esc(h.guestName)}</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #211d18; margin: 40px; }
@@ -47,7 +47,7 @@ export function printGuestFolio(h: FolioHeader, lines: FolioLinePrint[], balance
         <div class="brand">ACEMCO EXPRESS</div>
         <div class="muted" style="font-size:12px">Warri, Delta State, Nigeria</div>
       </div>
-      <div class="doc"><h1>GUEST FOLIO</h1><div class="muted" style="font-size:12px">${esc(h.reservationNumber)}</div></div>
+      <div class="doc"><h1>GUEST BILL</h1><div class="muted" style="font-size:12px">${esc(h.reservationNumber)}</div></div>
     </div>
     <div class="meta">
       <div><span class="k">Guest:</span> <strong>${esc(h.guestName)}</strong></div>

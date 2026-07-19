@@ -72,7 +72,7 @@ export default function TaxPage() {
           <CardHeader>
             <CardTitle>Tax rates</CardTitle>
             <p className="text-sm text-fg-muted">
-              These rates drive every bill — the POS till, guest folios, corporate invoices and the return below all read them.
+              These rates drive every bill — the POS till, guest bills, corporate invoices and the return below all read them.
               Changing a rate here changes all of them at once.
             </p>
           </CardHeader>
