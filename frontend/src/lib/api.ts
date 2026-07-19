@@ -30,11 +30,34 @@ async function parse<T>(res: Response): Promise<{ data: T; meta?: Envelope<T>["m
   return { data: body.data as T, meta: body.meta };
 }
 
-async function timeoutFetch(url: string, init: RequestInit, ms = 8000): Promise<Response> {
+// Reads should fail fast; writes need real headroom. A booking runs a multi-step
+// transaction (lock → availability → per-night pricing → create → charges), and on
+// a cold serverless start against the remote DB that easily passes 8s. The old flat
+// 8s aborted mid-write — the server still committed, so the guest got an "error" for
+// a booking that actually succeeded, then retried and double-booked.
+const READ_TIMEOUT = 15000;
+const WRITE_TIMEOUT = 30000;
+const isWrite = (m?: string) => !!m && m.toUpperCase() !== "GET" && m.toUpperCase() !== "HEAD";
+
+async function timeoutFetch(url: string, init: RequestInit, ms?: number): Promise<Response> {
+  const budget = ms ?? (isWrite(init.method) ? WRITE_TIMEOUT : READ_TIMEOUT);
   const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
+  const id = setTimeout(() => ctrl.abort(), budget);
   try {
     return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    // A timeout on a WRITE is ambiguous — the server may well have completed it.
+    // Say so, so the user checks before retrying rather than creating a duplicate.
+    if ((e as Error).name === "AbortError") {
+      throw new ApiError(
+        "TIMEOUT",
+        isWrite(init.method)
+          ? "The server took too long to respond. Your request may still have gone through — please check before trying again."
+          : "The server took too long to respond. Please try again.",
+        0,
+      );
+    }
+    throw e;
   } finally {
     clearTimeout(id);
   }

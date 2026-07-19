@@ -105,30 +105,15 @@ export class PricingService {
     return v; // FIXED — this night costs exactly this
   }
 
-  /** The rate for one night, and why. */
-  async rateFor(
-    roomTypeId: string,
-    basePrice: number,
-    night: Date,
-    tx?: Prisma.TransactionClient,
-  ): Promise<NightlyRate> {
-    const db = tx ?? this.prisma;
-    const rules = await db.rateRule.findMany({
+  private loadRules(roomTypeId: string, tx?: Prisma.TransactionClient) {
+    return (tx ?? this.prisma).rateRule.findMany({
       where: { isActive: true, OR: [{ roomTypeId }, { roomTypeId: null }] },
       orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
     });
+  }
 
-    // Only pay for the occupancy query if a rule actually asks about demand.
-    const needsDemand = rules.some((r) => r.minOccupancy !== null || r.maxOccupancy !== null);
-    let occupancy = 0;
-    if (needsDemand) {
-      const [capacity, held] = await Promise.all([
-        this.capacityOf(roomTypeId, tx),
-        this.heldOn(roomTypeId, night, tx),
-      ]);
-      occupancy = capacity ? Math.round((held / capacity) * 100) : 0;
-    }
-
+  /** Pure per-night computation given already-loaded rules/bounds/occupancy. */
+  private computeNight(basePrice: number, night: Date, rules: RateRule[], bounds: { floor: number; ceiling: number }, occupancy: number): NightlyRate {
     const applied: NightlyRate['applied'] = [];
     let rate = basePrice;
     for (const rule of rules) {
@@ -137,27 +122,34 @@ export class PricingService {
       rate = this.apply(rate, rule);
       applied.push({ name: rule.name, adjustment: rule.adjustment, value: Number(rule.value), from, to: money(rate) });
     }
-
-    const bounds = await this.guardrails(tx);
     const floor = basePrice * bounds.floor;
     const ceiling = basePrice * bounds.ceiling;
     let clamped: NightlyRate['clamped'];
     if (rate < floor) { rate = floor; clamped = 'FLOOR'; }
     if (rate > ceiling) { rate = ceiling; clamped = 'CEILING'; }
+    return { date: night.toISOString().slice(0, 10), base: money(basePrice), rate: money(rate), occupancy, applied, ...(clamped ? { clamped } : {}) };
+  }
 
-    return {
-      date: night.toISOString().slice(0, 10),
-      base: money(basePrice),
-      rate: money(rate),
-      occupancy,
-      applied,
-      ...(clamped ? { clamped } : {}),
-    };
+  /** The rate for one night, and why. Standalone — fetches its own context. */
+  async rateFor(roomTypeId: string, basePrice: number, night: Date, tx?: Prisma.TransactionClient): Promise<NightlyRate> {
+    const rules = await this.loadRules(roomTypeId, tx);
+    const bounds = await this.guardrails(tx);
+    let occupancy = 0;
+    if (rules.some((r) => r.minOccupancy !== null || r.maxOccupancy !== null)) {
+      const [capacity, held] = await Promise.all([this.capacityOf(roomTypeId, tx), this.heldOn(roomTypeId, night, tx)]);
+      occupancy = capacity ? Math.round((held / capacity) * 100) : 0;
+    }
+    return this.computeNight(basePrice, night, rules, bounds, occupancy);
   }
 
   /**
-   * Price a whole stay, night by night. `excludeReservationId` lets an edit
-   * re-price without its own hold inflating the demand it sees.
+   * Price a whole stay, night by night.
+   *
+   * Rules, guardrails and capacity are fetched ONCE here rather than per night —
+   * a multi-night quote used to re-run those queries for every night, and this
+   * runs inside the booking transaction under the availability lock, so the extra
+   * round-trips both slowed the booking and lengthened the lock hold. Only the
+   * per-night demand count stays in the loop, and only when a rule needs it.
    */
   async quote(
     roomTypeId: string,
@@ -169,10 +161,22 @@ export class PricingService {
     const start = dayStart(checkIn);
     const end = dayStart(checkOut);
     const nights = Math.max(0, Math.round((+end - +start) / MS_PER_DAY));
+    if (!nights) return { nights: 0, total: 0, averageRate: 0, breakdown: [] };
+
+    const rules = await this.loadRules(roomTypeId, tx);
+    const bounds = await this.guardrails(tx);
+    const needsDemand = rules.some((r) => r.minOccupancy !== null || r.maxOccupancy !== null);
+    const capacity = needsDemand ? await this.capacityOf(roomTypeId, tx) : 0;
 
     const breakdown: NightlyRate[] = [];
     for (let i = 0; i < nights; i++) {
-      breakdown.push(await this.rateFor(roomTypeId, basePrice, new Date(+start + i * MS_PER_DAY), tx));
+      const night = new Date(+start + i * MS_PER_DAY);
+      let occupancy = 0;
+      if (needsDemand) {
+        const held = await this.heldOn(roomTypeId, night, tx);
+        occupancy = capacity ? Math.round((held / capacity) * 100) : 0;
+      }
+      breakdown.push(this.computeNight(basePrice, night, rules, bounds, occupancy));
     }
     const total = money(breakdown.reduce((s, n) => s + n.rate, 0));
     return { nights, total, averageRate: nights ? money(total / nights) : 0, breakdown };
