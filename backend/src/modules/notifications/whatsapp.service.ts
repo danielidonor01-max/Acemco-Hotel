@@ -28,6 +28,39 @@ export class WhatsAppService {
     private readonly settings: SettingsService,
   ) {}
 
+  /**
+   * A short, plain-language cancellation summary for the guest, built from the SAME
+   * settings the website Terms page and the fee engine read — so what the guest is
+   * told here, what they see on the site, and what they're actually charged can't
+   * drift apart. Lines are omitted when a percent is 0, so turning a fee off removes
+   * it from the message rather than printing "0%".
+   */
+  private cancellationLines(hotel: {
+    cancellationFreeUntilHours: number;
+    cancellationLateFeePercent: unknown;
+    noShowFeePercent: unknown;
+    depositRefundable: boolean;
+  }): string[] {
+    const freeH = hotel.cancellationFreeUntilHours;
+    const late = Number(hotel.cancellationLateFeePercent);
+    const noShow = Number(hotel.noShowFeePercent);
+
+    const cancelLine =
+      freeH > 0
+        ? late > 0
+          ? `Free cancellation up to ${freeH}h before check-in; after that, ${late}% of the total.`
+          : `Free cancellation up to ${freeH}h before check-in.`
+        : late > 0
+          ? `Cancellations are charged ${late}% of the booking total.`
+          : 'Cancellations are free of charge.';
+    const noShowLine = noShow > 0 ? `No-show (no arrival, no cancellation): ${noShow}% of the total.` : null;
+    const depositLine = hotel.depositRefundable
+      ? 'Any deposit is refunded on a free cancellation, or applied toward a charge.'
+      : 'Deposits are non-refundable and are applied toward any charge.';
+
+    return ['*Cancellation policy*', cancelLine, noShowLine, depositLine].filter((l): l is string => !!l);
+  }
+
   private async reservationContext(reservationId: string) {
     const r = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
@@ -103,6 +136,8 @@ export class WhatsAppService {
       r.status === 'CONFIRMED'
         ? 'Your reservation is *confirmed*. We look forward to welcoming you.'
         : 'We have received your request and will confirm your room shortly.',
+      '',
+      ...this.cancellationLines(hotel),
       '',
       `${hotel.address}, ${hotel.city}`,
       ...(hotel.phone ? [`Reception: ${hotel.phone}`] : []),
