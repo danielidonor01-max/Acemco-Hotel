@@ -273,13 +273,6 @@ export interface Testimonial {
   origin: string;
 }
 
-export const testimonials: Testimonial[] = [
-  { quote: "The kind of quiet luxury that lets you actually rest. We left already planning our return.", name: "Adaeze O.", origin: "Lagos" },
-  { quote: "Faultless service and a suite that felt like a private apartment. The best stay in the region, full stop.", name: "James M.", origin: "London" },
-  { quote: "From the pool to the lounge at midnight, every detail was considered. Remarkable.", name: "Tunde & Bola", origin: "Abuja" },
-];
-
-/** Boutique products (Domain §4.2) — retail items with SKU + stock. */
 /** Gallery tiles — mixed ratios per §15.5. All placeholders. */
 export const gallerySlots: { ratio: "1/1" | "3/4"; slot: MediaKey }[] = [
   { ratio: "3/4", slot: "/images/rooms/deluxe.png" },

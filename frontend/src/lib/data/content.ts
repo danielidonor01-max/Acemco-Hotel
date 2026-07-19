@@ -2,7 +2,7 @@ import { sanityFetch, urlForImage, type SanityImageSource } from "../sanity";
 import { publicRequest } from "../api";
 import { hasPublicApi } from "../config";
 import {
-  offers as sampleOffers, testimonials as sampleTestimonials, amenities as sampleAmenities,
+  offers as sampleOffers, amenities as sampleAmenities,
   gallerySlots as sampleGallery, site as sampleSite,
   type Offer, type Testimonial, type Amenity, type SiteSettings,
 } from "../cms";
