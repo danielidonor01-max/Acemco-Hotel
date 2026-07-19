@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { AvailabilityService } from '../availability/availability.service';
@@ -34,7 +35,13 @@ export class PublicReservationsController {
   /**
    * Submit a reservation request from the public website.
    * Creates a PENDING reservation — no payment taken.
+   *
+   * Throttled hard: each PENDING holds a room, so an unthrottled anonymous endpoint
+   * could be used to zero out availability or flood the guest table. A genuine guest
+   * needs one or two attempts; 5/min per IP leaves ample room for that while shutting
+   * down scripted abuse. (Global limit still applies underneath.)
    */
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('reservations')
   @ApiOperation({ summary: 'Submit a reservation request from the website' })
   create(@Body(new ZodValidationPipe(publicReservationSchema)) dto: PublicReservationDto) {

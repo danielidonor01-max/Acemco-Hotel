@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { SettingsService } from './settings.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { Public } from '../../common/decorators/public.decorator';
+import { AuthenticatedOnly } from '../../common/decorators/authenticated-only.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 
 const updateSchema = z.object({
@@ -38,8 +38,10 @@ const updateSchema = z.object({
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 
-  // Public read so the site can show live hotel profile without auth.
-  @Public()
+  // The full settings row (internal pricing bounds, night-audit config, etc.) is
+  // for signed-in staff only. The public website reads the curated safe subset from
+  // GET /api/public/settings — never this wholesale row.
+  @AuthenticatedOnly()
   @Get()
   get() {
     return this.settings.get();

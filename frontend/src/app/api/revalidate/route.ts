@@ -6,7 +6,12 @@ export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const secret = searchParams.get("secret");
 
-    const configuredSecret = process.env.SANITY_REVALIDATE_SECRET || "acemco_revalidate_secret_2026";
+    // Fail closed: with no secret configured, refuse rather than falling back to a
+    // constant (a committed default would let anyone trigger revalidation).
+    const configuredSecret = process.env.SANITY_REVALIDATE_SECRET;
+    if (!configuredSecret) {
+      return NextResponse.json({ message: "Revalidation is not configured." }, { status: 503 });
+    }
 
     if (secret !== configuredSecret) {
       return NextResponse.json({ message: "Invalid secret" }, { status: 401 });

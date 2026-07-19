@@ -280,27 +280,6 @@ export const testimonials: Testimonial[] = [
 ];
 
 /** Boutique products (Domain §4.2) — retail items with SKU + stock. */
-export interface BoutiqueProduct {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  sku: string;
-  stockQty: number;
-  slot: MediaKey;
-}
-
-export const boutiqueProducts: BoutiqueProduct[] = [
-  { id: "b-1", name: "Acemco Signature Candle", category: "Home", price: 12000, sku: "HM-CDL-01", stockQty: 24, slot: undefined },
-  { id: "b-2", name: "Woven Beach Tote", category: "Accessories", price: 18000, sku: "AC-TOT-02", stockQty: 8, slot: undefined },
-  { id: "b-3", name: "Hibiscus Body Oil", category: "Wellness", price: 9500, sku: "WL-OIL-03", stockQty: 0, slot: undefined },
-  { id: "b-4", name: "Linen Robe", category: "Apparel", price: 32000, sku: "AP-ROB-04", stockQty: 12, slot: undefined },
-  { id: "b-5", name: "Local Roast Coffee 250g", category: "Pantry", price: 7000, sku: "PT-COF-05", stockQty: 40, slot: undefined },
-  { id: "b-6", name: "Handmade Leather Journal", category: "Accessories", price: 15000, sku: "AC-JRN-06", stockQty: 6, slot: undefined },
-  { id: "b-7", name: "Sunscreen SPF50", category: "Wellness", price: 8000, sku: "WL-SUN-07", stockQty: 30, slot: undefined },
-  { id: "b-8", name: "Acemco Tee", category: "Apparel", price: 11000, sku: "AP-TEE-08", stockQty: 20, slot: undefined },
-];
-
 /** Gallery tiles — mixed ratios per §15.5. All placeholders. */
 export const gallerySlots: { ratio: "1/1" | "3/4"; slot: MediaKey }[] = [
   { ratio: "3/4", slot: "/images/rooms/deluxe.png" },

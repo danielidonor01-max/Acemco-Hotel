@@ -28,8 +28,13 @@ export class PublicOrdersController {
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('verify-guest')
   @ApiOperation({ summary: 'Confirm the requester is a checked-in guest before ordering' })
-  verify(@Body(new ZodValidationPipe(verifyGuestSchema)) dto: VerifyGuestDto) {
-    return this.orders.verifyInHouse(dto.roomNumber, dto.lastName);
+  async verify(@Body(new ZodValidationPipe(verifyGuestSchema)) dto: VerifyGuestDto) {
+    const r = await this.orders.verifyInHouse(dto.roomNumber, dto.lastName);
+    if (!r.verified) return { verified: false as const };
+    // Never hand an anonymous caller the internal guestId or the full name. The
+    // requester already supplied the surname, so a first name is all we return —
+    // enough to greet them on the ordering screen.
+    return { verified: true as const, guestName: r.firstName };
   }
 
   @Post('orders')

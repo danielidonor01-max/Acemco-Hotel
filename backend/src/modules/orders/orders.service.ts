@@ -140,6 +140,7 @@ export class OrdersService {
     return {
       verified: true as const,
       guestId: r.guestId,
+      firstName: r.guest.firstName,
       guestName: `${r.guest.firstName} ${r.guest.lastName}`,
       roomNumber: r.room.roomNumber,
     };
